@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
+import { formatMoney } from '../../lib/format';
 import { Users, Briefcase, Euro, ArrowRight } from 'lucide-react';
 
 type Obra = {
@@ -50,7 +51,7 @@ export default function AdminDashboard() {
   const stats = [
     { label: 'Clientes', value: totalClientes, icon: Users, href: '/admin/clientes' },
     { label: 'Obras em Curso', value: obrasEmCurso, icon: Briefcase, href: '/admin/obras' },
-    { label: 'Valor Orçamentado (total)', value: `${valorOrcamentado.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €`, icon: Euro, href: '/admin/obras' },
+    { label: 'Valor Orçamentado (total)', value: formatMoney(valorOrcamentado), icon: Euro, href: '/admin/obras' },
   ];
 
   return (
@@ -95,7 +96,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="flex items-center gap-4 shrink-0">
                     <span className="text-sm text-ink-500">
-                      {o.valor_total ? `${o.valor_total.toFixed(2)} €` : '—'}
+                      {o.valor_total ? formatMoney(o.valor_total) : '—'}
                     </span>
                     <span className={`badge ${info.color}`}>{info.label}</span>
                   </div>

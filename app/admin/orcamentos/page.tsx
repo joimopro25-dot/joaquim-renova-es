@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
+import { formatMoney } from '../../../lib/format';
 import { Plus, FileText } from 'lucide-react';
 
 type Cliente = { id: string; nome: string };
@@ -132,7 +133,7 @@ export default function OrcamentosPage() {
                       </td>
                       <td className="p-4 text-ink-500">{o.clientes?.nome || '—'}</td>
                       <td className="p-4"><span className={`badge ${info.color}`}>{info.label}</span></td>
-                      <td className="p-4 text-ink-500">{calcularTotal(o).toFixed(2)} €</td>
+                      <td className="p-4 text-ink-500">{formatMoney(calcularTotal(o))}</td>
                     </tr>
                   );
                 })

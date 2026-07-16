@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { formatMoney } from '../../../lib/format';
 import { Plus, Briefcase } from 'lucide-react';
 
 type Cliente = { id: string; nome: string };
@@ -132,7 +133,7 @@ export default function ObrasPage() {
                       <td className="p-4 font-medium text-ink-800">{o.titulo}</td>
                       <td className="p-4 text-ink-500">{o.clientes?.nome || '—'}</td>
                       <td className="p-4"><span className={`badge ${info.color}`}>{info.label}</span></td>
-                      <td className="p-4 text-ink-500">{o.valor_total ? `${o.valor_total.toFixed(2)} €` : '—'}</td>
+                      <td className="p-4 text-ink-500">{o.valor_total ? formatMoney(o.valor_total) : '—'}</td>
                     </tr>
                   );
                 })

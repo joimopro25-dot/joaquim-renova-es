@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
+import { formatMoney } from '../../../../lib/format';
 import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle } from 'lucide-react';
 
 type Linha = {
@@ -183,8 +184,8 @@ export default function OrcamentoDetalhePage() {
                     <td className="py-2 text-ink-800">{l.descricao}</td>
                     <td className="py-2 text-ink-500">{CATEGORIAS.find((c) => c.value === l.categoria)?.label || l.categoria}</td>
                     <td className="py-2 text-right text-ink-500">{l.quantidade}</td>
-                    <td className="py-2 text-right text-ink-500">{l.preco_unitario.toFixed(2)} €</td>
-                    <td className="py-2 text-right text-ink-800 font-medium">{(l.quantidade * l.preco_unitario).toFixed(2)} €</td>
+                    <td className="py-2 text-right text-ink-500">{formatMoney(l.preco_unitario)}</td>
+                    <td className="py-2 text-right text-ink-800 font-medium">{formatMoney(l.quantidade * l.preco_unitario)}</td>
                     <td className="py-2 text-right">
                       <button onClick={() => removerLinha(l.id)} className="text-ink-300 hover:text-red-600">
                         <Trash2 size={15} />
@@ -216,7 +217,7 @@ export default function OrcamentoDetalhePage() {
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-ink-500">Subtotal</span>
-            <span className="text-ink-800">{subtotal.toFixed(2)} €</span>
+            <span className="text-ink-800">{formatMoney(subtotal)}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-ink-500">Margem (%)</span>
@@ -248,7 +249,7 @@ export default function OrcamentoDetalhePage() {
           </div>
           <div className="flex justify-between pt-2 border-t border-sand-100 font-semibold text-base">
             <span className="text-ink-800">Total</span>
-            <span className="text-brand-600">{totalFinal.toFixed(2)} €</span>
+            <span className="text-brand-600">{formatMoney(totalFinal)}</span>
           </div>
         </div>
       </div>

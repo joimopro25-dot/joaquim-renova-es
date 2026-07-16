@@ -15,7 +15,7 @@ const MENU = [
   { path: '/admin/clientes', icon: Users, label: 'Clientes' },
   { path: '/admin/orcamentos', icon: FileText, label: 'Orçamentos' },
   { path: '/admin/obras', icon: Briefcase, label: 'Obras' },
-  { path: '/admin/despesas', icon: Receipt, label: 'Despesas/Faturas', comingSoon: true },
+  { path: '/admin/despesas', icon: Receipt, label: 'Despesas/Faturas' },
   { path: '/admin/stock', icon: Package, label: 'Stock/Ferramentas', comingSoon: true },
 ];
 

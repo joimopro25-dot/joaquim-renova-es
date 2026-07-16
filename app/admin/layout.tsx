@@ -2,10 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from '../../lib/supabase';
 import {
   LayoutDashboard, Users, Briefcase, Receipt, Package,
-  Menu, X, ChevronLeft, ChevronRight, Globe,
+  Menu, X, ChevronLeft, ChevronRight, Globe, LogOut,
 } from 'lucide-react';
 
 const MENU = [
@@ -18,8 +20,12 @@ const MENU = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const isLoginPage = pathname === '/admin/login';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('admin-collapsed') === 'true');
@@ -29,12 +35,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     localStorage.setItem('admin-collapsed', String(collapsed));
   }, [collapsed]);
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setCheckingSession(false);
+      if (!data.session && !isLoginPage) router.replace('/admin/login');
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      if (!newSession && !isLoginPage) router.replace('/admin/login');
+    });
+    return () => listener.subscription.unsubscribe();
+  }, [isLoginPage, router]);
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push('/admin/login');
+  }
+
   function toggle() {
     if (window.innerWidth <= 768) setSidebarOpen(true);
     else setCollapsed((c) => !c);
   }
 
   const currentLabel = MENU.find((m) => m.path === pathname)?.label || 'Backoffice';
+
+  if (isLoginPage) return <>{children}</>;
+
+  if (checkingSession || !session) {
+    return <div className="min-h-screen bg-sand-50 flex items-center justify-center text-ink-400 text-sm">A verificar sessão...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-sand-50 flex">
@@ -103,6 +133,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Globe size={18} className="shrink-0" />
             <span className={collapsed ? 'md:hidden' : ''}>Ver site</span>
           </Link>
+          <button
+            onClick={handleLogout}
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-ink-500 hover:bg-red-50 hover:text-red-600 w-full ${collapsed ? 'md:justify-center' : ''}`}
+          >
+            <LogOut size={18} className="shrink-0" />
+            <span className={collapsed ? 'md:hidden' : ''}>Sair</span>
+          </button>
         </div>
       </aside>
 

@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Users } from 'lucide-react';
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [busca, setBusca] = useState('');
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [nif, setNif] = useState('');
@@ -22,56 +24,83 @@ export default function ClientesPage() {
 
   async function adicionarCliente(e: React.FormEvent) {
     e.preventDefault();
-    const { error } = await supabase.from('clientes').insert([{ nome, email, nif }]);
+    const { error } = await supabase.from('clientes').insert([{ nome, email: email || null, nif: nif || null }]);
     if (!error) {
       setNome(''); setEmail(''); setNif('');
+      setShowForm(false);
       carregarClientes();
     } else alert('Erro: ' + error.message);
   }
 
+  const filtrados = clientes.filter((c) =>
+    c.nome?.toLowerCase().includes(busca.toLowerCase()) ||
+    c.email?.toLowerCase().includes(busca.toLowerCase())
+  );
+
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold">Gestão de Clientes</h1>
+    <div className="p-4 md:p-8">
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" size={16} />
+          <input
+            type="text"
+            placeholder="Pesquisar clientes..."
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            className="input pl-9 w-full"
+          />
+        </div>
+        <button onClick={() => setShowForm((v) => !v)} className="btn-primary">
+          <Plus size={18} /> Novo Cliente
+        </button>
       </div>
 
-      <div className="bg-white p-6 rounded-xl border mb-8">
-        <h2 className="font-semibold mb-4 text-gray-700">Novo Cliente</h2>
-        <form onSubmit={adicionarCliente} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <input type="text" placeholder="Nome" value={nome} onChange={(e)=>setNome(e.target.value)} className="border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" required />
-          <input type="email" placeholder="Email" value={email} onChange={(e)=>setEmail(e.target.value)} className="border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-          <input type="text" placeholder="NIF" value={nif} onChange={(e)=>setNif(e.target.value)} className="border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 font-medium transition-colors">
-            <Plus size={18} /> Adicionar
-          </button>
-        </form>
-      </div>
+      {showForm && (
+        <div className="card p-6 mb-6">
+          <h2 className="font-semibold mb-4 text-ink-700">Novo Cliente</h2>
+          <form onSubmit={adicionarCliente} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <input type="text" placeholder="Nome" value={nome} onChange={(e) => setNome(e.target.value)} className="input" required />
+            <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="input" />
+            <input type="text" placeholder="NIF" value={nif} onChange={(e) => setNif(e.target.value)} className="input" />
+            <button className="btn-primary justify-center">
+              <Plus size={18} /> Adicionar
+            </button>
+          </form>
+        </div>
+      )}
 
-      <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
-        <table className="w-full text-left">
-          <thead className="bg-gray-50 text-gray-500 text-sm">
-            <tr>
-              <th className="p-4">NOME</th>
-              <th className="p-4">EMAIL</th>
-              <th className="p-4">NIF</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y border-t">
-            {loading ? (
-              <tr><td colSpan={3} className="p-8 text-center text-gray-400 font-sans">A carregar...</td></tr>
-            ) : clientes.length === 0 ? (
-              <tr><td colSpan={3} className="p-8 text-center text-gray-400 font-sans">Nenhum cliente registado.</td></tr>
-            ) : (
-              clientes.map(c => (
-                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="p-4 font-medium text-gray-900">{c.nome}</td>
-                  <td className="p-4 text-gray-600">{c.email}</td>
-                  <td className="p-4 font-mono text-gray-600">{c.nif}</td>
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-sand-50 text-ink-400 text-xs uppercase tracking-wide">
+              <tr>
+                <th className="p-4 font-medium">Nome</th>
+                <th className="p-4 font-medium">Email</th>
+                <th className="p-4 font-medium">NIF</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-sand-100">
+              {loading ? (
+                <tr><td colSpan={3} className="p-10 text-center text-ink-300 text-sm">A carregar...</td></tr>
+              ) : filtrados.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="p-10 text-center text-ink-400 text-sm">
+                    <Users size={28} className="mx-auto mb-2 text-ink-200" />
+                    {clientes.length === 0 ? 'Nenhum cliente registado ainda.' : 'Nenhum resultado para essa pesquisa.'}
+                  </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                filtrados.map((c) => (
+                  <tr key={c.id} className="hover:bg-sand-50 transition-colors">
+                    <td className="p-4 font-medium text-ink-800">{c.nome}</td>
+                    <td className="p-4 text-ink-500">{c.email || '—'}</td>
+                    <td className="p-4 font-mono text-ink-500 text-sm">{c.nif || '—'}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

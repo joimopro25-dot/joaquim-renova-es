@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { Plus } from 'lucide-react';
+import { Plus, Briefcase } from 'lucide-react';
 
 type Cliente = { id: string; nome: string };
 type Obra = {
@@ -17,7 +17,7 @@ type Obra = {
 };
 
 const ESTADOS = [
-  { value: 'orcamento', label: 'Orçamento', color: 'bg-slate-100 text-slate-700' },
+  { value: 'orcamento', label: 'Orçamento', color: 'bg-sand-100 text-ink-600' },
   { value: 'em_curso', label: 'Em Curso', color: 'bg-blue-100 text-blue-700' },
   { value: 'pausada', label: 'Pausada', color: 'bg-amber-100 text-amber-700' },
   { value: 'concluida', label: 'Concluída', color: 'bg-green-100 text-green-700' },
@@ -38,10 +38,7 @@ export default function ObrasPage() {
   async function carregarDados() {
     setLoading(true);
     const [{ data: obrasData, error: obrasError }, { data: clientesData }] = await Promise.all([
-      supabase
-        .from('obras')
-        .select('*, clientes(nome)')
-        .order('criado_em', { ascending: false }),
+      supabase.from('obras').select('*, clientes(nome)').order('criado_em', { ascending: false }),
       supabase.from('clientes').select('id, nome').order('nome'),
     ]);
     if (!obrasError) setObras((obrasData as any) || []);
@@ -49,36 +46,23 @@ export default function ObrasPage() {
     setLoading(false);
   }
 
-  useEffect(() => {
-    carregarDados();
-  }, []);
+  useEffect(() => { carregarDados(); }, []);
 
   async function criarObra(e: React.FormEvent) {
     e.preventDefault();
-    if (!clienteId) {
-      alert('Escolhe um cliente.');
-      return;
-    }
-    const { error } = await supabase.from('obras').insert([
-      {
-        cliente_id: clienteId,
-        titulo,
-        descricao: descricao || null,
-        valor_total: valorTotal ? parseFloat(valorTotal) : null,
-        status,
-      },
-    ]);
+    if (!clienteId) { alert('Escolhe um cliente.'); return; }
+    const { error } = await supabase.from('obras').insert([{
+      cliente_id: clienteId,
+      titulo,
+      descricao: descricao || null,
+      valor_total: valorTotal ? parseFloat(valorTotal) : null,
+      status,
+    }]);
     if (!error) {
-      setClienteId('');
-      setTitulo('');
-      setDescricao('');
-      setValorTotal('');
-      setStatus('orcamento');
+      setClienteId(''); setTitulo(''); setDescricao(''); setValorTotal(''); setStatus('orcamento');
       setShowForm(false);
       carregarDados();
-    } else {
-      alert('Erro: ' + error.message);
-    }
+    } else alert('Erro: ' + error.message);
   }
 
   function estadoInfo(value: string) {
@@ -86,125 +70,76 @@ export default function ObrasPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Gestão de Obras</h1>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 font-medium transition-colors"
-        >
+    <div className="p-4 md:p-8">
+      <div className="flex justify-between items-center mb-6">
+        <p className="text-sm text-ink-400">{obras.length} obra{obras.length !== 1 ? 's' : ''} registada{obras.length !== 1 ? 's' : ''}</p>
+        <button onClick={() => setShowForm((v) => !v)} className="btn-primary">
           <Plus size={18} /> Nova Obra
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white p-6 rounded-xl border mb-8">
-          <h2 className="font-semibold mb-4 text-gray-700">Nova Obra</h2>
+        <div className="card p-6 mb-6">
+          <h2 className="font-semibold mb-4 text-ink-700">Nova Obra</h2>
           {clientes.length === 0 ? (
-            <p className="text-sm text-amber-600">
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
               Ainda não tens clientes registados. Vai a "Clientes" e cria um primeiro.
             </p>
           ) : (
-            <form onSubmit={criarObra} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <select
-                value={clienteId}
-                onChange={(e) => setClienteId(e.target.value)}
-                className="border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              >
+            <form onSubmit={criarObra} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} className="input" required>
                 <option value="">Selecionar Cliente</option>
-                {clientes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nome}
-                  </option>
-                ))}
+                {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
               </select>
-              <input
-                type="text"
-                placeholder="Título da Obra (ex: Renovação Cozinha)"
-                value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
-                className="border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Valor Orçamentado (€)"
-                value={valorTotal}
-                onChange={(e) => setValorTotal(e.target.value)}
-                className="border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {ESTADOS.map((e) => (
-                  <option key={e.value} value={e.value}>
-                    {e.label}
-                  </option>
-                ))}
+              <input type="text" placeholder="Título da Obra (ex: Renovação Cozinha)" value={titulo} onChange={(e) => setTitulo(e.target.value)} className="input" required />
+              <input type="number" step="0.01" placeholder="Valor Orçamentado (€)" value={valorTotal} onChange={(e) => setValorTotal(e.target.value)} className="input" />
+              <select value={status} onChange={(e) => setStatus(e.target.value)} className="input">
+                {ESTADOS.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
               </select>
-              <textarea
-                placeholder="Descrição / notas"
-                value={descricao}
-                onChange={(e) => setDescricao(e.target.value)}
-                className="border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 md:col-span-2"
-                rows={2}
-              />
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium transition-colors md:col-span-2">
-                Criar Obra
-              </button>
+              <textarea placeholder="Descrição / notas" value={descricao} onChange={(e) => setDescricao(e.target.value)} className="input md:col-span-2" rows={2} />
+              <button className="btn-primary justify-center md:col-span-2">Criar Obra</button>
             </form>
           )}
         </div>
       )}
 
-      <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
-        <table className="w-full text-left">
-          <thead className="bg-gray-50 text-gray-500 text-sm">
-            <tr>
-              <th className="p-4">OBRA</th>
-              <th className="p-4">CLIENTE</th>
-              <th className="p-4">ESTADO</th>
-              <th className="p-4">VALOR</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y border-t">
-            {loading ? (
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-sand-50 text-ink-400 text-xs uppercase tracking-wide">
               <tr>
-                <td colSpan={4} className="p-8 text-center text-gray-400">
-                  A carregar...
-                </td>
+                <th className="p-4 font-medium">Obra</th>
+                <th className="p-4 font-medium">Cliente</th>
+                <th className="p-4 font-medium">Estado</th>
+                <th className="p-4 font-medium">Valor</th>
               </tr>
-            ) : obras.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="p-8 text-center text-gray-400 italic">
-                  Nenhuma obra registada.
-                </td>
-              </tr>
-            ) : (
-              obras.map((o) => {
-                const info = estadoInfo(o.status);
-                return (
-                  <tr key={o.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="p-4 font-medium text-gray-900">{o.titulo}</td>
-                    <td className="p-4 text-gray-600">{o.clientes?.nome || '—'}</td>
-                    <td className="p-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${info.color}`}>
-                        {info.label}
-                      </span>
-                    </td>
-                    <td className="p-4 text-gray-600">
-                      {o.valor_total ? `${o.valor_total.toFixed(2)} €` : '—'}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-sand-100">
+              {loading ? (
+                <tr><td colSpan={4} className="p-10 text-center text-ink-300 text-sm">A carregar...</td></tr>
+              ) : obras.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="p-10 text-center text-ink-400 text-sm">
+                    <Briefcase size={28} className="mx-auto mb-2 text-ink-200" />
+                    Nenhuma obra registada.
+                  </td>
+                </tr>
+              ) : (
+                obras.map((o) => {
+                  const info = estadoInfo(o.status);
+                  return (
+                    <tr key={o.id} className="hover:bg-sand-50 transition-colors">
+                      <td className="p-4 font-medium text-ink-800">{o.titulo}</td>
+                      <td className="p-4 text-ink-500">{o.clientes?.nome || '—'}</td>
+                      <td className="p-4"><span className={`badge ${info.color}`}>{info.label}</span></td>
+                      <td className="p-4 text-ink-500">{o.valor_total ? `${o.valor_total.toFixed(2)} €` : '—'}</td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

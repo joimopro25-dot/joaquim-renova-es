@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const body = Inter({ subsets: ["latin"], variable: "--font-body" });
+const heading = Poppins({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-heading" });
 
 export const metadata: Metadata = {
   title: "Joaquim Renovações - CRM & Gestão",
@@ -16,7 +17,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt">
-      <body className={inter.className}>{children}</body>
+      <body className={`${body.variable} ${heading.variable} font-body bg-sand-50 text-ink-800`}>
+        {children}
+      </body>
     </html>
   );
 }

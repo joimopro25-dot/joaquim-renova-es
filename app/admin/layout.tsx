@@ -6,13 +6,14 @@ import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
 import {
-  LayoutDashboard, Users, Briefcase, Receipt, Package,
+  LayoutDashboard, Users, Briefcase, Receipt, Package, FileText,
   Menu, X, ChevronLeft, ChevronRight, Globe, LogOut,
 } from 'lucide-react';
 
 const MENU = [
   { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/admin/clientes', icon: Users, label: 'Clientes' },
+  { path: '/admin/orcamentos', icon: FileText, label: 'Orçamentos' },
   { path: '/admin/obras', icon: Briefcase, label: 'Obras' },
   { path: '/admin/despesas', icon: Receipt, label: 'Despesas/Faturas', comingSoon: true },
   { path: '/admin/stock', icon: Package, label: 'Stock/Ferramentas', comingSoon: true },
@@ -58,7 +59,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     else setCollapsed((c) => !c);
   }
 
-  const currentLabel = MENU.find((m) => m.path === pathname)?.label || 'Backoffice';
+  const currentLabel = MENU.find((m) => pathname === m.path || (m.path !== '/admin' && pathname?.startsWith(m.path)))?.label || 'Backoffice';
 
   if (isLoginPage) return <>{children}</>;
 
@@ -98,7 +99,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <nav className="flex-1 p-2.5 space-y-0.5 overflow-y-auto">
           {MENU.map((item) => {
-            const active = pathname === item.path;
+            const active = pathname === item.path || (item.path !== '/admin' && pathname?.startsWith(item.path));
             const Icon = item.icon;
             return (
               <Link

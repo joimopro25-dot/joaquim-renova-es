@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
 import {
-  LayoutDashboard, Users, Briefcase, Receipt, Package, FileText, Inbox,
+  LayoutDashboard, Users, Briefcase, Receipt, Package, FileText, Inbox, Globe as GlobeIcon, Images,
   Menu, X, ChevronLeft, ChevronRight, Globe, LogOut,
 } from 'lucide-react';
 
@@ -20,6 +20,8 @@ const MENU: MenuItem[] = [
   { path: '/admin/obras', icon: Briefcase, label: 'Obras' },
   { path: '/admin/despesas', icon: Receipt, label: 'Despesas/Faturas' },
   { path: '/admin/stock', icon: Package, label: 'Stock/Ferramentas' },
+  { path: '/admin/portfolio', icon: Images, label: 'Portfólio' },
+  { path: '/admin/site', icon: GlobeIcon, label: 'Site Público' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

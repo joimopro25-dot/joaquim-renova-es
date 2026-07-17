@@ -1,17 +1,20 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
+import { moPorUnidade, precoPorUnidade, totalLinha, calcularTotais } from '../../../../lib/orcamento';
 import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle } from 'lucide-react';
 
 type Linha = {
   id: string;
   descricao: string;
-  categoria: string;
+  capitulo: string;
+  unidade: string;
   quantidade: number;
-  preco_unitario: number;
+  rendimento_horas: number;
+  custo_material: number;
 };
 
 type Orcamento = {
@@ -19,20 +22,12 @@ type Orcamento = {
   titulo: string;
   descricao: string | null;
   status: string;
+  taxa_horaria: number;
   margem_percentagem: number;
   iva_percentagem: number;
   cliente_id: string;
   clientes: { nome: string } | null;
 };
-
-const CATEGORIAS = [
-  { value: 'mao_obra', label: 'Mão de obra' },
-  { value: 'materiais', label: 'Materiais' },
-  { value: 'deslocacao', label: 'Deslocação' },
-  { value: 'equipamentos', label: 'Equipamentos' },
-  { value: 'subempreitada', label: 'Subempreitada' },
-  { value: 'outro', label: 'Outro' },
-];
 
 const ESTADOS: Record<string, { label: string; color: string }> = {
   rascunho: { label: 'Rascunho', color: 'bg-sand-100 text-ink-600' },
@@ -50,10 +45,12 @@ export default function OrcamentoDetalhePage() {
   const [loading, setLoading] = useState(true);
   const [converting, setConverting] = useState(false);
 
+  const [capitulo, setCapitulo] = useState('Geral');
   const [descricao, setDescricao] = useState('');
-  const [categoria, setCategoria] = useState('materiais');
+  const [unidade, setUnidade] = useState('un');
   const [quantidade, setQuantidade] = useState('1');
-  const [precoUnitario, setPrecoUnitario] = useState('');
+  const [rendimentoHoras, setRendimentoHoras] = useState('0');
+  const [custoMaterial, setCustoMaterial] = useState('0');
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -68,17 +65,21 @@ export default function OrcamentoDetalhePage() {
 
   useEffect(() => { carregar(); }, [carregar]);
 
+  const capitulosExistentes = useMemo(() => Array.from(new Set(linhas.map((l) => l.capitulo))), [linhas]);
+
   async function adicionarLinha(e: React.FormEvent) {
     e.preventDefault();
     const { error } = await supabase.from('orcamento_linhas').insert([{
       orcamento_id: id,
+      capitulo: capitulo || 'Geral',
       descricao,
-      categoria,
+      unidade: unidade || 'un',
       quantidade: parseFloat(quantidade) || 1,
-      preco_unitario: parseFloat(precoUnitario) || 0,
+      rendimento_horas: parseFloat(rendimentoHoras) || 0,
+      custo_material: parseFloat(custoMaterial) || 0,
     }]);
     if (error) { alert('Erro: ' + error.message); return; }
-    setDescricao(''); setQuantidade('1'); setPrecoUnitario('');
+    setDescricao(''); setQuantidade('1'); setRendimentoHoras('0'); setCustoMaterial('0');
     carregar();
   }
 
@@ -92,7 +93,7 @@ export default function OrcamentoDetalhePage() {
     carregar();
   }
 
-  async function atualizarPercentagens(campo: 'margem_percentagem' | 'iva_percentagem', valor: number) {
+  async function atualizarCampo(campo: 'margem_percentagem' | 'iva_percentagem' | 'taxa_horaria', valor: number) {
     await supabase.from('orcamentos').update({ [campo]: valor }).eq('id', id);
     carregar();
   }
@@ -104,7 +105,7 @@ export default function OrcamentoDetalhePage() {
       cliente_id: orcamento.cliente_id,
       titulo: orcamento.titulo,
       descricao: orcamento.descricao,
-      valor_total: totalFinal,
+      valor_total: totais.total,
       status: 'orcamento',
       orcamento_id: orcamento.id,
     }]);
@@ -114,17 +115,28 @@ export default function OrcamentoDetalhePage() {
     router.push('/admin/obras');
   }
 
-  const subtotal = linhas.reduce((s, l) => s + l.quantidade * l.preco_unitario, 0);
-  const comMargem = orcamento ? subtotal * (1 + (orcamento.margem_percentagem || 0) / 100) : subtotal;
-  const totalFinal = orcamento ? comMargem * (1 + (orcamento.iva_percentagem || 0) / 100) : comMargem;
+  const totais = orcamento
+    ? calcularTotais(linhas, orcamento)
+    : { subtotal: 0, imprevistos: 0, semIva: 0, iva: 0, total: 0 };
+
+  const taxaHoraria = orcamento?.taxa_horaria || 0;
+
+  const linhasPorCapitulo = useMemo(() => {
+    const grupos: Record<string, Linha[]> = {};
+    for (const l of linhas) {
+      (grupos[l.capitulo] ||= []).push(l);
+    }
+    return grupos;
+  }, [linhas]);
 
   if (loading) return <div className="p-8 text-center text-ink-300 text-sm">A carregar...</div>;
   if (!orcamento) return <div className="p-8 text-center text-ink-400 text-sm">Orçamento não encontrado.</div>;
 
   const info = ESTADOS[orcamento.status] || ESTADOS.rascunho;
+  const editavel = orcamento.status === 'rascunho';
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl">
+    <div className="p-4 md:p-8 max-w-5xl">
       <button onClick={() => router.push('/admin/orcamentos')} className="flex items-center gap-1.5 text-sm text-ink-400 hover:text-ink-700 mb-4">
         <ArrowLeft size={16} /> Voltar a Orçamentos
       </button>
@@ -141,7 +153,7 @@ export default function OrcamentoDetalhePage() {
         <div className="flex flex-wrap gap-2 mb-6">
           {orcamento.status === 'rascunho' && (
             <button onClick={() => mudarEstado('enviado')} className="btn-primary bg-blue-600 hover:bg-blue-700">
-              <Send size={16} /> Marcar como Enviado
+              <Send size={16} /> Marcar como Enviado (fica visível no portal do cliente)
             </button>
           )}
           {orcamento.status === 'enviado' && (
@@ -152,6 +164,7 @@ export default function OrcamentoDetalhePage() {
               <button onClick={() => mudarEstado('rejeitado')} className="btn-primary bg-red-600 hover:bg-red-700">
                 <X size={16} /> Rejeitar
               </button>
+              <span className="text-sm text-ink-400 self-center">Também pode ser aprovado pelo próprio cliente no portal.</span>
             </>
           )}
           {orcamento.status === 'aprovado' && (
@@ -163,50 +176,98 @@ export default function OrcamentoDetalhePage() {
       )}
 
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-ink-700 mb-4">Linhas de Custo</h3>
+        <h3 className="font-semibold text-ink-700 mb-3">Definições de Cálculo</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div className="flex justify-between items-center">
+            <span className="text-ink-500">Taxa horária de mão-de-obra (€/h)</span>
+            {editavel ? (
+              <input type="number" step="0.01" defaultValue={orcamento.taxa_horaria} onBlur={(e) => atualizarCampo('taxa_horaria', parseFloat(e.target.value) || 0)} className="input w-24 text-right py-1" />
+            ) : <span className="text-ink-800 font-medium">{formatMoney(orcamento.taxa_horaria)}</span>}
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-ink-500">Imprevistos (%)</span>
+            {editavel ? (
+              <input type="number" step="0.1" defaultValue={orcamento.margem_percentagem} onBlur={(e) => atualizarCampo('margem_percentagem', parseFloat(e.target.value) || 0)} className="input w-24 text-right py-1" />
+            ) : <span className="text-ink-800 font-medium">{orcamento.margem_percentagem}%</span>}
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-ink-500">IVA (%)</span>
+            {editavel ? (
+              <input type="number" step="0.1" defaultValue={orcamento.iva_percentagem} onBlur={(e) => atualizarCampo('iva_percentagem', parseFloat(e.target.value) || 0)} className="input w-24 text-right py-1" />
+            ) : <span className="text-ink-800 font-medium">{orcamento.iva_percentagem}%</span>}
+          </div>
+        </div>
+      </div>
 
-        {linhas.length > 0 && (
-          <div className="overflow-x-auto mb-4">
-            <table className="w-full text-left text-sm">
-              <thead className="text-ink-400 text-xs uppercase tracking-wide">
-                <tr>
-                  <th className="pb-2 font-medium">Descrição</th>
-                  <th className="pb-2 font-medium">Categoria</th>
-                  <th className="pb-2 font-medium text-right">Qtd</th>
-                  <th className="pb-2 font-medium text-right">Preço Unit.</th>
-                  <th className="pb-2 font-medium text-right">Subtotal</th>
-                  <th className="pb-2"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-sand-100">
-                {linhas.map((l) => (
-                  <tr key={l.id}>
-                    <td className="py-2 text-ink-800">{l.descricao}</td>
-                    <td className="py-2 text-ink-500">{CATEGORIAS.find((c) => c.value === l.categoria)?.label || l.categoria}</td>
-                    <td className="py-2 text-right text-ink-500">{l.quantidade}</td>
-                    <td className="py-2 text-right text-ink-500">{formatMoney(l.preco_unitario)}</td>
-                    <td className="py-2 text-right text-ink-800 font-medium">{formatMoney(l.quantidade * l.preco_unitario)}</td>
-                    <td className="py-2 text-right">
-                      <button onClick={() => removerLinha(l.id)} className="text-ink-300 hover:text-red-600">
-                        <Trash2 size={15} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <div className="card p-6 mb-6">
+        <h3 className="font-semibold text-ink-700 mb-4">Mapa de Quantidades e Custos</h3>
+
+        {Object.keys(linhasPorCapitulo).length > 0 && (
+          <div className="overflow-x-auto mb-4 space-y-6">
+            {Object.entries(linhasPorCapitulo).map(([cap, itens]) => {
+              const subtotalCap = itens.reduce((s, l) => s + totalLinha(l, taxaHoraria), 0);
+              return (
+                <div key={cap}>
+                  <div className="bg-brand-500 text-white text-sm font-semibold px-3 py-1.5 rounded-t-lg">{cap}</div>
+                  <table className="w-full text-left text-sm border border-t-0 border-sand-200 rounded-b-lg overflow-hidden">
+                    <thead className="text-ink-400 text-xs uppercase bg-sand-50">
+                      <tr>
+                        <th className="p-2 font-medium">Descrição</th>
+                        <th className="p-2 font-medium text-right">Un</th>
+                        <th className="p-2 font-medium text-right">Qtd</th>
+                        <th className="p-2 font-medium text-right">Rend. h/un</th>
+                        <th className="p-2 font-medium text-right">MO €/un</th>
+                        <th className="p-2 font-medium text-right">Material €/un</th>
+                        <th className="p-2 font-medium text-right">Preço un.</th>
+                        <th className="p-2 font-medium text-right">Total</th>
+                        <th className="p-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-sand-100">
+                      {itens.map((l) => (
+                        <tr key={l.id}>
+                          <td className="p-2 text-ink-800">{l.descricao}</td>
+                          <td className="p-2 text-right text-ink-500">{l.unidade}</td>
+                          <td className="p-2 text-right text-ink-500">{l.quantidade}</td>
+                          <td className="p-2 text-right text-ink-500">{l.rendimento_horas}</td>
+                          <td className="p-2 text-right text-ink-500">{formatMoney(moPorUnidade(l, taxaHoraria))}</td>
+                          <td className="p-2 text-right text-ink-500">{formatMoney(l.custo_material)}</td>
+                          <td className="p-2 text-right text-ink-500">{formatMoney(precoPorUnidade(l, taxaHoraria))}</td>
+                          <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(totalLinha(l, taxaHoraria))}</td>
+                          <td className="p-2 text-right">
+                            {editavel && (
+                              <button onClick={() => removerLinha(l.id)} className="text-ink-300 hover:text-red-600">
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="bg-sand-50 font-medium">
+                        <td colSpan={7} className="p-2 text-right text-ink-600">Subtotal {cap}</td>
+                        <td className="p-2 text-right text-ink-800">{formatMoney(subtotalCap)}</td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {orcamento.status === 'rascunho' && (
-          <form onSubmit={adicionarLinha} className="grid grid-cols-1 md:grid-cols-5 gap-2">
+        {editavel && (
+          <form onSubmit={adicionarLinha} className="grid grid-cols-1 md:grid-cols-6 gap-2 pt-2 border-t border-sand-100">
+            <input type="text" list="capitulos-existentes" placeholder="Capítulo (ex: Demolições)" value={capitulo} onChange={(e) => setCapitulo(e.target.value)} className="input md:col-span-2" />
+            <datalist id="capitulos-existentes">
+              {capitulosExistentes.map((c) => <option key={c} value={c} />)}
+            </datalist>
             <input type="text" placeholder="Descrição" value={descricao} onChange={(e) => setDescricao(e.target.value)} className="input md:col-span-2" required />
-            <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="input">
-              {CATEGORIAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
+            <input type="text" placeholder="Un (m², ml, un...)" value={unidade} onChange={(e) => setUnidade(e.target.value)} className="input" />
             <input type="number" step="0.01" placeholder="Qtd" value={quantidade} onChange={(e) => setQuantidade(e.target.value)} className="input" />
-            <input type="number" step="0.01" placeholder="Preço unit. (€)" value={precoUnitario} onChange={(e) => setPrecoUnitario(e.target.value)} className="input" required />
-            <button className="btn-primary justify-center md:col-span-5">
+            <input type="number" step="0.01" placeholder="Rendimento (h/un)" value={rendimentoHoras} onChange={(e) => setRendimentoHoras(e.target.value)} className="input md:col-span-2" />
+            <input type="number" step="0.01" placeholder="Custo Material (€/un)" value={custoMaterial} onChange={(e) => setCustoMaterial(e.target.value)} className="input md:col-span-2" />
+            <button className="btn-primary justify-center md:col-span-2">
               <Plus size={16} /> Adicionar Linha
             </button>
           </form>
@@ -214,42 +275,26 @@ export default function OrcamentoDetalhePage() {
       </div>
 
       <div className="card p-6">
-        <div className="space-y-2 text-sm">
+        <div className="space-y-2 text-sm max-w-sm ml-auto">
           <div className="flex justify-between">
-            <span className="text-ink-500">Subtotal</span>
-            <span className="text-ink-800">{formatMoney(subtotal)}</span>
+            <span className="text-ink-500">Total dos Trabalhos</span>
+            <span className="text-ink-800">{formatMoney(totais.subtotal)}</span>
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-ink-500">Margem (%)</span>
-            {orcamento.status === 'rascunho' ? (
-              <input
-                type="number"
-                step="0.1"
-                defaultValue={orcamento.margem_percentagem}
-                onBlur={(e) => atualizarPercentagens('margem_percentagem', parseFloat(e.target.value) || 0)}
-                className="input w-24 text-right py-1"
-              />
-            ) : (
-              <span className="text-ink-800">{orcamento.margem_percentagem}%</span>
-            )}
+          <div className="flex justify-between">
+            <span className="text-ink-500">Imprevistos ({orcamento.margem_percentagem}%)</span>
+            <span className="text-ink-800">{formatMoney(totais.imprevistos)}</span>
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-ink-500">IVA (%)</span>
-            {orcamento.status === 'rascunho' ? (
-              <input
-                type="number"
-                step="0.1"
-                defaultValue={orcamento.iva_percentagem}
-                onBlur={(e) => atualizarPercentagens('iva_percentagem', parseFloat(e.target.value) || 0)}
-                className="input w-24 text-right py-1"
-              />
-            ) : (
-              <span className="text-ink-800">{orcamento.iva_percentagem}%</span>
-            )}
+          <div className="flex justify-between">
+            <span className="text-ink-500">Total sem IVA</span>
+            <span className="text-ink-800">{formatMoney(totais.semIva)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-ink-500">IVA ({orcamento.iva_percentagem}%)</span>
+            <span className="text-ink-800">{formatMoney(totais.iva)}</span>
           </div>
           <div className="flex justify-between pt-2 border-t border-sand-100 font-semibold text-base">
-            <span className="text-ink-800">Total</span>
-            <span className="text-brand-600">{formatMoney(totalFinal)}</span>
+            <span className="text-ink-800">Total com IVA</span>
+            <span className="text-brand-600">{formatMoney(totais.total)}</span>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
@@ -41,9 +42,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     <div className="min-h-screen bg-sand-50">
       <header className="h-16 bg-white border-b border-sand-200 flex items-center justify-between px-4 md:px-8">
         <span className="font-heading font-bold text-brand-600">Joaquim Renovações</span>
-        <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm text-ink-500 hover:text-red-600">
-          <LogOut size={16} /> Sair
-        </button>
+        <nav className="flex items-center gap-4">
+          <Link href="/portal" className={`text-sm ${pathname === '/portal' ? 'text-brand-600 font-medium' : 'text-ink-500 hover:text-ink-800'}`}>As Minhas Obras</Link>
+          <Link href="/portal/orcamentos" className={`text-sm ${pathname.startsWith('/portal/orcamentos') ? 'text-brand-600 font-medium' : 'text-ink-500 hover:text-ink-800'}`}>Orçamentos</Link>
+          <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm text-ink-500 hover:text-red-600">
+            <LogOut size={16} /> Sair
+          </button>
+        </nav>
       </header>
       <main>{children}</main>
     </div>

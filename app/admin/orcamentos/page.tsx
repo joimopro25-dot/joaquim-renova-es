@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
+import { calcularTotais } from '../../../lib/orcamento';
 import { Plus, FileText } from 'lucide-react';
 
 type Cliente = { id: string; nome: string };
@@ -12,7 +13,8 @@ type Orcamento = {
   titulo: string;
   status: string;
   clientes: { nome: string } | null;
-  orcamento_linhas: { quantidade: number; preco_unitario: number }[];
+  orcamento_linhas: { quantidade: number; rendimento_horas: number; custo_material: number }[];
+  taxa_horaria: number;
   margem_percentagem: number;
   iva_percentagem: number;
 };
@@ -24,13 +26,6 @@ const ESTADOS: Record<string, { label: string; color: string }> = {
   rejeitado: { label: 'Rejeitado', color: 'bg-red-100 text-red-700' },
   convertido: { label: 'Convertido em Obra', color: 'bg-purple-100 text-purple-700' },
 };
-
-function calcularTotal(o: Orcamento) {
-  const subtotal = o.orcamento_linhas.reduce((s, l) => s + l.quantidade * l.preco_unitario, 0);
-  const comMargem = subtotal * (1 + (o.margem_percentagem || 0) / 100);
-  const comIva = comMargem * (1 + (o.iva_percentagem || 0) / 100);
-  return comIva;
-}
 
 export default function OrcamentosPage() {
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
@@ -46,7 +41,7 @@ export default function OrcamentosPage() {
     const [{ data: orcData }, { data: clientesData }] = await Promise.all([
       supabase
         .from('orcamentos')
-        .select('*, clientes(nome), orcamento_linhas(quantidade, preco_unitario)')
+        .select('*, clientes(nome), orcamento_linhas(quantidade, rendimento_horas, custo_material)')
         .order('criado_em', { ascending: false }),
       supabase.from('clientes').select('id, nome').order('nome'),
     ]);
@@ -133,7 +128,7 @@ export default function OrcamentosPage() {
                       </td>
                       <td className="p-4 text-ink-500">{o.clientes?.nome || '—'}</td>
                       <td className="p-4"><span className={`badge ${info.color}`}>{info.label}</span></td>
-                      <td className="p-4 text-ink-500">{formatMoney(calcularTotal(o))}</td>
+                      <td className="p-4 text-ink-500">{formatMoney(calcularTotais(o.orcamento_linhas, o).total)}</td>
                     </tr>
                   );
                 })

@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
-import { Plus, Receipt, Paperclip, Trash2 } from 'lucide-react';
+import { Plus, Receipt, Paperclip, Trash2, Camera } from 'lucide-react';
+import ScanFatura from './ScanFatura';
 
 type Obra = { id: string; titulo: string };
 type Despesa = {
@@ -32,6 +33,7 @@ export default function DespesasPage() {
   const [obras, setObras] = useState<Obra[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showScan, setShowScan] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const [obraId, setObraId] = useState('');
@@ -104,10 +106,23 @@ export default function DespesasPage() {
         <p className="text-sm text-ink-400">
           {despesas.length} despesa{despesas.length !== 1 ? 's' : ''} · Total: {formatMoney(totalGeral)}
         </p>
-        <button onClick={() => setShowForm((v) => !v)} className="btn-primary">
-          <Plus size={18} /> Nova Despesa
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowScan(true)} className="btn-primary bg-purple-600 hover:bg-purple-700">
+            <Camera size={18} /> Digitalizar Fatura
+          </button>
+          <button onClick={() => setShowForm((v) => !v)} className="btn-primary">
+            <Plus size={18} /> Nova Despesa
+          </button>
+        </div>
       </div>
+
+      {showScan && (
+        <ScanFatura
+          obras={obras}
+          onClose={() => setShowScan(false)}
+          onSaved={() => { setShowScan(false); carregar(); }}
+        />
+      )}
 
       {showForm && (
         <div className="card p-6 mb-6">

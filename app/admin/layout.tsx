@@ -10,13 +10,15 @@ import {
   Menu, X, ChevronLeft, ChevronRight, Globe, LogOut,
 } from 'lucide-react';
 
-const MENU = [
+type MenuItem = { path: string; icon: typeof LayoutDashboard; label: string; comingSoon?: boolean };
+
+const MENU: MenuItem[] = [
   { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/admin/clientes', icon: Users, label: 'Clientes' },
   { path: '/admin/orcamentos', icon: FileText, label: 'Orçamentos' },
   { path: '/admin/obras', icon: Briefcase, label: 'Obras' },
   { path: '/admin/despesas', icon: Receipt, label: 'Despesas/Faturas' },
-  { path: '/admin/stock', icon: Package, label: 'Stock/Ferramentas', comingSoon: true },
+  { path: '/admin/stock', icon: Package, label: 'Stock/Ferramentas' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

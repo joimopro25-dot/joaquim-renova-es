@@ -33,6 +33,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Imagem em falta.' }, { status: 400 });
   }
 
+  const isPdf = mediaType === 'application/pdf';
+  const conteudoFicheiro = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: mediaType, data: imageBase64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } };
+
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -47,7 +52,7 @@ export async function POST(req: NextRequest) {
         {
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+            conteudoFicheiro,
             { type: 'text', text: PROMPT },
           ],
         },

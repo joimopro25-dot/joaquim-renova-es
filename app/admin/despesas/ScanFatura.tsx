@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { Camera, X, Loader2, Check, Trash2, PackagePlus } from 'lucide-react';
+import { Camera, X, Loader2, Check, Trash2, PackagePlus, FileText } from 'lucide-react';
 
 type Obra = { id: string; titulo: string };
 
@@ -175,8 +175,8 @@ export default function ScanFatura({ obras, onSaved, onClose }: { obras: Obra[];
             <div>
               <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-sand-200 rounded-xl py-12 cursor-pointer hover:border-brand-300 transition-colors">
                 <Camera size={32} className="text-ink-300" />
-                <span className="text-sm text-ink-500">Tira uma foto ou escolhe um ficheiro da fatura/recibo</span>
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFicheiro(e.target.files?.[0] || null)} />
+                <span className="text-sm text-ink-500">Tira uma foto, ou escolhe uma imagem/PDF da fatura</span>
+                <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => handleFicheiro(e.target.files?.[0] || null)} />
               </label>
               {erro && <p className="text-sm text-red-600 mt-3">{erro}</p>}
             </div>
@@ -191,7 +191,15 @@ export default function ScanFatura({ obras, onSaved, onClose }: { obras: Obra[];
 
           {step === 'review' && (
             <div className="space-y-4">
-              {previewUrl && <img src={previewUrl} alt="Fatura" className="max-h-40 rounded-lg border border-sand-200 mx-auto" />}
+              {previewUrl && (
+                ficheiro?.type === 'application/pdf' ? (
+                  <div className="flex items-center gap-2 justify-center text-ink-500 text-sm border border-sand-200 rounded-lg py-4">
+                    <FileText size={20} /> {ficheiro.name}
+                  </div>
+                ) : (
+                  <img src={previewUrl} alt="Fatura" className="max-h-40 rounded-lg border border-sand-200 mx-auto" />
+                )
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <select value={obraId} onChange={(e) => setObraId(e.target.value)} className="input" required>

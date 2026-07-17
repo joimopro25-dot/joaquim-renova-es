@@ -129,7 +129,7 @@ export default function ObrasPage() {
                 obras.map((o) => {
                   const info = estadoInfo(o.status);
                   return (
-                    <tr key={o.id} className="hover:bg-sand-50 transition-colors">
+                    <tr key={o.id} className="hover:bg-sand-50 transition-colors cursor-pointer" onClick={() => window.location.href = `/admin/obras/${o.id}`}>
                       <td className="p-4 font-medium text-ink-800">{o.titulo}</td>
                       <td className="p-4 text-ink-500">{o.clientes?.nome || '—'}</td>
                       <td className="p-4"><span className={`badge ${info.color}`}>{info.label}</span></td>

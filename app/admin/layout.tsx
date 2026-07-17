@@ -28,6 +28,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
@@ -39,14 +40,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [collapsed]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    async function checarAcesso(currentSession: Session | null) {
+      setSession(currentSession);
+      if (!currentSession) {
+        setIsAdmin(false);
+        setCheckingSession(false);
+        if (!isLoginPage) router.replace('/admin/login');
+        return;
+      }
+      const { data: perfil } = await supabase.from('perfis').select('tipo').eq('id', currentSession.user.id).single();
+      const admin = perfil?.tipo === 'admin';
+      setIsAdmin(admin);
       setCheckingSession(false);
-      if (!data.session && !isLoginPage) router.replace('/admin/login');
-    });
+      if (!admin && !isLoginPage) {
+        await supabase.auth.signOut();
+        router.replace('/admin/login');
+      }
+    }
+    supabase.auth.getSession().then(({ data }) => checarAcesso(data.session));
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-      if (!newSession && !isLoginPage) router.replace('/admin/login');
+      checarAcesso(newSession);
     });
     return () => listener.subscription.unsubscribe();
   }, [isLoginPage, router]);
@@ -65,7 +78,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (isLoginPage) return <>{children}</>;
 
-  if (checkingSession || !session) {
+  if (checkingSession || !session || !isAdmin) {
     return <div className="min-h-screen bg-sand-50 flex items-center justify-center text-ink-400 text-sm">A verificar sessão...</div>;
   }
 

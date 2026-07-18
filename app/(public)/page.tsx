@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { ICONES } from '../../lib/icons';
-import { CheckCircle2, Send } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
+import PedidoOrcamento from '../../components/PedidoOrcamento';
 
 type SiteSettings = { hero_titulo: string; hero_subtitulo: string; telefone: string | null; email: string | null };
 type Servico = { id: string; titulo: string; descricao: string | null; icone: string };
@@ -24,15 +25,6 @@ export default function HomePage() {
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
 
-  const [nome, setNome] = useState('');
-  const [email, setEmail] = useState('');
-  const [telefone, setTelefone] = useState('');
-  const [tipoObra, setTipoObra] = useState('');
-  const [mensagem, setMensagem] = useState('');
-  const [enviando, setEnviando] = useState(false);
-  const [enviado, setEnviado] = useState(false);
-  const [erro, setErro] = useState('');
-
   useEffect(() => {
     async function carregar() {
       const [{ data: s }, { data: sv }, { data: pj }] = await Promise.all([
@@ -46,17 +38,6 @@ export default function HomePage() {
     }
     carregar();
   }, []);
-
-  async function enviarPedido(e: React.FormEvent) {
-    e.preventDefault();
-    setEnviando(true);
-    setErro('');
-    const { error } = await supabase.from('leads').insert([{ nome, email, telefone, tipo_obra: tipoObra, mensagem }]);
-    setEnviando(false);
-    if (error) { setErro('Não foi possível enviar. Tente novamente ou contacte-nos diretamente.'); return; }
-    setEnviado(true);
-    setNome(''); setEmail(''); setTelefone(''); setTipoObra(''); setMensagem('');
-  }
 
   return (
     <main className="min-h-screen bg-sand-50">
@@ -148,29 +129,8 @@ export default function HomePage() {
       <section id="contacto" className="px-6 md:px-12 py-12 max-w-xl mx-auto">
         <div className="card p-8">
           <h2 className="text-xl font-heading font-semibold text-ink-800 mb-1">Pedir Orçamento</h2>
-          <p className="text-sm text-ink-400 mb-6">Preencha os seus dados e entraremos em contacto.</p>
-
-          {enviado ? (
-            <div className="text-center py-8">
-              <CheckCircle2 size={40} className="text-green-500 mx-auto mb-3" />
-              <p className="font-medium text-ink-800">Pedido enviado com sucesso!</p>
-              <p className="text-sm text-ink-400 mt-1">Entraremos em contacto brevemente.</p>
-            </div>
-          ) : (
-            <form onSubmit={enviarPedido} className="space-y-3">
-              <input type="text" placeholder="Nome" value={nome} onChange={(e) => setNome(e.target.value)} className="input w-full" required />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="input w-full" required />
-                <input type="tel" placeholder="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} className="input w-full" />
-              </div>
-              <input type="text" placeholder="Tipo de obra (ex: Cozinha, Casa de banho, Mobiliário de jardim...)" value={tipoObra} onChange={(e) => setTipoObra(e.target.value)} className="input w-full" />
-              <textarea placeholder="Conte-nos um pouco sobre o projeto" value={mensagem} onChange={(e) => setMensagem(e.target.value)} className="input w-full" rows={4} />
-              {erro && <p className="text-sm text-red-600">{erro}</p>}
-              <button type="submit" disabled={enviando} className="btn-primary w-full justify-center disabled:opacity-60">
-                <Send size={16} /> {enviando ? 'A enviar...' : 'Enviar Pedido'}
-              </button>
-            </form>
-          )}
+          <p className="text-sm text-ink-400 mb-6">Diga-nos o que precisa, em poucos passos.</p>
+          <PedidoOrcamento />
         </div>
       </section>
 

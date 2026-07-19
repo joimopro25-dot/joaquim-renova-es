@@ -41,7 +41,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   return (
     <div className="min-h-screen bg-sand-50">
       <header className="h-16 bg-white border-b border-sand-200 flex items-center justify-between px-4 md:px-8">
-        <span className="font-heading font-bold text-brand-600">Joaquim Renovações</span>
+        <span className="font-heading font-bold text-brand-600">Traço Renovações</span>
         <nav className="flex items-center gap-4">
           <Link href="/portal" className={`text-sm ${pathname === '/portal' ? 'text-brand-600 font-medium' : 'text-ink-500 hover:text-ink-800'}`}>As Minhas Obras</Link>
           <Link href="/portal/orcamentos" className={`text-sm ${pathname.startsWith('/portal/orcamentos') ? 'text-brand-600 font-medium' : 'text-ink-500 hover:text-ink-800'}`}>Orçamentos</Link>

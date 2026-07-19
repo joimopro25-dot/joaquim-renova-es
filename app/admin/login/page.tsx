@@ -29,7 +29,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-sand-50 flex items-center justify-center p-4">
       <div className="card w-full max-w-sm p-8">
-        <h1 className="font-heading font-bold text-xl text-brand-600 mb-1">Joaquim Renovações</h1>
+        <h1 className="font-heading font-bold text-xl text-brand-600 mb-1">Traço Renovações</h1>
         <p className="text-sm text-ink-400 mb-6">Entrar no backoffice</p>
         <form onSubmit={handleLogin} className="space-y-3">
           <input

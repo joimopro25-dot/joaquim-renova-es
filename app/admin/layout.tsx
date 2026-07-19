@@ -96,7 +96,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="h-16 flex items-center gap-2 px-4 border-b border-sand-100 shrink-0">
           <div className="flex-1 min-w-0 leading-none">
             <span className={`font-heading font-bold text-brand-600 tracking-wide ${collapsed ? 'md:text-sm' : 'text-lg'}`}>
-              {collapsed ? 'JR' : 'Joaquim Renovações'}
+              {collapsed ? 'TR' : 'Traço Renovações'}
             </span>
             {!collapsed && (
               <div className="text-[10px] uppercase tracking-widest text-ink-300 mt-0.5">Backoffice</div>

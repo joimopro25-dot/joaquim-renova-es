@@ -3,14 +3,17 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { DIVISOES, NOMES_DIVISOES } from '../lib/divisoes';
-import { CheckCircle2, Send, ArrowRight, ArrowLeft } from 'lucide-react';
+import { CheckCircle2, Send, ArrowRight, ArrowLeft, Plus, X } from 'lucide-react';
 
-type ZonaDetalhe = { area: string; intervencoes: string[]; notas: string };
+type Instancia = { id: string; tipo: string; label: string; area: string; intervencoes: string[]; notas: string };
+
+function gerarId() {
+  return Math.random().toString(36).slice(2);
+}
 
 export default function PedidoOrcamento() {
   const [passo, setPasso] = useState<1 | 2 | 3>(1);
-  const [zonasEscolhidas, setZonasEscolhidas] = useState<string[]>([]);
-  const [detalhes, setDetalhes] = useState<Record<string, ZonaDetalhe>>({});
+  const [instancias, setInstancias] = useState<Instancia[]>([]);
 
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
@@ -20,36 +23,28 @@ export default function PedidoOrcamento() {
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState('');
 
-  function toggleZona(nomeZona: string) {
-    setZonasEscolhidas((prev) => {
-      if (prev.includes(nomeZona)) {
-        const novo = prev.filter((z) => z !== nomeZona);
-        return novo;
-      }
-      return [...prev, nomeZona];
-    });
-    setDetalhes((prev) => {
-      if (prev[nomeZona]) return prev;
-      return { ...prev, [nomeZona]: { area: '', intervencoes: [], notas: '' } };
+  function adicionarInstancia(tipo: string) {
+    setInstancias((prev) => {
+      const existentes = prev.filter((i) => i.tipo === tipo).length;
+      const label = existentes === 0 ? DIVISOES[tipo].label : `${DIVISOES[tipo].label} ${existentes + 1}`;
+      return [...prev, { id: gerarId(), tipo, label, area: '', intervencoes: [], notas: '' }];
     });
   }
 
-  function toggleIntervencao(nomeZona: string, intervencao: string) {
-    setDetalhes((prev) => {
-      const atual = prev[nomeZona] || { area: '', intervencoes: [], notas: '' };
-      const jaTem = atual.intervencoes.includes(intervencao);
-      return {
-        ...prev,
-        [nomeZona]: {
-          ...atual,
-          intervencoes: jaTem ? atual.intervencoes.filter((i) => i !== intervencao) : [...atual.intervencoes, intervencao],
-        },
-      };
-    });
+  function removerInstancia(id: string) {
+    setInstancias((prev) => prev.filter((i) => i.id !== id));
   }
 
-  function atualizarZona(nomeZona: string, campo: 'area' | 'notas', valor: string) {
-    setDetalhes((prev) => ({ ...prev, [nomeZona]: { ...(prev[nomeZona] || { area: '', intervencoes: [], notas: '' }), [campo]: valor } }));
+  function atualizarInstancia(id: string, campo: 'label' | 'area' | 'notas', valor: string) {
+    setInstancias((prev) => prev.map((i) => (i.id === id ? { ...i, [campo]: valor } : i)));
+  }
+
+  function toggleIntervencao(id: string, intervencao: string) {
+    setInstancias((prev) => prev.map((i) => {
+      if (i.id !== id) return i;
+      const jaTem = i.intervencoes.includes(intervencao);
+      return { ...i, intervencoes: jaTem ? i.intervencoes.filter((x) => x !== intervencao) : [...i.intervencoes, intervencao] };
+    }));
   }
 
   async function enviarPedido(e: React.FormEvent) {
@@ -57,15 +52,15 @@ export default function PedidoOrcamento() {
     setEnviando(true);
     setErro('');
 
-    const zonas = zonasEscolhidas.map((z) => ({
-      zona: z,
-      label: DIVISOES[z].label,
-      area: detalhes[z]?.area || null,
-      intervencoes: detalhes[z]?.intervencoes || [],
-      notas: detalhes[z]?.notas || null,
+    const zonas = instancias.map((i) => ({
+      zona: i.tipo,
+      label: i.label,
+      area: i.area || null,
+      intervencoes: i.intervencoes,
+      notas: i.notas || null,
     }));
 
-    const tipoObra = zonasEscolhidas.map((z) => DIVISOES[z].label).join(', ');
+    const tipoObra = instancias.map((i) => i.label).join(', ');
 
     const { error } = await supabase.from('leads').insert([{ nome, email, telefone, tipo_obra: tipoObra, mensagem, zonas }]);
     setEnviando(false);
@@ -97,18 +92,38 @@ export default function PedidoOrcamento() {
       {passo === 1 && (
         <div>
           <h3 className="font-semibold text-ink-800 mb-1">Que divisões quer renovar?</h3>
-          <p className="text-sm text-ink-400 mb-4">Pode escolher mais do que uma, dentro ou fora de casa.</p>
-          <div className="grid grid-cols-2 gap-2 mb-6">
-            {NOMES_DIVISOES.map((z) => (
-              <label key={z} className={`flex items-center gap-2 p-3 rounded-lg border text-sm cursor-pointer transition-colors ${zonasEscolhidas.includes(z) ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-sand-200 text-ink-600 hover:bg-sand-50'}`}>
-                <input type="checkbox" checked={zonasEscolhidas.includes(z)} onChange={() => toggleZona(z)} className="accent-brand-500" />
-                {DIVISOES[z].label}
-              </label>
-            ))}
+          <p className="text-sm text-ink-400 mb-4">Clique tantas vezes quantas as divisões desse tipo (ex: 3 vezes em "Quarto" para 3 quartos).</p>
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {NOMES_DIVISOES.map((tipo) => {
+              const count = instancias.filter((i) => i.tipo === tipo).length;
+              return (
+                <button
+                  type="button"
+                  key={tipo}
+                  onClick={() => adicionarInstancia(tipo)}
+                  className={`flex items-center justify-between gap-2 p-3 rounded-lg border text-sm text-left transition-colors ${count > 0 ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-sand-200 text-ink-600 hover:bg-sand-50'}`}
+                >
+                  <span className="flex items-center gap-1.5"><Plus size={14} /> {DIVISOES[tipo].label}</span>
+                  {count > 0 && <span className="badge bg-brand-500 text-white text-[10px]">{count}</span>}
+                </button>
+              );
+            })}
           </div>
+
+          {instancias.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-6">
+              {instancias.map((i) => (
+                <span key={i.id} className="badge bg-sand-100 text-ink-700 flex items-center gap-1.5">
+                  {i.label}
+                  <button type="button" onClick={() => removerInstancia(i.id)}><X size={12} /></button>
+                </span>
+              ))}
+            </div>
+          )}
+
           <button
             type="button"
-            disabled={zonasEscolhidas.length === 0}
+            disabled={instancias.length === 0}
             onClick={() => setPasso(2)}
             className="btn-primary w-full justify-center disabled:opacity-40"
           >
@@ -121,28 +136,33 @@ export default function PedidoOrcamento() {
         <div>
           <h3 className="font-semibold text-ink-800 mb-4">Conte-nos um pouco mais sobre cada espaço</h3>
           <div className="space-y-4 mb-6">
-            {zonasEscolhidas.map((z) => (
-              <div key={z} className="border border-sand-200 rounded-lg p-4">
-                <p className="font-medium text-ink-800 mb-2">{DIVISOES[z].label}</p>
+            {instancias.map((i) => (
+              <div key={i.id} className="border border-sand-200 rounded-lg p-4">
+                <input
+                  type="text"
+                  value={i.label}
+                  onChange={(e) => atualizarInstancia(i.id, 'label', e.target.value)}
+                  className="font-medium text-ink-800 mb-2 w-full bg-transparent border-b border-transparent hover:border-sand-200 focus:border-brand-400 outline-none"
+                />
                 <input
                   type="number"
                   placeholder="Área aproximada (m²) — opcional"
-                  value={detalhes[z]?.area || ''}
-                  onChange={(e) => atualizarZona(z, 'area', e.target.value)}
+                  value={i.area}
+                  onChange={(e) => atualizarInstancia(i.id, 'area', e.target.value)}
                   className="input w-full mb-2"
                 />
                 <div className="flex flex-wrap gap-2 mb-2">
-                  {DIVISOES[z].opcoes.map((op) => (
-                    <label key={op} className={`text-xs px-2.5 py-1.5 rounded-full border cursor-pointer transition-colors ${detalhes[z]?.intervencoes.includes(op) ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-sand-200 text-ink-500 hover:bg-sand-50'}`}>
-                      <input type="checkbox" className="hidden" checked={detalhes[z]?.intervencoes.includes(op) || false} onChange={() => toggleIntervencao(z, op)} />
+                  {DIVISOES[i.tipo].opcoes.map((op) => (
+                    <label key={op} className={`text-xs px-2.5 py-1.5 rounded-full border cursor-pointer transition-colors ${i.intervencoes.includes(op) ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-sand-200 text-ink-500 hover:bg-sand-50'}`}>
+                      <input type="checkbox" className="hidden" checked={i.intervencoes.includes(op)} onChange={() => toggleIntervencao(i.id, op)} />
                       {op}
                     </label>
                   ))}
                 </div>
                 <textarea
                   placeholder="Notas específicas para este espaço (opcional)"
-                  value={detalhes[z]?.notas || ''}
-                  onChange={(e) => atualizarZona(z, 'notas', e.target.value)}
+                  value={i.notas}
+                  onChange={(e) => atualizarInstancia(i.id, 'notas', e.target.value)}
                   className="input w-full"
                   rows={2}
                 />

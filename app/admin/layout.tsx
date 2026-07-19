@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
 import {
-  LayoutDashboard, Users, Briefcase, Receipt, Package, FileText, Inbox, Globe as GlobeIcon, Images,
+  LayoutDashboard, Users, Briefcase, Receipt, Package, FileText, Inbox, Globe as GlobeIcon, Images, BookMarked,
   Menu, X, ChevronLeft, ChevronRight, Globe, LogOut,
 } from 'lucide-react';
 
@@ -17,6 +17,7 @@ const MENU: MenuItem[] = [
   { path: '/admin/leads', icon: Inbox, label: 'Leads' },
   { path: '/admin/clientes', icon: Users, label: 'Clientes' },
   { path: '/admin/orcamentos', icon: FileText, label: 'Orçamentos' },
+  { path: '/admin/precario', icon: BookMarked, label: 'Preçário' },
   { path: '/admin/obras', icon: Briefcase, label: 'Obras' },
   { path: '/admin/despesas', icon: Receipt, label: 'Despesas/Faturas' },
   { path: '/admin/stock', icon: Package, label: 'Stock/Ferramentas' },

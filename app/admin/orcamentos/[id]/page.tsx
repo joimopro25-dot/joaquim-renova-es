@@ -17,6 +17,15 @@ type Linha = {
   custo_material: number;
 };
 
+type ItemPrecario = {
+  id: string;
+  categoria: string;
+  descricao: string;
+  unidade: string;
+  rendimento_horas: number;
+  custo_material: number;
+};
+
 type Orcamento = {
   id: string;
   titulo: string;
@@ -42,6 +51,7 @@ export default function OrcamentoDetalhePage() {
   const router = useRouter();
   const [orcamento, setOrcamento] = useState<Orcamento | null>(null);
   const [linhas, setLinhas] = useState<Linha[]>([]);
+  const [precario, setPrecario] = useState<ItemPrecario[]>([]);
   const [loading, setLoading] = useState(true);
   const [converting, setConverting] = useState(false);
 
@@ -54,18 +64,29 @@ export default function OrcamentoDetalhePage() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: orc }, { data: linhasData }] = await Promise.all([
+    const [{ data: orc }, { data: linhasData }, { data: precarioData }] = await Promise.all([
       supabase.from('orcamentos').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('orcamento_linhas').select('*').eq('orcamento_id', id).order('criado_em'),
+      supabase.from('tabela_precos').select('*').order('categoria').order('descricao'),
     ]);
     setOrcamento(orc as any);
     setLinhas(linhasData || []);
+    setPrecario(precarioData || []);
     setLoading(false);
   }, [id]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
   const capitulosExistentes = useMemo(() => Array.from(new Set(linhas.map((l) => l.capitulo))), [linhas]);
+
+  function carregarDoPrecario(itemId: string) {
+    const item = precario.find((p) => p.id === itemId);
+    if (!item) return;
+    setDescricao(item.descricao);
+    setUnidade(item.unidade);
+    setRendimentoHoras(String(item.rendimento_horas));
+    setCustoMaterial(String(item.custo_material));
+  }
 
   async function adicionarLinha(e: React.FormEvent) {
     e.preventDefault();
@@ -257,7 +278,16 @@ export default function OrcamentoDetalhePage() {
         )}
 
         {editavel && (
-          <form onSubmit={adicionarLinha} className="grid grid-cols-1 md:grid-cols-6 gap-2 pt-2 border-t border-sand-100">
+          <form onSubmit={adicionarLinha} className="pt-2 border-t border-sand-100">
+            {precario.length > 0 && (
+              <div className="mb-2">
+                <select onChange={(e) => { carregarDoPrecario(e.target.value); e.target.value = ''; }} defaultValue="" className="input w-full text-ink-500">
+                  <option value="" disabled>Carregar do preçário (opcional)...</option>
+                  {precario.map((p) => <option key={p.id} value={p.id}>{p.categoria} — {p.descricao}</option>)}
+                </select>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
             <input type="text" list="capitulos-existentes" placeholder="Capítulo (ex: Demolições)" value={capitulo} onChange={(e) => setCapitulo(e.target.value)} className="input md:col-span-2" />
             <datalist id="capitulos-existentes">
               {capitulosExistentes.map((c) => <option key={c} value={c} />)}
@@ -270,6 +300,7 @@ export default function OrcamentoDetalhePage() {
             <button className="btn-primary justify-center md:col-span-2">
               <Plus size={16} /> Adicionar Linha
             </button>
+            </div>
           </form>
         )}
       </div>

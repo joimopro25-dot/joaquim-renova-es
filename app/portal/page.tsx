@@ -72,7 +72,7 @@ export default function PortalHome() {
               <Link key={o.id} href={`/portal/obras/${o.id}`} className="card p-6 hover:border-brand-200 transition-colors block">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <Briefcase size={18} className="text-brand-400" />
+                    <Briefcase size={18} className="text-copper-500" />
                     <span className="font-medium text-ink-800">{o.titulo}</span>
                   </div>
                   <span className={`badge ${info.color}`}>{info.label}</span>

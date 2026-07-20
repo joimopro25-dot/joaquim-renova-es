@@ -108,7 +108,7 @@ export default function PortalOrcamentoDetalhe() {
           const subtotalCap = itens.reduce((s, l) => s + totalLinha(l, taxaHoraria), 0);
           return (
             <div key={cap} className="overflow-x-auto">
-              <div className="bg-brand-500 text-white text-sm font-semibold px-3 py-1.5 rounded-t-lg">{cap}</div>
+              <div className="bg-ink-800 text-copper-200 text-sm font-semibold px-3 py-1.5 rounded-t-lg">{cap}</div>
               <table className="w-full text-left text-sm border border-t-0 border-sand-200 rounded-b-lg overflow-hidden">
                 <thead className="text-ink-400 text-xs uppercase bg-sand-50">
                   <tr>

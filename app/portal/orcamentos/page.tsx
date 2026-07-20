@@ -63,7 +63,7 @@ export default function PortalOrcamentosPage() {
               <Link key={o.id} href={`/portal/orcamentos/${o.id}`} className="card p-6 hover:border-brand-200 transition-colors block">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <FileText size={18} className="text-brand-400" />
+                    <FileText size={18} className="text-copper-500" />
                     <span className="font-medium text-ink-800">{o.titulo}</span>
                   </div>
                 </div>

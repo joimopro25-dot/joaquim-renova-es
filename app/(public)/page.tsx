@@ -69,7 +69,7 @@ export default function HomePage() {
               const Icon = ICONES[s.icone] || ICONES.Hammer;
               return (
                 <div key={s.id} className="card p-6">
-                  <Icon size={24} className="text-brand-500 mb-3" />
+                  <Icon size={24} className="text-copper-500 mb-3" />
                   <h3 className="font-semibold text-ink-800 mb-1">{s.titulo}</h3>
                   {s.descricao && <p className="text-sm text-ink-500">{s.descricao}</p>}
                 </div>
@@ -104,7 +104,7 @@ export default function HomePage() {
                     <img src={geral.url} className="w-full aspect-video object-cover" />
                   ) : null}
                   <div className="p-4">
-                    <span className="badge bg-brand-50 text-brand-700 text-[10px] mb-2 inline-block">{CATEGORIA_LABEL[p.categoria] || p.categoria}</span>
+                    <span className="badge bg-ink-800 text-copper-200 text-[10px] mb-2 inline-block">{CATEGORIA_LABEL[p.categoria] || p.categoria}</span>
                     <h3 className="font-semibold text-ink-800">{p.titulo}</h3>
                     {p.descricao && <p className="text-sm text-ink-500 mt-1">{p.descricao}</p>}
                   </div>

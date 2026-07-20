@@ -89,28 +89,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-sand-50 flex">
       <aside
-        className={`fixed top-0 left-0 bottom-0 z-40 bg-white border-r border-sand-200 flex flex-col transition-all duration-200
+        className={`fixed top-0 left-0 bottom-0 z-40 bg-ink-900 border-r border-ink-800 flex flex-col transition-all duration-200
           ${collapsed ? 'md:w-16' : 'md:w-64'} w-64
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
-        <div className="h-16 flex items-center gap-2 px-4 border-b border-sand-100 shrink-0">
+        <div className="h-16 flex items-center gap-2 px-4 border-b border-ink-800 shrink-0">
           <div className="flex-1 min-w-0 leading-none">
-            <span className={`font-heading font-bold text-brand-600 tracking-wide ${collapsed ? 'md:text-sm' : 'text-lg'}`}>
+            <span className={`font-heading font-bold text-sand-50 tracking-wide ${collapsed ? 'md:text-sm' : 'text-lg'}`}>
               {collapsed ? 'PC' : 'Projetar Conforto'}
             </span>
             {!collapsed && (
-              <div className="text-[10px] uppercase tracking-widest text-ink-300 mt-0.5">Backoffice</div>
+              <div className="text-[10px] uppercase tracking-widest text-copper-400 mt-0.5">Backoffice</div>
             )}
           </div>
           <button
             onClick={() => setCollapsed((c) => !c)}
-            className="hidden md:flex items-center justify-center border border-sand-200 rounded-md p-1.5 text-ink-400 hover:bg-sand-50 shrink-0"
+            className="hidden md:flex items-center justify-center border border-ink-700 rounded-md p-1.5 text-ink-300 hover:bg-ink-800 shrink-0"
           >
             <ChevronLeft size={16} className={`transition-transform ${collapsed ? 'rotate-180' : ''}`} />
           </button>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="md:hidden flex items-center justify-center border border-sand-200 rounded-md p-1.5 text-ink-400 shrink-0"
+            className="md:hidden flex items-center justify-center border border-ink-700 rounded-md p-1.5 text-ink-300 shrink-0"
           >
             <X size={18} />
           </button>
@@ -131,31 +131,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 title={item.comingSoon ? `${item.label} (em breve)` : item.label}
                 className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                   ${collapsed ? 'md:justify-center' : ''}
-                  ${item.comingSoon ? 'text-ink-300 cursor-not-allowed' : active ? 'bg-brand-50 text-brand-700 font-medium' : 'text-ink-500 hover:bg-sand-50 hover:text-ink-800'}`}
+                  ${item.comingSoon ? 'text-ink-500 cursor-not-allowed' : active ? 'bg-ink-800 text-copper-300 font-medium' : 'text-ink-300 hover:bg-ink-800 hover:text-sand-100'}`}
               >
                 <Icon size={18} className="shrink-0" />
                 <span className={collapsed ? 'md:hidden' : ''}>{item.label}</span>
                 {item.comingSoon && !collapsed && (
-                  <span className="badge bg-sand-100 text-ink-400 ml-auto text-[10px]">em breve</span>
+                  <span className="badge bg-ink-800 text-ink-400 ml-auto text-[10px]">em breve</span>
                 )}
-                {active && !collapsed && !item.comingSoon && <ChevronRight size={14} className="ml-auto text-brand-400" />}
+                {active && !collapsed && !item.comingSoon && <ChevronRight size={14} className="ml-auto text-copper-400" />}
               </Link>
             );
           })}
         </nav>
 
-        <div className="p-2.5 border-t border-sand-100">
+        <div className="p-2.5 border-t border-ink-800">
           <Link
             href="/"
             target="_blank"
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-ink-500 hover:bg-sand-50 hover:text-ink-800 ${collapsed ? 'md:justify-center' : ''}`}
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-ink-300 hover:bg-ink-800 hover:text-sand-100 ${collapsed ? 'md:justify-center' : ''}`}
           >
             <Globe size={18} className="shrink-0" />
             <span className={collapsed ? 'md:hidden' : ''}>Ver site</span>
           </Link>
           <button
             onClick={handleLogout}
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-ink-500 hover:bg-red-50 hover:text-red-600 w-full ${collapsed ? 'md:justify-center' : ''}`}
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-ink-300 hover:bg-red-950 hover:text-red-400 w-full ${collapsed ? 'md:justify-center' : ''}`}
           >
             <LogOut size={18} className="shrink-0" />
             <span className={collapsed ? 'md:hidden' : ''}>Sair</span>

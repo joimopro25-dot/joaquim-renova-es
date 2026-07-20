@@ -65,7 +65,7 @@ export default function AdminDashboard() {
           <Link key={s.label} href={s.href} className="card p-5 hover:border-brand-200 transition-colors">
             <div className="flex items-center justify-between mb-2">
               <span className="text-ink-400 text-sm font-medium">{s.label}</span>
-              <s.icon size={18} className="text-brand-400" />
+              <s.icon size={18} className="text-copper-500" />
             </div>
             <p className="text-2xl font-heading font-semibold text-ink-800">
               {loading ? '—' : s.value}

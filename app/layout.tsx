@@ -6,7 +6,7 @@ const body = Inter({ subsets: ["latin"], variable: "--font-body" });
 const heading = Poppins({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-heading" });
 
 export const metadata: Metadata = {
-  title: "Traço Renovações - CRM & Gestão",
+  title: "Projetar Conforto - CRM & Gestão",
   description: "Plataforma de gestão de obras e orçamentos",
 };
 

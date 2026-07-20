@@ -57,7 +57,7 @@ export default function PortalLoginPage() {
   return (
     <div className="min-h-screen bg-sand-50 flex items-center justify-center p-4">
       <div className="card w-full max-w-sm p-8">
-        <h1 className="font-heading font-bold text-xl text-brand-600 mb-1">Traço Renovações</h1>
+        <h1 className="font-heading font-bold text-xl text-brand-600 mb-1">Projetar Conforto</h1>
         <p className="text-sm text-ink-400 mb-6">{modo === 'entrar' ? 'Aceda à área do cliente' : 'Criar acesso à área do cliente'}</p>
 
         <form onSubmit={handleSubmit} className="space-y-3">

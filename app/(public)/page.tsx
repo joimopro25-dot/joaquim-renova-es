@@ -42,7 +42,7 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-sand-50">
       <header className="flex items-center justify-between px-6 md:px-12 py-5">
-        <span className="font-heading font-bold text-lg text-brand-600">Traço Renovações</span>
+        <span className="font-heading font-bold text-lg text-brand-600">Projetar Conforto</span>
         <div className="flex gap-2 text-sm">
           <Link href="/admin" className="px-3 py-1.5 text-ink-400 hover:text-ink-700">Staff</Link>
           <Link href="/portal" className="px-3 py-1.5 border border-sand-200 rounded-lg text-ink-600 hover:bg-white">Área Cliente</Link>
@@ -137,7 +137,7 @@ export default function HomePage() {
       <footer className="text-center text-xs text-ink-300 py-8">
         {settings?.telefone && <span>{settings.telefone} · </span>}
         {settings?.email && <span>{settings.email} · </span>}
-        © {new Date().getFullYear()} Traço Renovações
+        © {new Date().getFullYear()} Projetar Conforto
       </footer>
     </main>
   );

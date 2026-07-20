@@ -10,7 +10,7 @@ import { LogOut } from 'lucide-react';
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isLoginPage = pathname === '/portal/login';
+  const isLoginPage = pathname === '/portal/login' || pathname === '/portal/definir-password';
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
 

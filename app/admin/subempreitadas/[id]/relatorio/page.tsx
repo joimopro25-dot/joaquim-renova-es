@@ -4,7 +4,13 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '../../../../../lib/supabase';
 import { formatMoney } from '../../../../../lib/format';
-import { Printer } from 'lucide-react';
+import { Printer, Paperclip } from 'lucide-react';
+
+type Anexo = { id: string; tipo: string; nome_ficheiro: string | null; url: string };
+
+const TIPOS_ANEXO_LABEL: Record<string, string> = {
+  fatura: 'Fatura', recibo: 'Recibo', comprovativo: 'Comprovativo de Pagamento', outro: 'Outro',
+};
 
 type Entrada = {
   id: string;
@@ -30,16 +36,19 @@ export default function RelatorioSubempreitada() {
   const { id } = useParams<{ id: string }>();
   const [sub, setSub] = useState<Subempreitada | null>(null);
   const [entradas, setEntradas] = useState<Entrada[]>([]);
+  const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function carregar() {
-      const [{ data: subData }, { data: entradasData }] = await Promise.all([
+      const [{ data: subData }, { data: entradasData }, { data: anexosData }] = await Promise.all([
         supabase.from('subempreitadas').select('*, clientes(nome, nif)').eq('id', id).single(),
         supabase.from('subempreitada_entradas').select('*').eq('subempreitada_id', id).order('data'),
+        supabase.from('subempreitada_anexos').select('*').eq('subempreitada_id', id).order('criado_em'),
       ]);
       setSub(subData as any);
       setEntradas(entradasData || []);
+      setAnexos(anexosData || []);
       setLoading(false);
     }
     carregar();
@@ -122,6 +131,18 @@ export default function RelatorioSubempreitada() {
           </div>
         </div>
       </div>
+
+      {anexos.length > 0 && (
+        <div className="border border-sand-200 rounded-lg p-4 text-sm space-y-1 mb-6 print:hidden">
+          <p className="font-medium text-ink-700 flex items-center gap-1.5 mb-2"><Paperclip size={14} /> Anexos</p>
+          {anexos.map((a) => (
+            <p key={a.id}>
+              <span className="text-ink-400">{TIPOS_ANEXO_LABEL[a.tipo] || a.tipo}:</span>{' '}
+              <a href={a.url} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">{a.nome_ficheiro || 'ficheiro'}</a>
+            </p>
+          ))}
+        </div>
+      )}
 
       <div className="border border-sand-200 rounded-lg p-4 text-sm space-y-2">
         <p className="font-medium text-ink-700">Pagamento</p>

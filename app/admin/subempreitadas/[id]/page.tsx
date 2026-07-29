@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, RotateCcw, Printer } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, RotateCcw, Printer, Paperclip, Upload } from 'lucide-react';
 
 type Entrada = {
   id: string;
@@ -27,7 +27,15 @@ type Subempreitada = {
   clientes: { nome: string } | null;
 };
 
+type Anexo = { id: string; tipo: string; nome_ficheiro: string | null; url: string };
+
 const METODOS = ['Dinheiro', 'Transferência', 'MB WAY', 'Cheque', 'Outro'];
+const TIPOS_ANEXO = [
+  { value: 'fatura', label: 'Fatura' },
+  { value: 'recibo', label: 'Recibo' },
+  { value: 'comprovativo', label: 'Comprovativo de Pagamento' },
+  { value: 'outro', label: 'Outro' },
+];
 
 function calcularHoras(entrada: string, saida: string): number {
   const [eh, em] = entrada.split(':').map(Number);
@@ -42,8 +50,11 @@ export default function SubempreitadaDetalhe() {
   const router = useRouter();
   const [sub, setSub] = useState<Subempreitada | null>(null);
   const [entradas, setEntradas] = useState<Entrada[]>([]);
+  const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPagamento, setShowPagamento] = useState(false);
+  const [tipoAnexo, setTipoAnexo] = useState('fatura');
+  const [uploading, setUploading] = useState(false);
 
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
   const [horaEntrada, setHoraEntrada] = useState('');
@@ -57,14 +68,36 @@ export default function SubempreitadaDetalhe() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: subData }, { data: entradasData }] = await Promise.all([
+    const [{ data: subData }, { data: entradasData }, { data: anexosData }] = await Promise.all([
       supabase.from('subempreitadas').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('subempreitada_entradas').select('*').eq('subempreitada_id', id).order('data'),
+      supabase.from('subempreitada_anexos').select('*').eq('subempreitada_id', id).order('criado_em'),
     ]);
     setSub(subData as any);
     setEntradas(entradasData || []);
+    setAnexos(anexosData || []);
     setLoading(false);
   }, [id]);
+
+  async function enviarAnexo(e: React.ChangeEvent<HTMLInputElement>) {
+    const ficheiro = e.target.files?.[0];
+    if (!ficheiro) return;
+    setUploading(true);
+    const path = `${id}/${Date.now()}-${ficheiro.name}`;
+    const { error: uploadError } = await supabase.storage.from('subempreitadas').upload(path, ficheiro);
+    if (uploadError) { alert('Erro ao enviar: ' + uploadError.message); setUploading(false); return; }
+    const url = supabase.storage.from('subempreitadas').getPublicUrl(path).data.publicUrl;
+    await supabase.from('subempreitada_anexos').insert([{ subempreitada_id: id, tipo: tipoAnexo, nome_ficheiro: ficheiro.name, url }]);
+    setUploading(false);
+    e.target.value = '';
+    carregar();
+  }
+
+  async function removerAnexo(anexoId: string) {
+    if (!confirm('Remover este anexo?')) return;
+    await supabase.from('subempreitada_anexos').delete().eq('id', anexoId);
+    carregar();
+  }
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -166,6 +199,42 @@ export default function SubempreitadaDetalhe() {
           Pago em {sub.data_pagamento ? new Date(sub.data_pagamento).toLocaleDateString('pt-PT') : '—'} · {sub.metodo_pagamento} · {sub.fatura_emitida ? 'Com fatura/recibo' : 'Sem fatura/recibo'}
         </div>
       )}
+
+      <div className="card p-6 mb-6">
+        <h3 className="font-semibold text-ink-700 mb-4 flex items-center gap-2"><Paperclip size={16} /> Anexos</h3>
+
+        {anexos.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {TIPOS_ANEXO.map((t) => {
+              const doTipo = anexos.filter((a) => a.tipo === t.value);
+              if (doTipo.length === 0) return null;
+              return (
+                <div key={t.value}>
+                  <p className="text-xs text-ink-400 uppercase tracking-wide mb-1">{t.label}</p>
+                  <div className="space-y-1">
+                    {doTipo.map((a) => (
+                      <div key={a.id} className="flex items-center justify-between gap-2 p-2 bg-sand-50 rounded-lg text-sm">
+                        <a href={a.url} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline truncate">{a.nome_ficheiro || 'ficheiro'}</a>
+                        <button onClick={() => removerAnexo(a.id)} className="text-ink-300 hover:text-red-600 shrink-0"><Trash2 size={14} /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row gap-2 pt-3 border-t border-sand-100">
+          <select value={tipoAnexo} onChange={(e) => setTipoAnexo(e.target.value)} className="input">
+            {TIPOS_ANEXO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+          <label className="btn-primary cursor-pointer justify-center">
+            <Upload size={16} /> {uploading ? 'A enviar...' : 'Anexar Ficheiro'}
+            <input type="file" className="hidden" disabled={uploading} onChange={enviarAnexo} />
+          </label>
+        </div>
+      </div>
 
       {sub.tipo_valor !== 'fixo' && (
         <div className="card p-6 mb-6">

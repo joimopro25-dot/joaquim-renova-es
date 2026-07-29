@@ -100,6 +100,14 @@ export default function ObraDetalhePage() {
     carregar();
   }
 
+  async function removerTrabalhador(e: React.MouseEvent, otId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm('Retirar este trabalhador desta obra? Todos os registos de horas, despesas/descontos e anexos associados serão apagados.')) return;
+    await supabase.from('obra_trabalhadores').delete().eq('id', otId);
+    carregar();
+  }
+
   useEffect(() => { carregar(); }, [carregar]);
 
   async function atualizarCampo(campo: string, valor: any) {
@@ -212,6 +220,7 @@ export default function ObraDetalhePage() {
                   <span className={`badge ${ot.estado === 'pago' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                     {ot.estado === 'pago' ? 'Pago' : 'Pendente'}
                   </span>
+                  <button onClick={(e) => removerTrabalhador(e, ot.id)} className="text-ink-300 hover:text-red-600 shrink-0"><Trash2 size={15} /></button>
                 </div>
               </Link>
             ))}

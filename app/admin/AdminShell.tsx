@@ -91,7 +91,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   return (
     <div className="min-h-screen bg-sand-50 flex">
       <aside
-        className={`fixed top-0 left-0 bottom-0 z-40 bg-ink-900 border-r border-ink-800 flex flex-col transition-all duration-200
+        className={`print:hidden fixed top-0 left-0 bottom-0 z-40 bg-ink-900 border-r border-ink-800 flex flex-col transition-all duration-200
           ${collapsed ? 'md:w-16' : 'md:w-64'} w-64
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
@@ -174,8 +174,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      <div className={`flex-1 min-w-0 flex flex-col transition-all duration-200 ${collapsed ? 'md:ml-16' : 'md:ml-64'}`}>
-        <header className="h-16 sticky top-0 z-20 bg-white border-b border-sand-200 flex items-center gap-3 px-4 md:px-6 shrink-0">
+      <div className={`flex-1 min-w-0 flex flex-col transition-all duration-200 print:ml-0 ${collapsed ? 'md:ml-16' : 'md:ml-64'}`}>
+        <header className="print:hidden h-16 sticky top-0 z-20 bg-white border-b border-sand-200 flex items-center gap-3 px-4 md:px-6 shrink-0">
           <button
             onClick={toggle}
             className="flex items-center justify-center border border-sand-200 rounded-md p-1.5 text-ink-600 hover:bg-sand-50"

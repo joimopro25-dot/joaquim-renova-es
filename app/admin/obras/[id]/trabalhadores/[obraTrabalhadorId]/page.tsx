@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../../../lib/supabase';
 import { formatMoney } from '../../../../../../lib/format';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, RotateCcw, Paperclip, Upload } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, RotateCcw, Paperclip, Upload, Receipt, MinusCircle } from 'lucide-react';
 
 type Entrada = {
   id: string;
@@ -16,6 +16,15 @@ type Entrada = {
 };
 
 type Anexo = { id: string; tipo: string; nome_ficheiro: string | null; url: string };
+type Ajuste = {
+  id: string;
+  tipo: string; // despesa, desconto
+  descricao: string;
+  valor: number;
+  data: string;
+  anexo_url: string | null;
+  anexo_nome: string | null;
+};
 
 type ObraTrabalhador = {
   id: string;
@@ -53,10 +62,18 @@ export default function ObraTrabalhadorDetalhe() {
   const [ot, setOt] = useState<ObraTrabalhador | null>(null);
   const [entradas, setEntradas] = useState<Entrada[]>([]);
   const [anexos, setAnexos] = useState<Anexo[]>([]);
+  const [ajustes, setAjustes] = useState<Ajuste[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPagamento, setShowPagamento] = useState(false);
   const [tipoAnexo, setTipoAnexo] = useState('recibo');
   const [uploading, setUploading] = useState(false);
+
+  const [tipoAjuste, setTipoAjuste] = useState('despesa');
+  const [descricaoAjuste, setDescricaoAjuste] = useState('');
+  const [valorAjuste, setValorAjuste] = useState('');
+  const [dataAjuste, setDataAjuste] = useState(() => new Date().toISOString().slice(0, 10));
+  const [ficheiroAjuste, setFicheiroAjuste] = useState<File | null>(null);
+  const [enviandoAjuste, setEnviandoAjuste] = useState(false);
 
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
   const [horaEntrada, setHoraEntrada] = useState('');
@@ -70,16 +87,52 @@ export default function ObraTrabalhadorDetalhe() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: otData }, { data: entradasData }, { data: anexosData }] = await Promise.all([
+    const [{ data: otData }, { data: entradasData }, { data: anexosData }, { data: ajustesData }] = await Promise.all([
       supabase.from('obra_trabalhadores').select('*, trabalhadores(nome, regime), obras(titulo)').eq('id', obraTrabalhadorId).single(),
       supabase.from('obra_trabalhador_entradas').select('*').eq('obra_trabalhador_id', obraTrabalhadorId).order('data'),
       supabase.from('obra_trabalhador_anexos').select('*').eq('obra_trabalhador_id', obraTrabalhadorId).order('criado_em'),
+      supabase.from('obra_trabalhador_ajustes').select('*').eq('obra_trabalhador_id', obraTrabalhadorId).order('data'),
     ]);
     setOt(otData as any);
     setEntradas(entradasData || []);
     setAnexos(anexosData || []);
+    setAjustes(ajustesData || []);
     setLoading(false);
   }, [obraTrabalhadorId]);
+
+  async function adicionarAjuste(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviandoAjuste(true);
+    let anexoUrl: string | null = null;
+    let anexoNome: string | null = null;
+    if (ficheiroAjuste) {
+      const path = `${obraTrabalhadorId}/ajustes/${Date.now()}-${ficheiroAjuste.name}`;
+      const { error: uploadError } = await supabase.storage.from('trabalhadores').upload(path, ficheiroAjuste);
+      if (uploadError) { alert('Erro ao enviar anexo: ' + uploadError.message); setEnviandoAjuste(false); return; }
+      anexoUrl = supabase.storage.from('trabalhadores').getPublicUrl(path).data.publicUrl;
+      anexoNome = ficheiroAjuste.name;
+    }
+    const { error } = await supabase.from('obra_trabalhador_ajustes').insert([{
+      obra_trabalhador_id: obraTrabalhadorId,
+      tipo: tipoAjuste,
+      descricao: descricaoAjuste,
+      valor: parseFloat(valorAjuste) || 0,
+      data: dataAjuste,
+      anexo_url: anexoUrl,
+      anexo_nome: anexoNome,
+    }]);
+    setEnviandoAjuste(false);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setDescricaoAjuste(''); setValorAjuste(''); setFicheiroAjuste(null); setTipoAjuste('despesa');
+    setDataAjuste(new Date().toISOString().slice(0, 10));
+    carregar();
+  }
+
+  async function removerAjuste(ajusteId: string) {
+    if (!confirm('Remover este registo?')) return;
+    await supabase.from('obra_trabalhador_ajustes').delete().eq('id', ajusteId);
+    carregar();
+  }
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -149,7 +202,10 @@ export default function ObraTrabalhadorDetalhe() {
   if (!ot) return <div className="p-8 text-center text-ink-400 text-sm">Registo não encontrado.</div>;
 
   const totalQuantidade = entradas.reduce((s, en) => s + en.quantidade, 0);
-  const total = ot.tipo_valor === 'fixo' ? ot.valor_unitario : totalQuantidade * ot.valor_unitario;
+  const subtotal = ot.tipo_valor === 'fixo' ? ot.valor_unitario : totalQuantidade * ot.valor_unitario;
+  const totalDespesasAjuste = ajustes.filter((a) => a.tipo === 'despesa').reduce((s, a) => s + a.valor, 0);
+  const totalDescontosAjuste = ajustes.filter((a) => a.tipo === 'desconto').reduce((s, a) => s + a.valor, 0);
+  const total = subtotal + totalDespesasAjuste - totalDescontosAjuste;
   const unidade = ot.tipo_valor === 'dia' ? 'dia(s)' : 'h';
 
   return (
@@ -204,6 +260,49 @@ export default function ObraTrabalhadorDetalhe() {
           Pago em {ot.data_pagamento ? new Date(ot.data_pagamento).toLocaleDateString('pt-PT') : '—'} · {ot.metodo_pagamento} · {ot.recibo_emitido ? 'Com recibo' : 'Sem recibo'}
         </div>
       )}
+
+      <div className="card p-6 mb-6">
+        <h3 className="font-semibold text-ink-700 mb-4 flex items-center gap-2"><Receipt size={16} /> Despesas e Descontos</h3>
+
+        {ajustes.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {ajustes.map((a) => (
+              <div key={a.id} className="flex items-center justify-between gap-2 p-2 bg-sand-50 rounded-lg text-sm">
+                <div className="flex items-center gap-2 min-w-0">
+                  {a.tipo === 'despesa' ? <Plus size={14} className="text-green-600 shrink-0" /> : <MinusCircle size={14} className="text-red-600 shrink-0" />}
+                  <span className="text-ink-800 truncate">{a.descricao}</span>
+                  <span className="text-ink-400 text-xs whitespace-nowrap">{new Date(a.data).toLocaleDateString('pt-PT')}</span>
+                  {a.anexo_url && <a href={a.anexo_url} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline text-xs shrink-0">anexo</a>}
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={a.tipo === 'despesa' ? 'text-green-700' : 'text-red-700'}>
+                    {a.tipo === 'despesa' ? '+' : '−'} {formatMoney(a.valor)}
+                  </span>
+                  <button onClick={() => removerAjuste(a.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={14} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={adicionarAjuste} className="grid grid-cols-1 md:grid-cols-5 gap-2 pt-3 border-t border-sand-100">
+          <select value={tipoAjuste} onChange={(e) => setTipoAjuste(e.target.value)} className="input">
+            <option value="despesa">Despesa (soma)</option>
+            <option value="desconto">Desconto (subtrai)</option>
+          </select>
+          <input type="text" placeholder="Descrição (ex: Almoço, Adiantamento)" value={descricaoAjuste} onChange={(e) => setDescricaoAjuste(e.target.value)} className="input md:col-span-2" required />
+          <input type="number" step="0.01" placeholder="Valor (€)" value={valorAjuste} onChange={(e) => setValorAjuste(e.target.value)} className="input" required />
+          <input type="date" value={dataAjuste} onChange={(e) => setDataAjuste(e.target.value)} className="input" />
+          <label className="input flex items-center gap-2 cursor-pointer text-ink-500 md:col-span-4">
+            <Paperclip size={15} className="shrink-0" />
+            {ficheiroAjuste ? ficheiroAjuste.name : 'Anexar documento (opcional)'}
+            <input type="file" className="hidden" onChange={(e) => setFicheiroAjuste(e.target.files?.[0] || null)} />
+          </label>
+          <button disabled={enviandoAjuste} className="btn-primary justify-center disabled:opacity-60">
+            {enviandoAjuste ? 'A guardar...' : 'Adicionar'}
+          </button>
+        </form>
+      </div>
 
       <div className="card p-6 mb-6">
         <h3 className="font-semibold text-ink-700 mb-4 flex items-center gap-2"><Paperclip size={16} /> Anexos</h3>
@@ -301,6 +400,22 @@ export default function ObraTrabalhadorDetalhe() {
             <div className="flex justify-between">
               <span className="text-ink-500">Total {unidade}</span>
               <span className="text-ink-800">{totalQuantidade} {unidade}</span>
+            </div>
+          )}
+          <div className="flex justify-between">
+            <span className="text-ink-500">Subtotal</span>
+            <span className="text-ink-800">{formatMoney(subtotal)}</span>
+          </div>
+          {totalDespesasAjuste > 0 && (
+            <div className="flex justify-between">
+              <span className="text-ink-500">Despesas</span>
+              <span className="text-green-700">+ {formatMoney(totalDespesasAjuste)}</span>
+            </div>
+          )}
+          {totalDescontosAjuste > 0 && (
+            <div className="flex justify-between">
+              <span className="text-ink-500">Descontos</span>
+              <span className="text-red-700">− {formatMoney(totalDescontosAjuste)}</span>
             </div>
           )}
           <div className="flex justify-between pt-2 border-t border-sand-100 font-semibold text-base">

@@ -4,7 +4,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, RotateCcw, Printer, Paperclip, Upload } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, RotateCcw, Printer, Paperclip, Upload, UserPlus, HardHat } from 'lucide-react';
 
 type Entrada = {
   id: string;
@@ -28,6 +29,22 @@ type Subempreitada = {
 };
 
 type Anexo = { id: string; tipo: string; nome_ficheiro: string | null; url: string };
+
+type Trabalhador = { id: string; nome: string; tipo_valor_padrao: string; valor_padrao: number };
+type SubTrabalhador = {
+  id: string;
+  tipo_valor: string;
+  valor_unitario: number;
+  estado: string;
+  trabalhadores: { nome: string } | null;
+  obra_trabalhador_entradas: { quantidade: number }[];
+};
+
+function calcularTotalTrabalhador(ot: SubTrabalhador) {
+  if (ot.tipo_valor === 'fixo') return ot.valor_unitario;
+  const total = ot.obra_trabalhador_entradas.reduce((s, e) => s + e.quantidade, 0);
+  return total * ot.valor_unitario;
+}
 
 const METODOS = ['Dinheiro', 'Transferência', 'MB WAY', 'Cheque', 'Outro'];
 const TIPOS_ANEXO = [
@@ -55,6 +72,12 @@ export default function SubempreitadaDetalhe() {
   const [showPagamento, setShowPagamento] = useState(false);
   const [tipoAnexo, setTipoAnexo] = useState('fatura');
   const [uploading, setUploading] = useState(false);
+  const [trabalhadoresDisponiveis, setTrabalhadoresDisponiveis] = useState<Trabalhador[]>([]);
+  const [subTrabalhadores, setSubTrabalhadores] = useState<SubTrabalhador[]>([]);
+  const [showTrabalhadorForm, setShowTrabalhadorForm] = useState(false);
+  const [trabalhadorId, setTrabalhadorId] = useState('');
+  const [tipoValorTrab, setTipoValorTrab] = useState('dia');
+  const [valorUnitarioTrab, setValorUnitarioTrab] = useState('');
 
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
   const [horaEntrada, setHoraEntrada] = useState('');
@@ -68,16 +91,44 @@ export default function SubempreitadaDetalhe() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: subData }, { data: entradasData }, { data: anexosData }] = await Promise.all([
+    const [{ data: subData }, { data: entradasData }, { data: anexosData }, { data: trabData }, { data: subTrabData }] = await Promise.all([
       supabase.from('subempreitadas').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('subempreitada_entradas').select('*').eq('subempreitada_id', id).order('data'),
       supabase.from('subempreitada_anexos').select('*').eq('subempreitada_id', id).order('criado_em'),
+      supabase.from('trabalhadores').select('id, nome, tipo_valor_padrao, valor_padrao').eq('ativo', true).order('nome'),
+      supabase.from('obra_trabalhadores').select('*, trabalhadores(nome), obra_trabalhador_entradas(quantidade)').eq('subempreitada_id', id),
     ]);
     setSub(subData as any);
     setEntradas(entradasData || []);
     setAnexos(anexosData || []);
+    setTrabalhadoresDisponiveis(trabData || []);
+    setSubTrabalhadores((subTrabData as any) || []);
     setLoading(false);
   }, [id]);
+
+  function selecionarTrabalhador(tid: string) {
+    setTrabalhadorId(tid);
+    const t = trabalhadoresDisponiveis.find((x) => x.id === tid);
+    if (t) {
+      setTipoValorTrab(t.tipo_valor_padrao);
+      setValorUnitarioTrab(String(t.valor_padrao));
+    }
+  }
+
+  async function atribuirTrabalhador(e: React.FormEvent) {
+    e.preventDefault();
+    if (!trabalhadorId) { alert('Escolhe um trabalhador.'); return; }
+    const { error } = await supabase.from('obra_trabalhadores').insert([{
+      subempreitada_id: id,
+      trabalhador_id: trabalhadorId,
+      tipo_valor: tipoValorTrab,
+      valor_unitario: parseFloat(valorUnitarioTrab) || 0,
+    }]);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setTrabalhadorId(''); setTipoValorTrab('dia'); setValorUnitarioTrab('');
+    setShowTrabalhadorForm(false);
+    carregar();
+  }
 
   async function enviarAnexo(e: React.ChangeEvent<HTMLInputElement>) {
     const ficheiro = e.target.files?.[0];
@@ -148,6 +199,7 @@ export default function SubempreitadaDetalhe() {
 
   const totalQuantidade = entradas.reduce((s, en) => s + en.quantidade, 0);
   const total = sub.tipo_valor === 'fixo' ? sub.valor_unitario : totalQuantidade * sub.valor_unitario;
+  const totalTrabalhadores = subTrabalhadores.reduce((s, ot) => s + calcularTotalTrabalhador(ot), 0);
   const unidade = sub.tipo_valor === 'dia' ? 'dia(s)' : 'h';
 
   return (
@@ -199,6 +251,52 @@ export default function SubempreitadaDetalhe() {
           Pago em {sub.data_pagamento ? new Date(sub.data_pagamento).toLocaleDateString('pt-PT') : '—'} · {sub.metodo_pagamento} · {sub.fatura_emitida ? 'Com fatura/recibo' : 'Sem fatura/recibo'}
         </div>
       )}
+
+      <div className="card p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-ink-700 flex items-center gap-2"><HardHat size={16} /> Trabalhadores neste Trabalho</h3>
+          <button onClick={() => setShowTrabalhadorForm((v) => !v)} className="btn-primary text-sm py-1.5">
+            <UserPlus size={15} /> Atribuir
+          </button>
+        </div>
+
+        {showTrabalhadorForm && (
+          <form onSubmit={atribuirTrabalhador} className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4 p-3 bg-sand-50 rounded-lg">
+            <select value={trabalhadorId} onChange={(e) => selecionarTrabalhador(e.target.value)} className="input">
+              <option value="">Selecionar trabalhador</option>
+              {trabalhadoresDisponiveis.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+            </select>
+            <select value={tipoValorTrab} onChange={(e) => setTipoValorTrab(e.target.value)} className="input">
+              <option value="hora">Por Hora</option>
+              <option value="dia">Por Dia</option>
+              <option value="fixo">Valor Fixo</option>
+            </select>
+            <input type="number" step="0.01" placeholder="Valor (€)" value={valorUnitarioTrab} onChange={(e) => setValorUnitarioTrab(e.target.value)} className="input" required />
+            <button className="btn-primary justify-center">Confirmar</button>
+          </form>
+        )}
+
+        {subTrabalhadores.length === 0 ? (
+          <p className="text-sm text-ink-400 text-center py-4">Ainda sem trabalhadores atribuídos.</p>
+        ) : (
+          <div className="space-y-2">
+            {subTrabalhadores.map((ot) => (
+              <Link key={ot.id} href={`/admin/subempreitadas/${id}/trabalhadores/${ot.id}`} className="flex items-center justify-between p-3 border border-sand-200 rounded-lg hover:bg-sand-50 transition-colors text-sm">
+                <div>
+                  <span className="font-medium text-ink-800">{ot.trabalhadores?.nome}</span>
+                  <span className="text-ink-400 ml-2">{formatMoney(ot.valor_unitario)}{ot.tipo_valor !== 'fixo' ? `/${ot.tipo_valor === 'hora' ? 'h' : 'dia'}` : ''}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-medium text-ink-800">{formatMoney(calcularTotalTrabalhador(ot))}</span>
+                  <span className={`badge ${ot.estado === 'pago' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {ot.estado === 'pago' ? 'Pago' : 'Pendente'}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="card p-6 mb-6">
         <h3 className="font-semibold text-ink-700 mb-4 flex items-center gap-2"><Paperclip size={16} /> Anexos</h3>
@@ -298,9 +396,19 @@ export default function SubempreitadaDetalhe() {
               <span className="text-ink-800">{totalQuantidade} {unidade}</span>
             </div>
           )}
+          <div className="flex justify-between">
+            <span className="text-ink-500">A Receber</span>
+            <span className="text-ink-800">{formatMoney(total)}</span>
+          </div>
+          {totalTrabalhadores > 0 && (
+            <div className="flex justify-between">
+              <span className="text-ink-500">Mão de Obra</span>
+              <span className="text-ink-800">− {formatMoney(totalTrabalhadores)}</span>
+            </div>
+          )}
           <div className="flex justify-between pt-2 border-t border-sand-100 font-semibold text-base">
-            <span className="text-ink-800">Total a Pagar</span>
-            <span className="text-brand-600">{formatMoney(total)}</span>
+            <span className="text-ink-800">Margem</span>
+            <span className="text-brand-600">{formatMoney(total - totalTrabalhadores)}</span>
           </div>
         </div>
       </div>

@@ -3,13 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
-import { Plus, Receipt, Paperclip, Trash2, Camera } from 'lucide-react';
+import { Plus, Receipt, Paperclip, Trash2, Camera, Rows3, X } from 'lucide-react';
 import ScanFatura from './ScanFatura';
 
 type Obra = { id: string; titulo: string };
 type Despesa = {
   id: string;
-  obra_id: string;
+  obra_id: string | null;
   descricao: string;
   categoria: string;
   valor: number;
@@ -19,14 +19,19 @@ type Despesa = {
   obras: { titulo: string } | null;
 };
 
+type LinhaSplit = { obraId: string; valor: string };
+
 const CATEGORIAS = [
   { value: 'material', label: 'Material' },
   { value: 'ferramenta', label: 'Ferramenta' },
   { value: 'combustivel', label: 'Combustível' },
   { value: 'subcontratacao', label: 'Subcontratação' },
   { value: 'transporte', label: 'Transporte' },
+  { value: 'ordenado', label: 'Ordenado/Pagamento' },
   { value: 'outro', label: 'Outro' },
 ];
+
+const OPCAO_GERAL = 'geral';
 
 export default function DespesasPage() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
@@ -35,6 +40,7 @@ export default function DespesasPage() {
   const [showForm, setShowForm] = useState(false);
   const [showScan, setShowScan] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [dividir, setDividir] = useState(false);
 
   const [obraId, setObraId] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -43,6 +49,8 @@ export default function DespesasPage() {
   const [fornecedor, setFornecedor] = useState('');
   const [dataDespesa, setDataDespesa] = useState(() => new Date().toISOString().slice(0, 10));
   const [ficheiro, setFicheiro] = useState<File | null>(null);
+
+  const [linhas, setLinhas] = useState<LinhaSplit[]>([{ obraId: '', valor: '' }, { obraId: OPCAO_GERAL, valor: '' }]);
 
   async function carregar() {
     setLoading(true);
@@ -57,38 +65,80 @@ export default function DespesasPage() {
 
   useEffect(() => { carregar(); }, []);
 
-  async function adicionarDespesa(e: React.FormEvent) {
-    e.preventDefault();
-    if (!obraId) { alert('Escolhe uma obra.'); return; }
-    setUploading(true);
-
-    let comprovativoUrl: string | null = null;
-    if (ficheiro) {
-      const path = `${obraId}/${Date.now()}-${ficheiro.name}`;
-      const { error: uploadError } = await supabase.storage.from('comprovativos').upload(path, ficheiro);
-      if (uploadError) {
-        alert('Erro ao enviar o comprovativo: ' + uploadError.message);
-        setUploading(false);
-        return;
-      }
-      comprovativoUrl = supabase.storage.from('comprovativos').getPublicUrl(path).data.publicUrl;
-    }
-
-    const { error } = await supabase.from('despesas').insert([{
-      obra_id: obraId,
-      descricao,
-      categoria,
-      valor: parseFloat(valor) || 0,
-      fornecedor: fornecedor || null,
-      data_despesa: dataDespesa,
-      comprovativo_url: comprovativoUrl,
-    }]);
-    setUploading(false);
-    if (error) { alert('Erro: ' + error.message); return; }
-
+  function resetForm() {
     setObraId(''); setDescricao(''); setCategoria('material'); setValor(''); setFornecedor('');
     setDataDespesa(new Date().toISOString().slice(0, 10)); setFicheiro(null);
+    setLinhas([{ obraId: '', valor: '' }, { obraId: OPCAO_GERAL, valor: '' }]);
+    setDividir(false);
     setShowForm(false);
+  }
+
+  function atualizarLinha(idx: number, campo: keyof LinhaSplit, val: string) {
+    setLinhas((prev) => prev.map((l, i) => (i === idx ? { ...l, [campo]: val } : l)));
+  }
+
+  function adicionarLinha() {
+    setLinhas((prev) => [...prev, { obraId: '', valor: '' }]);
+  }
+
+  function removerLinha(idx: number) {
+    setLinhas((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function enviarComprovativo(pasta: string): Promise<string | null> {
+    if (!ficheiro) return null;
+    const path = `${pasta}/${Date.now()}-${ficheiro.name}`;
+    const { error: uploadError } = await supabase.storage.from('comprovativos').upload(path, ficheiro);
+    if (uploadError) throw new Error(uploadError.message);
+    return supabase.storage.from('comprovativos').getPublicUrl(path).data.publicUrl;
+  }
+
+  async function adicionarDespesa(e: React.FormEvent) {
+    e.preventDefault();
+    setUploading(true);
+
+    try {
+      if (dividir) {
+        const validas = linhas.filter((l) => l.obraId && parseFloat(l.valor) > 0);
+        if (validas.length === 0) { alert('Adiciona pelo menos uma linha com obra e valor.'); setUploading(false); return; }
+
+        const comprovativoUrl = await enviarComprovativo('geral');
+
+        const { error } = await supabase.from('despesas').insert(
+          validas.map((l) => ({
+            obra_id: l.obraId === OPCAO_GERAL ? null : l.obraId,
+            descricao,
+            categoria,
+            valor: parseFloat(l.valor) || 0,
+            fornecedor: fornecedor || null,
+            data_despesa: dataDespesa,
+            comprovativo_url: comprovativoUrl,
+          }))
+        );
+        if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
+      } else {
+        if (!obraId) { alert('Escolhe uma obra ou "Despesa Geral".'); setUploading(false); return; }
+        const comprovativoUrl = await enviarComprovativo(obraId === OPCAO_GERAL ? 'geral' : obraId);
+
+        const { error } = await supabase.from('despesas').insert([{
+          obra_id: obraId === OPCAO_GERAL ? null : obraId,
+          descricao,
+          categoria,
+          valor: parseFloat(valor) || 0,
+          fornecedor: fornecedor || null,
+          data_despesa: dataDespesa,
+          comprovativo_url: comprovativoUrl,
+        }]);
+        if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
+      }
+    } catch (err: any) {
+      alert('Erro ao enviar o comprovativo: ' + err.message);
+      setUploading(false);
+      return;
+    }
+
+    setUploading(false);
+    resetForm();
     carregar();
   }
 
@@ -99,6 +149,7 @@ export default function DespesasPage() {
   }
 
   const totalGeral = despesas.reduce((s, d) => s + d.valor, 0);
+  const somaLinhas = linhas.reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
 
   return (
     <div className="p-4 md:p-8">
@@ -126,34 +177,68 @@ export default function DespesasPage() {
 
       {showForm && (
         <div className="card p-6 mb-6">
-          <h2 className="font-semibold mb-4 text-ink-700">Nova Despesa</h2>
-          {obras.length === 0 ? (
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-              Ainda não tens obras registadas. Vai a "Obras" e cria uma primeiro.
-            </p>
-          ) : (
-            <form onSubmit={adicionarDespesa} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <select value={obraId} onChange={(e) => setObraId(e.target.value)} className="input" required>
-                <option value="">Selecionar Obra</option>
-                {obras.map((o) => <option key={o.id} value={o.id}>{o.titulo}</option>)}
-              </select>
-              <input type="text" placeholder="Descrição" value={descricao} onChange={(e) => setDescricao(e.target.value)} className="input" required />
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-ink-700">Nova Despesa</h2>
+            <button
+              type="button"
+              onClick={() => setDividir((v) => !v)}
+              className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors ${dividir ? 'bg-brand-50 border-brand-200 text-brand-700' : 'border-sand-200 text-ink-500 hover:bg-sand-50'}`}
+            >
+              <Rows3 size={15} /> Dividir por várias obras
+            </button>
+          </div>
+
+          <form onSubmit={adicionarDespesa} className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input type="text" placeholder="Descrição (ex: Fatura Leroy Merlin)" value={descricao} onChange={(e) => setDescricao(e.target.value)} className="input" required />
               <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="input">
                 {CATEGORIAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
-              <input type="number" step="0.01" placeholder="Valor (€)" value={valor} onChange={(e) => setValor(e.target.value)} className="input" required />
               <input type="text" placeholder="Fornecedor" value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} className="input" />
               <input type="date" value={dataDespesa} onChange={(e) => setDataDespesa(e.target.value)} className="input" />
-              <label className="input flex items-center gap-2 cursor-pointer md:col-span-3 text-ink-500">
+              <label className="input flex items-center gap-2 cursor-pointer md:col-span-2 text-ink-500">
                 <Paperclip size={16} className="shrink-0" />
                 {ficheiro ? ficheiro.name : 'Anexar foto/PDF da fatura (opcional)'}
                 <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setFicheiro(e.target.files?.[0] || null)} />
               </label>
-              <button disabled={uploading} className="btn-primary justify-center md:col-span-3 disabled:opacity-60">
-                {uploading ? 'A guardar...' : 'Adicionar Despesa'}
-              </button>
-            </form>
-          )}
+            </div>
+
+            {dividir ? (
+              <div className="space-y-2 pt-2 border-t border-sand-100">
+                <p className="text-xs text-ink-400">Divide o valor total desta fatura/pagamento por várias obras (ou "Stock/Geral" para material sem obra associada).</p>
+                {linhas.map((l, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <select value={l.obraId} onChange={(e) => atualizarLinha(idx, 'obraId', e.target.value)} className="input flex-1">
+                      <option value="">Selecionar Obra</option>
+                      <option value={OPCAO_GERAL}>— Stock / Despesa Geral (sem obra) —</option>
+                      {obras.map((o) => <option key={o.id} value={o.id}>{o.titulo}</option>)}
+                    </select>
+                    <input type="number" step="0.01" placeholder="Valor (€)" value={l.valor} onChange={(e) => atualizarLinha(idx, 'valor', e.target.value)} className="input w-32" />
+                    <button type="button" onClick={() => removerLinha(idx)} className="text-ink-300 hover:text-red-600 shrink-0"><X size={16} /></button>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between pt-1">
+                  <button type="button" onClick={adicionarLinha} className="text-sm text-brand-600 hover:text-brand-700 flex items-center gap-1">
+                    <Plus size={14} /> Adicionar linha
+                  </button>
+                  <span className="text-sm text-ink-500">Soma: {formatMoney(somaLinhas)}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-sand-100">
+                <select value={obraId} onChange={(e) => setObraId(e.target.value)} className="input" required>
+                  <option value="">Selecionar Obra</option>
+                  <option value={OPCAO_GERAL}>— Despesa Geral (sem obra, ex: ordenado) —</option>
+                  {obras.map((o) => <option key={o.id} value={o.id}>{o.titulo}</option>)}
+                </select>
+                <input type="number" step="0.01" placeholder="Valor (€)" value={valor} onChange={(e) => setValor(e.target.value)} className="input md:col-span-2" required />
+              </div>
+            )}
+
+            <button disabled={uploading} className="btn-primary justify-center w-full disabled:opacity-60">
+              {uploading ? 'A guardar...' : 'Adicionar Despesa'}
+            </button>
+          </form>
         </div>
       )}
 
@@ -192,7 +277,7 @@ export default function DespesasPage() {
                         </a>
                       ) : d.descricao}
                     </td>
-                    <td className="p-4 text-ink-500">{d.obras?.titulo || '—'}</td>
+                    <td className="p-4 text-ink-500">{d.obra_id ? (d.obras?.titulo || '—') : 'Geral'}</td>
                     <td className="p-4"><span className="badge bg-sand-100 text-ink-600">{CATEGORIAS.find((c) => c.value === d.categoria)?.label || d.categoria}</span></td>
                     <td className="p-4 text-ink-500">{d.fornecedor || '—'}</td>
                     <td className="p-4 text-right text-ink-800 font-medium">{formatMoney(d.valor)}</td>

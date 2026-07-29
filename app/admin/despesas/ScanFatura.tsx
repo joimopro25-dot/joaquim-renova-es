@@ -92,13 +92,13 @@ export default function ScanFatura({ obras, onSaved, onClose }: { obras: Obra[];
   const somaItens = itens.reduce((s, it) => s + subtotalItem(it), 0);
 
   async function confirmarGravar() {
-    if (!obraId) { setErro('Escolhe a obra a que esta despesa pertence.'); return; }
+    if (!obraId) { setErro('Escolhe a obra, ou "Stock / Despesa Geral" se não for de uma obra específica.'); return; }
     setSaving(true);
     setErro('');
 
     let comprovativoUrl: string | null = null;
     if (ficheiro) {
-      const path = `${obraId}/${Date.now()}-${ficheiro.name}`;
+      const path = `${obraId === 'geral' ? 'geral' : obraId}/${Date.now()}-${ficheiro.name}`;
       const { error: uploadError } = await supabase.storage.from('comprovativos').upload(path, ficheiro);
       if (uploadError) { setErro('Erro ao enviar o comprovativo: ' + uploadError.message); setSaving(false); return; }
       comprovativoUrl = supabase.storage.from('comprovativos').getPublicUrl(path).data.publicUrl;
@@ -106,7 +106,7 @@ export default function ScanFatura({ obras, onSaved, onClose }: { obras: Obra[];
 
     const valorFinal = total ? parseFloat(total) : somaItens;
     const { data: despesa, error: despesaError } = await supabase.from('despesas').insert([{
-      obra_id: obraId,
+      obra_id: obraId === 'geral' ? null : obraId,
       descricao: fornecedor || 'Fatura digitalizada',
       categoria: 'material',
       valor: valorFinal,
@@ -204,6 +204,7 @@ export default function ScanFatura({ obras, onSaved, onClose }: { obras: Obra[];
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <select value={obraId} onChange={(e) => setObraId(e.target.value)} className="input" required>
                   <option value="">Selecionar Obra</option>
+                  <option value="geral">— Stock / Despesa Geral (sem obra) —</option>
                   {obras.map((o) => <option key={o.id} value={o.id}>{o.titulo}</option>)}
                 </select>
                 <input type="text" placeholder="Fornecedor" value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} className="input" />

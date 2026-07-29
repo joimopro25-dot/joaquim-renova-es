@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { formatMoney } from '../../lib/format';
-import { Users, Briefcase, Euro, ArrowRight, Receipt } from 'lucide-react';
+import { Users, Briefcase, Euro, ArrowRight, Receipt, HardHat } from 'lucide-react';
 
 type Obra = {
   id: string;
@@ -27,17 +27,19 @@ export default function AdminDashboard() {
   const [obrasEmCurso, setObrasEmCurso] = useState(0);
   const [valorOrcamentado, setValorOrcamentado] = useState(0);
   const [totalDespesas, setTotalDespesas] = useState(0);
+  const [totalSubempreitadas, setTotalSubempreitadas] = useState(0);
   const [recentes, setRecentes] = useState<Obra[]>([]);
 
   useEffect(() => {
     async function carregar() {
-      const [{ count: clientesCount }, { data: obras }, { data: despesas }] = await Promise.all([
+      const [{ count: clientesCount }, { data: obras }, { data: despesas }, { data: subs }] = await Promise.all([
         supabase.from('clientes').select('*', { count: 'exact', head: true }),
         supabase
           .from('obras')
           .select('id, titulo, status, valor_total, clientes(nome)')
           .order('criado_em', { ascending: false }),
         supabase.from('despesas').select('valor'),
+        supabase.from('subempreitadas').select('tipo_valor, quantidade, valor_unitario').eq('estado', 'pago'),
       ]);
 
       setTotalClientes(clientesCount || 0);
@@ -45,6 +47,7 @@ export default function AdminDashboard() {
       setObrasEmCurso(obrasList.filter((o) => o.status === 'em_curso').length);
       setValorOrcamentado(obrasList.reduce((sum, o) => sum + (o.valor_total || 0), 0));
       setTotalDespesas((despesas || []).reduce((sum, d: any) => sum + (d.valor || 0), 0));
+      setTotalSubempreitadas((subs || []).reduce((sum, s: any) => sum + (s.tipo_valor === 'fixo' ? s.valor_unitario : s.quantidade * s.valor_unitario), 0));
       setRecentes(obrasList.slice(0, 5));
       setLoading(false);
     }
@@ -56,11 +59,12 @@ export default function AdminDashboard() {
     { label: 'Obras em Curso', value: obrasEmCurso, icon: Briefcase, href: '/admin/obras' },
     { label: 'Valor Orçamentado (total)', value: formatMoney(valorOrcamentado), icon: Euro, href: '/admin/obras' },
     { label: 'Despesas Registadas', value: formatMoney(totalDespesas), icon: Receipt, href: '/admin/despesas' },
+    { label: 'Subempreitadas Recebidas', value: formatMoney(totalSubempreitadas), icon: HardHat, href: '/admin/subempreitadas' },
   ];
 
   return (
     <div className="p-4 md:p-8">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         {stats.map((s) => (
           <Link key={s.label} href={s.href} className="card p-5 hover:border-brand-200 transition-colors">
             <div className="flex items-center justify-between mb-2">

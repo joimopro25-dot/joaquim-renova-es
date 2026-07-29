@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, RotateCcw, Printer, Paperclip, Upload, UserPlus, HardHat } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, RotateCcw, Printer, Paperclip, Upload, UserPlus, HardHat, Pencil } from 'lucide-react';
 
 type Entrada = {
   id: string;
@@ -88,6 +88,10 @@ export default function SubempreitadaDetalhe() {
   const [metodoPagamento, setMetodoPagamento] = useState('Dinheiro');
   const [faturaEmitida, setFaturaEmitida] = useState(false);
   const [dataPagamento, setDataPagamento] = useState(() => new Date().toISOString().slice(0, 10));
+
+  const [showEditarValor, setShowEditarValor] = useState(false);
+  const [editTipoValor, setEditTipoValor] = useState('hora');
+  const [editValorUnitario, setEditValorUnitario] = useState('');
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -202,6 +206,25 @@ export default function SubempreitadaDetalhe() {
     carregar();
   }
 
+  function abrirEditarValor() {
+    if (sub) {
+      setEditTipoValor(sub.tipo_valor);
+      setEditValorUnitario(String(sub.valor_unitario));
+    }
+    setShowEditarValor(true);
+  }
+
+  async function guardarValor(e: React.FormEvent) {
+    e.preventDefault();
+    const { error } = await supabase.from('subempreitadas').update({
+      tipo_valor: editTipoValor,
+      valor_unitario: parseFloat(editValorUnitario) || 0,
+    }).eq('id', id);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setShowEditarValor(false);
+    carregar();
+  }
+
   if (loading) return <div className="p-8 text-center text-ink-300 text-sm">A carregar...</div>;
   if (!sub) return <div className="p-8 text-center text-ink-400 text-sm">Registo não encontrado.</div>;
 
@@ -223,12 +246,35 @@ export default function SubempreitadaDetalhe() {
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
           <h2 className="text-xl font-heading font-semibold text-ink-800">{sub.descricao}</h2>
-          <p className="text-sm text-ink-400">{sub.clientes?.nome || '—'} · {formatMoney(sub.valor_unitario)}{sub.tipo_valor !== 'fixo' ? `/${sub.tipo_valor === 'hora' ? 'h' : 'dia'}` : ''}</p>
+          <p className="text-sm text-ink-400 flex items-center gap-1.5">
+            {sub.clientes?.nome || '—'} · {formatMoney(sub.valor_unitario)}{sub.tipo_valor !== 'fixo' ? `/${sub.tipo_valor === 'hora' ? 'h' : 'dia'}` : ''}
+            <button onClick={abrirEditarValor} className="text-ink-300 hover:text-brand-600" title="Editar valor cobrado ao empreiteiro/cliente">
+              <Pencil size={13} />
+            </button>
+          </p>
         </div>
         <span className={`badge ${sub.estado === 'pago' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
           {sub.estado === 'pago' ? 'Pago' : 'Pendente'}
         </span>
       </div>
+
+      {showEditarValor && (
+        <form onSubmit={guardarValor} className="card p-6 mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <p className="text-xs text-ink-400 md:col-span-3 -mt-1 mb-1">
+            Valor que o empreiteiro/cliente paga à empresa por este trabalho (pode ser diferente do que pagas a cada trabalhador).
+          </p>
+          <select value={editTipoValor} onChange={(e) => setEditTipoValor(e.target.value)} className="input">
+            <option value="hora">Por Hora</option>
+            <option value="dia">Por Dia</option>
+            <option value="fixo">Valor Fixo</option>
+          </select>
+          <input type="number" step="0.01" placeholder="Valor (€)" value={editValorUnitario} onChange={(e) => setEditValorUnitario(e.target.value)} className="input" required />
+          <div className="flex gap-2">
+            <button className="btn-primary justify-center flex-1">Guardar</button>
+            <button type="button" onClick={() => setShowEditarValor(false)} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100">Cancelar</button>
+          </div>
+        </form>
+      )}
 
       <div className="flex flex-wrap gap-2 mb-6">
         <a href={`/admin/subempreitadas/${id}/relatorio`} target="_blank" rel="noreferrer" className="btn-primary bg-ink-700 hover:bg-ink-800">

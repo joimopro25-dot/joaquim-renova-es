@@ -4,7 +4,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
-import { ArrowLeft, Upload, Trash2, ImageOff } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat } from 'lucide-react';
 
 type Obra = {
   id: string;
@@ -18,6 +19,17 @@ type Obra = {
 
 type Foto = { id: string; url: string; legenda: string | null; criado_em: string };
 
+type Trabalhador = { id: string; nome: string; tipo_valor_padrao: string; valor_padrao: number };
+type ObraTrabalhador = {
+  id: string;
+  trabalhador_id: string;
+  tipo_valor: string;
+  valor_unitario: number;
+  estado: string;
+  trabalhadores: { nome: string } | null;
+  obra_trabalhador_entradas: { quantidade: number }[];
+};
+
 const ESTADOS = [
   { value: 'orcamento', label: 'Orçamento' },
   { value: 'em_curso', label: 'Em Curso' },
@@ -25,28 +37,68 @@ const ESTADOS = [
   { value: 'concluida', label: 'Concluída' },
 ];
 
+function calcularTotalTrabalhador(ot: ObraTrabalhador) {
+  if (ot.tipo_valor === 'fixo') return ot.valor_unitario;
+  const total = ot.obra_trabalhador_entradas.reduce((s, e) => s + e.quantidade, 0);
+  return total * ot.valor_unitario;
+}
+
 export default function ObraDetalhePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [obra, setObra] = useState<Obra | null>(null);
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [totalDespesas, setTotalDespesas] = useState(0);
+  const [trabalhadoresDisponiveis, setTrabalhadoresDisponiveis] = useState<Trabalhador[]>([]);
+  const [obraTrabalhadores, setObraTrabalhadores] = useState<ObraTrabalhador[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [legenda, setLegenda] = useState('');
+  const [showTrabalhadorForm, setShowTrabalhadorForm] = useState(false);
+  const [trabalhadorId, setTrabalhadorId] = useState('');
+  const [tipoValorTrab, setTipoValorTrab] = useState('dia');
+  const [valorUnitarioTrab, setValorUnitarioTrab] = useState('');
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: obraData }, { data: fotosData }, { data: despesasData }] = await Promise.all([
+    const [{ data: obraData }, { data: fotosData }, { data: despesasData }, { data: trabData }, { data: obraTrabData }] = await Promise.all([
       supabase.from('obras').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('fotos_obra').select('*').eq('obra_id', id).order('criado_em', { ascending: false }),
       supabase.from('despesas').select('valor').eq('obra_id', id),
+      supabase.from('trabalhadores').select('id, nome, tipo_valor_padrao, valor_padrao').eq('ativo', true).order('nome'),
+      supabase.from('obra_trabalhadores').select('*, trabalhadores(nome), obra_trabalhador_entradas(quantidade)').eq('obra_id', id),
     ]);
     setObra(obraData as any);
     setFotos(fotosData || []);
     setTotalDespesas((despesasData || []).reduce((s, d: any) => s + (d.valor || 0), 0));
+    setTrabalhadoresDisponiveis(trabData || []);
+    setObraTrabalhadores((obraTrabData as any) || []);
     setLoading(false);
   }, [id]);
+
+  function selecionarTrabalhador(tid: string) {
+    setTrabalhadorId(tid);
+    const t = trabalhadoresDisponiveis.find((x) => x.id === tid);
+    if (t) {
+      setTipoValorTrab(t.tipo_valor_padrao);
+      setValorUnitarioTrab(String(t.valor_padrao));
+    }
+  }
+
+  async function atribuirTrabalhador(e: React.FormEvent) {
+    e.preventDefault();
+    if (!trabalhadorId) { alert('Escolhe um trabalhador.'); return; }
+    const { error } = await supabase.from('obra_trabalhadores').insert([{
+      obra_id: id,
+      trabalhador_id: trabalhadorId,
+      tipo_valor: tipoValorTrab,
+      valor_unitario: parseFloat(valorUnitarioTrab) || 0,
+    }]);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setTrabalhadorId(''); setTipoValorTrab('dia'); setValorUnitarioTrab('');
+    setShowTrabalhadorForm(false);
+    carregar();
+  }
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -83,7 +135,8 @@ export default function ObraDetalhePage() {
   if (loading) return <div className="p-8 text-center text-ink-300 text-sm">A carregar...</div>;
   if (!obra) return <div className="p-8 text-center text-ink-400 text-sm">Obra não encontrada.</div>;
 
-  const margem = (obra.valor_total || 0) - totalDespesas;
+  const totalMaoDeObra = obraTrabalhadores.reduce((s, ot) => s + calcularTotalTrabalhador(ot), 0);
+  const margem = (obra.valor_total || 0) - totalDespesas - totalMaoDeObra;
 
   return (
     <div className="p-4 md:p-8 max-w-4xl">
@@ -101,19 +154,69 @@ export default function ObraDetalhePage() {
         </select>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="card p-5">
           <p className="text-ink-400 text-sm mb-1">Orçamentado</p>
           <p className="text-xl font-heading font-semibold text-ink-800">{formatMoney(obra.valor_total || 0)}</p>
         </div>
         <div className="card p-5">
-          <p className="text-ink-400 text-sm mb-1">Gasto até agora</p>
+          <p className="text-ink-400 text-sm mb-1">Despesas/Materiais</p>
           <p className="text-xl font-heading font-semibold text-ink-800">{formatMoney(totalDespesas)}</p>
+        </div>
+        <div className="card p-5">
+          <p className="text-ink-400 text-sm mb-1">Mão de Obra</p>
+          <p className="text-xl font-heading font-semibold text-ink-800">{formatMoney(totalMaoDeObra)}</p>
         </div>
         <div className="card p-5">
           <p className="text-ink-400 text-sm mb-1">Margem</p>
           <p className={`text-xl font-heading font-semibold ${margem >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatMoney(margem)}</p>
         </div>
+      </div>
+
+      <div className="card p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-ink-700 flex items-center gap-2"><HardHat size={16} /> Trabalhadores nesta Obra</h3>
+          <button onClick={() => setShowTrabalhadorForm((v) => !v)} className="btn-primary text-sm py-1.5">
+            <UserPlus size={15} /> Atribuir
+          </button>
+        </div>
+
+        {showTrabalhadorForm && (
+          <form onSubmit={atribuirTrabalhador} className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4 p-3 bg-sand-50 rounded-lg">
+            <select value={trabalhadorId} onChange={(e) => selecionarTrabalhador(e.target.value)} className="input">
+              <option value="">Selecionar trabalhador</option>
+              {trabalhadoresDisponiveis.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+            </select>
+            <select value={tipoValorTrab} onChange={(e) => setTipoValorTrab(e.target.value)} className="input">
+              <option value="hora">Por Hora</option>
+              <option value="dia">Por Dia</option>
+              <option value="fixo">Valor Fixo</option>
+            </select>
+            <input type="number" step="0.01" placeholder="Valor (€)" value={valorUnitarioTrab} onChange={(e) => setValorUnitarioTrab(e.target.value)} className="input" required />
+            <button className="btn-primary justify-center">Confirmar</button>
+          </form>
+        )}
+
+        {obraTrabalhadores.length === 0 ? (
+          <p className="text-sm text-ink-400 text-center py-4">Ainda sem trabalhadores atribuídos.</p>
+        ) : (
+          <div className="space-y-2">
+            {obraTrabalhadores.map((ot) => (
+              <Link key={ot.id} href={`/admin/obras/${id}/trabalhadores/${ot.id}`} className="flex items-center justify-between p-3 border border-sand-200 rounded-lg hover:bg-sand-50 transition-colors text-sm">
+                <div>
+                  <span className="font-medium text-ink-800">{ot.trabalhadores?.nome}</span>
+                  <span className="text-ink-400 ml-2">{formatMoney(ot.valor_unitario)}{ot.tipo_valor !== 'fixo' ? `/${ot.tipo_valor === 'hora' ? 'h' : 'dia'}` : ''}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-medium text-ink-800">{formatMoney(calcularTotalTrabalhador(ot))}</span>
+                  <span className={`badge ${ot.estado === 'pago' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {ot.estado === 'pago' ? 'Pago' : 'Pendente'}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="card p-6 mb-6">

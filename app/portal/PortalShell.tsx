@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
+import InstallAppButton from '../../components/InstallAppButton';
 import { LogOut } from 'lucide-react';
 
 export default function PortalShell({ children }: { children: React.ReactNode }) {
@@ -45,6 +46,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         <nav className="flex items-center gap-4">
           <Link href="/portal" className={`text-sm ${pathname === '/portal' ? 'text-brand-600 font-medium' : 'text-ink-500 hover:text-ink-800'}`}>As Minhas Obras</Link>
           <Link href="/portal/orcamentos" className={`text-sm ${pathname.startsWith('/portal/orcamentos') ? 'text-brand-600 font-medium' : 'text-ink-500 hover:text-ink-800'}`}>Orçamentos</Link>
+          <InstallAppButton scope="/portal/" className="flex items-center gap-1.5 text-sm text-ink-500 hover:text-brand-600" label="Instalar App" />
           <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm text-ink-500 hover:text-red-600">
             <LogOut size={16} /> Sair
           </button>

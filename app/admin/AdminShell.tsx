@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
+import InstallAppButton from '../../components/InstallAppButton';
 import {
   LayoutDashboard, Users, Briefcase, Receipt, Package, FileText, Inbox, Globe as GlobeIcon, Images, BookMarked,
   Menu, X, ChevronLeft, ChevronRight, Globe, LogOut,
@@ -145,6 +146,11 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         </nav>
 
         <div className="p-2.5 border-t border-ink-800">
+          <InstallAppButton
+            scope="/admin/"
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-ink-300 hover:bg-ink-800 hover:text-sand-100 w-full ${collapsed ? 'md:justify-center' : ''}`}
+            labelClassName={collapsed ? 'md:hidden' : ''}
+          />
           <Link
             href="/"
             target="_blank"

@@ -205,7 +205,11 @@ export default function SubempreitadaDetalhe() {
   if (loading) return <div className="p-8 text-center text-ink-300 text-sm">A carregar...</div>;
   if (!sub) return <div className="p-8 text-center text-ink-400 text-sm">Registo não encontrado.</div>;
 
-  const totalQuantidade = entradas.reduce((s, en) => s + en.quantidade, 0);
+  const totalQuantidadeManual = entradas.reduce((s, en) => s + en.quantidade, 0);
+  const totalQuantidadeTrabalhadores = subTrabalhadores
+    .filter((ot) => ot.tipo_valor === sub.tipo_valor)
+    .reduce((s, ot) => s + ot.obra_trabalhador_entradas.reduce((a, e) => a + e.quantidade, 0), 0);
+  const totalQuantidade = totalQuantidadeManual + totalQuantidadeTrabalhadores;
   const total = sub.tipo_valor === 'fixo' ? sub.valor_unitario : totalQuantidade * sub.valor_unitario;
   const totalTrabalhadores = subTrabalhadores.reduce((s, ot) => s + calcularTotalTrabalhador(ot), 0);
   const unidade = sub.tipo_valor === 'dia' ? 'dia(s)' : 'h';
@@ -345,7 +349,11 @@ export default function SubempreitadaDetalhe() {
 
       {sub.tipo_valor !== 'fixo' && (
         <div className="card p-6 mb-6">
-          <h3 className="font-semibold text-ink-700 mb-4">Registo de {sub.tipo_valor === 'hora' ? 'Horas' : 'Dias'}</h3>
+          <h3 className="font-semibold text-ink-700 mb-1">Registo de {sub.tipo_valor === 'hora' ? 'Horas' : 'Dias'} (geral)</h3>
+          <p className="text-xs text-ink-400 mb-4">
+            Usa isto para horas não atribuídas a um trabalhador específico. As horas de cada trabalhador (na secção acima) somam-se automaticamente a este total.
+            {totalQuantidadeTrabalhadores > 0 && ` Trabalhadores já contribuem com ${totalQuantidadeTrabalhadores} ${unidade}.`}
+          </p>
 
           {entradas.length > 0 && (
             <div className="overflow-x-auto mb-4">
@@ -400,10 +408,24 @@ export default function SubempreitadaDetalhe() {
       <div className="card p-6">
         <div className="space-y-2 text-sm max-w-sm ml-auto">
           {sub.tipo_valor !== 'fixo' && (
-            <div className="flex justify-between">
-              <span className="text-ink-500">Total {unidade}</span>
-              <span className="text-ink-800">{totalQuantidade} {unidade}</span>
-            </div>
+            <>
+              {totalQuantidadeTrabalhadores > 0 && (
+                <>
+                  <div className="flex justify-between text-ink-400">
+                    <span>Horas gerais</span>
+                    <span>{totalQuantidadeManual} {unidade}</span>
+                  </div>
+                  <div className="flex justify-between text-ink-400">
+                    <span>Horas dos trabalhadores</span>
+                    <span>{totalQuantidadeTrabalhadores} {unidade}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between">
+                <span className="text-ink-500">Total {unidade}</span>
+                <span className="text-ink-800">{totalQuantidade} {unidade}</span>
+              </div>
+            </>
           )}
           <div className="flex justify-between">
             <span className="text-ink-500">A Receber</span>

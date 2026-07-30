@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
-import { Plus, Receipt, Paperclip, Trash2, Camera, Rows3, X } from 'lucide-react';
+import { Plus, Receipt, Paperclip, Trash2, Camera, Rows3, X, Copy, Pencil } from 'lucide-react';
 import ScanFatura from './ScanFatura';
 
 type Obra = { id: string; titulo: string };
@@ -69,6 +69,12 @@ export default function DespesasPage() {
 
   const [linhas, setLinhas] = useState<LinhaSplit[]>([{ destino: '', valor: '' }, { destino: OPCAO_GERAL, valor: '' }]);
 
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+
+  const [duplicando, setDuplicando] = useState<Despesa | null>(null);
+  const [dataDuplicar, setDataDuplicar] = useState(() => new Date().toISOString().slice(0, 10));
+  const [aDuplicar, setADuplicar] = useState(false);
+
   async function carregar() {
     setLoading(true);
     const [{ data: despesasData }, { data: obrasData }, { data: subsData }] = await Promise.all([
@@ -89,7 +95,22 @@ export default function DespesasPage() {
     setDataDespesa(new Date().toISOString().slice(0, 10)); setFicheiro(null); setImputar(true);
     setLinhas([{ destino: '', valor: '' }, { destino: OPCAO_GERAL, valor: '' }]);
     setDividir(false);
+    setEditandoId(null);
     setShowForm(false);
+  }
+
+  function abrirEditar(d: Despesa) {
+    setEditandoId(d.id);
+    setDestino(d.subempreitada_id ? `sub:${d.subempreitada_id}` : d.obra_id ? `obra:${d.obra_id}` : OPCAO_GERAL);
+    setDescricao(d.descricao);
+    setCategoria(d.categoria);
+    setValor(String(d.valor));
+    setFornecedor(d.fornecedor || '');
+    setDataDespesa(d.data_despesa);
+    setFicheiro(null);
+    setImputar(d.imputar);
+    setDividir(false);
+    setShowForm(true);
   }
 
   function atualizarLinha(idx: number, campo: keyof LinhaSplit, val: string) {
@@ -117,7 +138,23 @@ export default function DespesasPage() {
     setUploading(true);
 
     try {
-      if (dividir) {
+      if (editandoId) {
+        if (!destino) { alert('Escolhe uma obra, subempreitada ou "Despesa Geral".'); setUploading(false); return; }
+        const update: Record<string, any> = {
+          ...parseDestino(destino),
+          descricao,
+          categoria,
+          valor: parseFloat(valor) || 0,
+          fornecedor: fornecedor || null,
+          data_despesa: dataDespesa,
+          imputar,
+        };
+        if (ficheiro) {
+          update.comprovativo_url = await enviarComprovativo(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1]);
+        }
+        const { error } = await supabase.from('despesas').update(update).eq('id', editandoId);
+        if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
+      } else if (dividir) {
         const validas = linhas.filter((l) => l.destino && parseFloat(l.valor) > 0);
         if (validas.length === 0) { alert('Adiciona pelo menos uma linha com destino e valor.'); setUploading(false); return; }
 
@@ -169,6 +206,32 @@ export default function DespesasPage() {
     carregar();
   }
 
+  function abrirDuplicar(d: Despesa) {
+    setDuplicando(d);
+    setDataDuplicar(new Date().toISOString().slice(0, 10));
+  }
+
+  async function confirmarDuplicar(e: React.FormEvent) {
+    e.preventDefault();
+    if (!duplicando) return;
+    setADuplicar(true);
+    const { error } = await supabase.from('despesas').insert([{
+      obra_id: duplicando.obra_id,
+      subempreitada_id: duplicando.subempreitada_id,
+      descricao: duplicando.descricao,
+      categoria: duplicando.categoria,
+      valor: duplicando.valor,
+      fornecedor: duplicando.fornecedor,
+      data_despesa: dataDuplicar,
+      comprovativo_url: null,
+      imputar: duplicando.imputar,
+    }]);
+    setADuplicar(false);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setDuplicando(null);
+    carregar();
+  }
+
   const totalGeral = despesas.reduce((s, d) => s + d.valor, 0);
   const somaLinhas = linhas.reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
 
@@ -205,14 +268,16 @@ export default function DespesasPage() {
       {showForm && (
         <div className="card p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-ink-700">Nova Despesa</h2>
-            <button
-              type="button"
-              onClick={() => setDividir((v) => !v)}
-              className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors ${dividir ? 'bg-brand-50 border-brand-200 text-brand-700' : 'border-sand-200 text-ink-500 hover:bg-sand-50'}`}
-            >
-              <Rows3 size={15} /> Dividir por várias obras
-            </button>
+            <h2 className="font-semibold text-ink-700">{editandoId ? 'Editar Despesa' : 'Nova Despesa'}</h2>
+            {!editandoId && (
+              <button
+                type="button"
+                onClick={() => setDividir((v) => !v)}
+                className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors ${dividir ? 'bg-brand-50 border-brand-200 text-brand-700' : 'border-sand-200 text-ink-500 hover:bg-sand-50'}`}
+              >
+                <Rows3 size={15} /> Dividir por várias obras
+              </button>
+            )}
           </div>
 
           <form onSubmit={adicionarDespesa} className="space-y-3">
@@ -225,7 +290,11 @@ export default function DespesasPage() {
               <input type="date" value={dataDespesa} onChange={(e) => setDataDespesa(e.target.value)} className="input" />
               <label className="input flex items-center gap-2 cursor-pointer md:col-span-2 text-ink-500">
                 <Paperclip size={16} className="shrink-0" />
-                {ficheiro ? ficheiro.name : 'Anexar foto/PDF do comprovativo (opcional)'}
+                {ficheiro
+                  ? ficheiro.name
+                  : editandoId && despesas.find((d) => d.id === editandoId)?.comprovativo_url
+                    ? 'Já tem comprovativo — escolhe um ficheiro para substituir (opcional)'
+                    : 'Anexar foto/PDF do comprovativo (opcional)'}
                 <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setFicheiro(e.target.files?.[0] || null)} />
               </label>
             </div>
@@ -285,9 +354,14 @@ export default function DespesasPage() {
               Contar para a margem da obra/subempreitada (desliga para só ficar registada, sem afetar o cálculo)
             </label>
 
-            <button disabled={uploading} className="btn-primary justify-center w-full disabled:opacity-60">
-              {uploading ? 'A guardar...' : 'Adicionar Despesa'}
-            </button>
+            <div className="flex gap-2">
+              {editandoId && (
+                <button type="button" onClick={resetForm} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 flex-1 justify-center">Cancelar</button>
+              )}
+              <button disabled={uploading} className="btn-primary justify-center flex-1 disabled:opacity-60">
+                {uploading ? 'A guardar...' : editandoId ? 'Guardar Alterações' : 'Adicionar Despesa'}
+              </button>
+            </div>
           </form>
         </div>
       )}
@@ -332,7 +406,13 @@ export default function DespesasPage() {
                     <td className="p-4"><span className="badge bg-sand-100 text-ink-600">{CATEGORIAS.find((c) => c.value === d.categoria)?.label || d.categoria}</span></td>
                     <td className="p-4 text-ink-500">{d.fornecedor || '—'}</td>
                     <td className="p-4 text-right text-ink-800 font-medium">{formatMoney(d.valor)}</td>
-                    <td className="p-4 text-right">
+                    <td className="p-4 text-right whitespace-nowrap">
+                      <button onClick={() => abrirEditar(d)} className="text-ink-300 hover:text-brand-600 mr-2" title="Editar">
+                        <Pencil size={15} />
+                      </button>
+                      <button onClick={() => abrirDuplicar(d)} className="text-ink-300 hover:text-brand-600 mr-2" title="Duplicar (ex: mesma viagem noutro dia)">
+                        <Copy size={15} />
+                      </button>
                       <button onClick={() => removerDespesa(d.id)} className="text-ink-300 hover:text-red-600">
                         <Trash2 size={15} />
                       </button>
@@ -344,6 +424,23 @@ export default function DespesasPage() {
           </table>
         </div>
       </div>
+
+      {duplicando && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <form onSubmit={confirmarDuplicar} className="bg-white rounded-2xl max-w-sm w-full p-6">
+            <h3 className="font-semibold text-ink-800 mb-1">Duplicar Despesa</h3>
+            <p className="text-sm text-ink-400 mb-4">
+              "{duplicando.descricao}" · {formatMoney(duplicando.valor)} · {destinoLabel(duplicando)}
+            </p>
+            <label className="block text-sm text-ink-600 mb-1">Data da nova despesa</label>
+            <input type="date" value={dataDuplicar} onChange={(e) => setDataDuplicar(e.target.value)} className="input w-full mb-4" required />
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setDuplicando(null)} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 flex-1 justify-center">Cancelar</button>
+              <button disabled={aDuplicar} className="btn-primary flex-1 justify-center disabled:opacity-60">{aDuplicar ? 'A duplicar...' : 'Duplicar'}</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

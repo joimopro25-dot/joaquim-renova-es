@@ -1,0 +1,8 @@
+name = "projetarconforto-email"
+main = "src/index.ts"
+compatibility_date = "2024-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+API_URL = "https://projetarconforto.pt/api/email/receber"
+FORWARD_TO = "olijack84@gmail.com"

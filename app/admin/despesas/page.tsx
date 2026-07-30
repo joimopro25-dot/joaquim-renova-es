@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
-import { Plus, Receipt, Paperclip, Trash2, Camera, Rows3, X, Copy, Pencil } from 'lucide-react';
+import { Plus, Receipt, Paperclip, Trash2, Camera, Rows3, X, Copy, Pencil, ChevronRight, Filter } from 'lucide-react';
 import ScanFatura from './ScanFatura';
 
 type Obra = { id: string; titulo: string };
@@ -54,6 +54,42 @@ function parseDestino(destino: string): { obra_id: string | null; subempreitada_
   return { obra_id: null, subempreitada_id: null };
 }
 
+const PERIODOS = [
+  { value: 'mes', label: 'Este Mês' },
+  { value: 'mes_passado', label: 'Mês Passado' },
+  { value: 'ano', label: 'Este Ano' },
+  { value: 'tudo', label: 'Tudo' },
+  { value: 'custom', label: 'Personalizado' },
+];
+
+function calcularPeriodo(periodo: string, custom: { inicio: string; fim: string }) {
+  const hoje = new Date();
+  const y = hoje.getFullYear(), m = hoje.getMonth();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  if (periodo === 'mes') return { inicio: toISO(new Date(y, m, 1)), fim: toISO(new Date(y, m + 1, 0)) };
+  if (periodo === 'mes_passado') return { inicio: toISO(new Date(y, m - 1, 1)), fim: toISO(new Date(y, m, 0)) };
+  if (periodo === 'ano') return { inicio: `${y}-01-01`, fim: `${y}-12-31` };
+  if (periodo === 'custom') return { inicio: custom.inicio || null, fim: custom.fim || null };
+  return { inicio: null, fim: null };
+}
+
+function agruparPorMes(lista: Despesa[]): [string, Despesa[]][] {
+  const mapa = new Map<string, Despesa[]>();
+  for (const d of lista) {
+    const chave = d.data_despesa.slice(0, 7);
+    if (!mapa.has(chave)) mapa.set(chave, []);
+    mapa.get(chave)!.push(d);
+  }
+  return Array.from(mapa.entries());
+}
+
+function labelMes(chave: string): string {
+  const [y, m] = chave.split('-').map(Number);
+  const label = new Date(y, m - 1, 1).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 export default function DespesasPage() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [obras, setObras] = useState<Obra[]>([]);
@@ -81,10 +117,31 @@ export default function DespesasPage() {
   const [dataDuplicar, setDataDuplicar] = useState(() => new Date().toISOString().slice(0, 10));
   const [aDuplicar, setADuplicar] = useState(false);
 
+  const [filtroDestino, setFiltroDestino] = useState('');
+  const [filtroCategoria, setFiltroCategoria] = useState('');
+  const [filtroTipo, setFiltroTipo] = useState('');
+  const [filtroPeriodo, setFiltroPeriodo] = useState('mes');
+  const [filtroInicio, setFiltroInicio] = useState(() => new Date().toISOString().slice(0, 10));
+  const [filtroFim, setFiltroFim] = useState(() => new Date().toISOString().slice(0, 10));
+  const [mesesColapsados, setMesesColapsados] = useState<Set<string>>(new Set());
+
   async function carregar() {
     setLoading(true);
+    let query = supabase.from('despesas').select('*, obras(titulo), subempreitadas(descricao)').order('data_despesa', { ascending: false });
+
+    if (filtroDestino === OPCAO_GERAL) query = query.is('obra_id', null).is('subempreitada_id', null);
+    else if (filtroDestino.startsWith('obra:')) query = query.eq('obra_id', filtroDestino.split(':')[1]);
+    else if (filtroDestino.startsWith('sub:')) query = query.eq('subempreitada_id', filtroDestino.split(':')[1]);
+
+    if (filtroCategoria) query = query.eq('categoria', filtroCategoria);
+    if (filtroTipo) query = query.eq('tipo_imputacao', filtroTipo);
+
+    const { inicio, fim } = calcularPeriodo(filtroPeriodo, { inicio: filtroInicio, fim: filtroFim });
+    if (inicio) query = query.gte('data_despesa', inicio);
+    if (fim) query = query.lte('data_despesa', fim);
+
     const [{ data: despesasData }, { data: obrasData }, { data: subsData }] = await Promise.all([
-      supabase.from('despesas').select('*, obras(titulo), subempreitadas(descricao)').order('data_despesa', { ascending: false }),
+      query,
       supabase.from('obras').select('id, titulo').order('titulo'),
       supabase.from('subempreitadas').select('id, descricao').order('descricao'),
     ]);
@@ -94,7 +151,15 @@ export default function DespesasPage() {
     setLoading(false);
   }
 
-  useEffect(() => { carregar(); }, []);
+  useEffect(() => { carregar(); }, [filtroDestino, filtroCategoria, filtroTipo, filtroPeriodo, filtroInicio, filtroFim]);
+
+  function toggleMes(chave: string) {
+    setMesesColapsados((prev) => {
+      const next = new Set(prev);
+      if (next.has(chave)) next.delete(chave); else next.add(chave);
+      return next;
+    });
+  }
 
   function resetForm() {
     setDestino(''); setDescricao(''); setCategoria('material'); setValor(''); setFornecedor('');
@@ -374,6 +439,45 @@ export default function DespesasPage() {
         </div>
       )}
 
+      <div className="card p-4 mb-4">
+        <div className="flex items-center gap-1.5 text-sm text-ink-500 mb-3">
+          <Filter size={14} /> Filtros
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <select value={filtroPeriodo} onChange={(e) => setFiltroPeriodo(e.target.value)} className="input">
+            {PERIODOS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+          {filtroPeriodo === 'custom' && (
+            <>
+              <input type="date" value={filtroInicio} onChange={(e) => setFiltroInicio(e.target.value)} className="input" />
+              <input type="date" value={filtroFim} onChange={(e) => setFiltroFim(e.target.value)} className="input" />
+            </>
+          )}
+          <select value={filtroDestino} onChange={(e) => setFiltroDestino(e.target.value)} className="input">
+            <option value="">Todas as Obras/Subempreitadas</option>
+            <option value={OPCAO_GERAL}>Geral (sem obra)</option>
+            {obras.length > 0 && (
+              <optgroup label="Obras">
+                {obras.map((o) => <option key={o.id} value={`obra:${o.id}`}>{o.titulo}</option>)}
+              </optgroup>
+            )}
+            {subs.length > 0 && (
+              <optgroup label="Subempreitadas">
+                {subs.map((s) => <option key={s.id} value={`sub:${s.id}`}>{s.descricao}</option>)}
+              </optgroup>
+            )}
+          </select>
+          <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)} className="input">
+            <option value="">Todas as Categorias</option>
+            {CATEGORIAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+          <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className="input">
+            <option value="">Custo, Cliente e Registo</option>
+            {TIPOS_IMPUTACAO.map((t) => <option key={t.value} value={t.value}>{t.label.split(' (')[0]}</option>)}
+          </select>
+        </div>
+      </div>
+
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -395,39 +499,59 @@ export default function DespesasPage() {
                 <tr>
                   <td colSpan={7} className="p-10 text-center text-ink-400 text-sm">
                     <Receipt size={28} className="mx-auto mb-2 text-ink-200" />
-                    Nenhuma despesa registada.
+                    Nenhuma despesa encontrada com estes filtros.
                   </td>
                 </tr>
               ) : (
-                despesas.map((d) => (
-                  <tr key={d.id} className="hover:bg-sand-50 transition-colors">
-                    <td className="p-4 text-ink-500 whitespace-nowrap">{new Date(d.data_despesa).toLocaleDateString('pt-PT')}</td>
-                    <td className="p-4 text-ink-800 font-medium">
-                      {d.comprovativo_url ? (
-                        <a href={d.comprovativo_url} target="_blank" rel="noreferrer" className="hover:text-brand-600 flex items-center gap-1.5">
-                          <Paperclip size={13} className="text-ink-300" /> {d.descricao}
-                        </a>
-                      ) : d.descricao}
-                      {d.tipo_imputacao === 'cliente' && <span className="badge bg-blue-100 text-blue-700 ml-2 text-[10px]">a cobrar ao cliente</span>}
-                      {d.tipo_imputacao === 'registo' && <span className="badge bg-sand-100 text-ink-400 ml-2 text-[10px]">só registo</span>}
-                    </td>
-                    <td className="p-4 text-ink-500">{destinoLabel(d)}</td>
-                    <td className="p-4"><span className="badge bg-sand-100 text-ink-600">{CATEGORIAS.find((c) => c.value === d.categoria)?.label || d.categoria}</span></td>
-                    <td className="p-4 text-ink-500">{d.fornecedor || '—'}</td>
-                    <td className="p-4 text-right text-ink-800 font-medium">{formatMoney(d.valor)}</td>
-                    <td className="p-4 text-right whitespace-nowrap">
-                      <button onClick={() => abrirEditar(d)} className="text-ink-300 hover:text-brand-600 mr-2" title="Editar">
-                        <Pencil size={15} />
-                      </button>
-                      <button onClick={() => abrirDuplicar(d)} className="text-ink-300 hover:text-brand-600 mr-2" title="Duplicar (ex: mesma viagem noutro dia)">
-                        <Copy size={15} />
-                      </button>
-                      <button onClick={() => removerDespesa(d.id)} className="text-ink-300 hover:text-red-600">
-                        <Trash2 size={15} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                agruparPorMes(despesas).map(([mesChave, itens]) => {
+                  const subtotalMes = itens.reduce((s, d) => s + d.valor, 0);
+                  const colapsado = mesesColapsados.has(mesChave);
+                  return (
+                    <React.Fragment key={mesChave}>
+                      <tr className="bg-sand-50/70">
+                        <td colSpan={7} className="p-0">
+                          <button type="button" onClick={() => toggleMes(mesChave)} className="flex items-center justify-between w-full px-4 py-2.5 text-sm">
+                            <span className="flex items-center gap-1.5 font-medium text-ink-700">
+                              <ChevronRight size={14} className={`transition-transform text-ink-400 ${colapsado ? '' : 'rotate-90'}`} />
+                              {labelMes(mesChave)}
+                              <span className="text-ink-400 font-normal">· {itens.length} despesa{itens.length !== 1 ? 's' : ''}</span>
+                            </span>
+                            <span className="font-medium text-ink-700">{formatMoney(subtotalMes)}</span>
+                          </button>
+                        </td>
+                      </tr>
+                      {!colapsado && itens.map((d) => (
+                        <tr key={d.id} className="hover:bg-sand-50 transition-colors">
+                          <td className="p-4 text-ink-500 whitespace-nowrap">{new Date(d.data_despesa).toLocaleDateString('pt-PT')}</td>
+                          <td className="p-4 text-ink-800 font-medium">
+                            {d.comprovativo_url ? (
+                              <a href={d.comprovativo_url} target="_blank" rel="noreferrer" className="hover:text-brand-600 flex items-center gap-1.5">
+                                <Paperclip size={13} className="text-ink-300" /> {d.descricao}
+                              </a>
+                            ) : d.descricao}
+                            {d.tipo_imputacao === 'cliente' && <span className="badge bg-blue-100 text-blue-700 ml-2 text-[10px]">a cobrar ao cliente</span>}
+                            {d.tipo_imputacao === 'registo' && <span className="badge bg-sand-100 text-ink-400 ml-2 text-[10px]">só registo</span>}
+                          </td>
+                          <td className="p-4 text-ink-500">{destinoLabel(d)}</td>
+                          <td className="p-4"><span className="badge bg-sand-100 text-ink-600">{CATEGORIAS.find((c) => c.value === d.categoria)?.label || d.categoria}</span></td>
+                          <td className="p-4 text-ink-500">{d.fornecedor || '—'}</td>
+                          <td className="p-4 text-right text-ink-800 font-medium">{formatMoney(d.valor)}</td>
+                          <td className="p-4 text-right whitespace-nowrap">
+                            <button onClick={() => abrirEditar(d)} className="text-ink-300 hover:text-brand-600 mr-2" title="Editar">
+                              <Pencil size={15} />
+                            </button>
+                            <button onClick={() => abrirDuplicar(d)} className="text-ink-300 hover:text-brand-600 mr-2" title="Duplicar (ex: mesma viagem noutro dia)">
+                              <Copy size={15} />
+                            </button>
+                            <button onClick={() => removerDespesa(d.id)} className="text-ink-300 hover:text-red-600">
+                              <Trash2 size={15} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>

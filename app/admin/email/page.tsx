@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
-import { Inbox, Send, Plus, Paperclip, X, Mail as MailIcon } from 'lucide-react';
+import { Inbox, Send, Plus, Paperclip, X, Mail as MailIcon, PenLine } from 'lucide-react';
 
 type Email = {
   id: string;
@@ -18,14 +18,17 @@ type Email = {
   data: string;
 };
 
+type Cliente = { id: string; nome: string; email: string | null };
 type AnexoNovo = { nome: string; url: string };
 
 export default function EmailPage() {
   const router = useRouter();
   const [tab, setTab] = useState<'recebido' | 'enviado'>('recebido');
   const [emails, setEmails] = useState<Email[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCompor, setShowCompor] = useState(false);
+  const [showAssinatura, setShowAssinatura] = useState(false);
 
   const [para, setPara] = useState('');
   const [cc, setCc] = useState('');
@@ -35,6 +38,10 @@ export default function EmailPage() {
   const [enviando, setEnviando] = useState(false);
   const [aEnviarFicheiro, setAEnviarFicheiro] = useState(false);
   const [erro, setErro] = useState('');
+
+  const [assinatura, setAssinatura] = useState('');
+  const [assinaturaHtmlAvancado, setAssinaturaHtmlAvancado] = useState(false);
+  const [assinaturaGuardando, setAssinaturaGuardando] = useState(false);
 
   async function carregar() {
     setLoading(true);
@@ -47,7 +54,20 @@ export default function EmailPage() {
     setLoading(false);
   }
 
+  async function carregarClientes() {
+    const { data } = await supabase.from('clientes').select('id, nome, email').not('email', 'is', null).order('nome');
+    setClientes(data || []);
+  }
+
+  async function carregarAssinatura() {
+    const { data } = await supabase.from('email_assinatura').select('assinatura_html').eq('id', 1).maybeSingle();
+    const html = data?.assinatura_html || '';
+    setAssinatura(html);
+    setAssinaturaHtmlAvancado(html.includes('<'));
+  }
+
   useEffect(() => { carregar(); }, [tab]);
+  useEffect(() => { carregarClientes(); carregarAssinatura(); }, []);
 
   function resetCompor() {
     setPara(''); setCc(''); setAssunto(''); setCorpo(''); setAnexos([]); setErro('');
@@ -71,6 +91,14 @@ export default function EmailPage() {
     setAnexos((prev) => prev.filter((a) => a.nome !== nome));
   }
 
+  async function guardarAssinatura(e: React.FormEvent) {
+    e.preventDefault();
+    setAssinaturaGuardando(true);
+    await supabase.from('email_assinatura').upsert([{ id: 1, assinatura_html: assinatura || null }]);
+    setAssinaturaGuardando(false);
+    setShowAssinatura(false);
+  }
+
   async function enviarEmail(e: React.FormEvent) {
     e.preventDefault();
     setErro('');
@@ -78,7 +106,10 @@ export default function EmailPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { setErro('Sessão expirada, atualiza a página.'); setEnviando(false); return; }
 
-    const corpoHtml = `<p>${corpo.split('\n').map((l) => l || '&nbsp;').join('</p><p>')}</p>`;
+    let corpoHtml = `<p>${corpo.split('\n').map((l) => l || '&nbsp;').join('</p><p>')}</p>`;
+    if (assinatura) {
+      corpoHtml += assinaturaHtmlAvancado ? assinatura : `<p>${assinatura.split('\n').map((l) => l || '&nbsp;').join('</p><p>')}</p>`;
+    }
 
     const resp = await fetch('/api/email/enviar', {
       method: 'POST',
@@ -110,16 +141,47 @@ export default function EmailPage() {
             <Send size={16} /> Enviados
           </button>
         </div>
-        <button onClick={() => setShowCompor((v) => !v)} className="btn-primary">
-          <Plus size={18} /> Novo Email
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowAssinatura((v) => !v)} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100">
+            <PenLine size={16} /> Assinatura
+          </button>
+          <button onClick={() => setShowCompor((v) => !v)} className="btn-primary">
+            <Plus size={18} /> Novo Email
+          </button>
+        </div>
       </div>
+
+      {showAssinatura && (
+        <div className="card p-6 mb-6">
+          <h2 className="font-semibold text-ink-700 mb-1">Assinatura</h2>
+          <p className="text-xs text-ink-400 mb-4">Adicionada automaticamente ao fim de todos os emails enviados e respostas.</p>
+          <form onSubmit={guardarAssinatura} className="space-y-3">
+            <textarea
+              placeholder={'Ex:\nJoaquim Oliveira\nProjetar Conforto\n+351 9XX XXX XXX'}
+              value={assinatura}
+              onChange={(e) => setAssinatura(e.target.value)}
+              className="input min-h-[140px] font-mono text-sm"
+            />
+            <label className="flex items-center gap-2 text-sm text-ink-600">
+              <input type="checkbox" checked={assinaturaHtmlAvancado} onChange={(e) => setAssinaturaHtmlAvancado(e.target.checked)} />
+              É código HTML (colaste uma assinatura já formatada, ex: do Gmail) — não converter quebras de linha automaticamente
+            </label>
+            <div className="flex gap-2 pt-2 border-t border-sand-100">
+              <button type="button" onClick={() => setShowAssinatura(false)} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 flex-1 justify-center">Cancelar</button>
+              <button disabled={assinaturaGuardando} className="btn-primary flex-1 justify-center disabled:opacity-60">{assinaturaGuardando ? 'A guardar...' : 'Guardar Assinatura'}</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {showCompor && (
         <div className="card p-6 mb-6">
           <h2 className="font-semibold text-ink-700 mb-4">Novo Email</h2>
           <form onSubmit={enviarEmail} className="space-y-3">
-            <input type="email" placeholder="Para" value={para} onChange={(e) => setPara(e.target.value)} className="input" required />
+            <input type="email" list="clientes-email" placeholder="Para (escreve ou escolhe um cliente)" value={para} onChange={(e) => setPara(e.target.value)} className="input" required />
+            <datalist id="clientes-email">
+              {clientes.map((c) => <option key={c.id} value={c.email || ''}>{c.nome}</option>)}
+            </datalist>
             <input type="email" placeholder="Cc (opcional)" value={cc} onChange={(e) => setCc(e.target.value)} className="input" />
             <input type="text" placeholder="Assunto" value={assunto} onChange={(e) => setAssunto(e.target.value)} className="input" required />
             <textarea placeholder="Escreve a mensagem..." value={corpo} onChange={(e) => setCorpo(e.target.value)} className="input min-h-[160px]" required />
@@ -139,6 +201,8 @@ export default function EmailPage() {
               <Paperclip size={15} /> {aEnviarFicheiro ? 'A anexar...' : 'Anexar Ficheiro'}
               <input type="file" className="hidden" disabled={aEnviarFicheiro} onChange={anexarFicheiro} />
             </label>
+
+            {assinatura && <p className="text-xs text-ink-400">A tua assinatura será adicionada automaticamente ao enviar.</p>}
 
             {erro && <p className="text-sm text-red-600">{erro}</p>}
 

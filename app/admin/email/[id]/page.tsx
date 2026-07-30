@@ -36,6 +36,16 @@ export default function EmailDetalhe() {
   const [enviando, setEnviando] = useState(false);
   const [aEnviarFicheiro, setAEnviarFicheiro] = useState(false);
   const [erro, setErro] = useState('');
+  const [assinatura, setAssinatura] = useState('');
+  const [assinaturaHtmlAvancado, setAssinaturaHtmlAvancado] = useState(false);
+
+  useEffect(() => {
+    supabase.from('email_assinatura').select('assinatura_html').eq('id', 1).maybeSingle().then(({ data }) => {
+      const html = data?.assinatura_html || '';
+      setAssinatura(html);
+      setAssinaturaHtmlAvancado(html.includes('<'));
+    });
+  }, []);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -88,7 +98,10 @@ export default function EmailDetalhe() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { setErro('Sessão expirada, atualiza a página.'); setEnviando(false); return; }
 
-    const corpoHtml = `<p>${corpo.split('\n').map((l) => l || '&nbsp;').join('</p><p>')}</p>`;
+    let corpoHtml = `<p>${corpo.split('\n').map((l) => l || '&nbsp;').join('</p><p>')}</p>`;
+    if (assinatura) {
+      corpoHtml += assinaturaHtmlAvancado ? assinatura : `<p>${assinatura.split('\n').map((l) => l || '&nbsp;').join('</p><p>')}</p>`;
+    }
 
     const resp = await fetch('/api/email/enviar', {
       method: 'POST',

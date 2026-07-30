@@ -49,6 +49,7 @@ export default function ObraDetalhePage() {
   const [obra, setObra] = useState<Obra | null>(null);
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [totalDespesas, setTotalDespesas] = useState(0);
+  const [totalDespesasCliente, setTotalDespesasCliente] = useState(0);
   const [trabalhadoresDisponiveis, setTrabalhadoresDisponiveis] = useState<Trabalhador[]>([]);
   const [obraTrabalhadores, setObraTrabalhadores] = useState<ObraTrabalhador[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,13 +65,14 @@ export default function ObraDetalhePage() {
     const [{ data: obraData }, { data: fotosData }, { data: despesasData }, { data: trabData }, { data: obraTrabData }] = await Promise.all([
       supabase.from('obras').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('fotos_obra').select('*').eq('obra_id', id).order('criado_em', { ascending: false }),
-      supabase.from('despesas').select('valor').eq('obra_id', id).eq('imputar', true),
+      supabase.from('despesas').select('valor, tipo_imputacao').eq('obra_id', id),
       supabase.from('trabalhadores').select('id, nome, tipo_valor_padrao, valor_padrao').eq('ativo', true).order('nome'),
       supabase.from('obra_trabalhadores').select('*, trabalhadores(nome), obra_trabalhador_entradas(quantidade)').eq('obra_id', id),
     ]);
     setObra(obraData as any);
     setFotos(fotosData || []);
-    setTotalDespesas((despesasData || []).reduce((s, d: any) => s + (d.valor || 0), 0));
+    setTotalDespesas((despesasData || []).filter((d: any) => d.tipo_imputacao === 'custo').reduce((s, d: any) => s + (d.valor || 0), 0));
+    setTotalDespesasCliente((despesasData || []).filter((d: any) => d.tipo_imputacao === 'cliente').reduce((s, d: any) => s + (d.valor || 0), 0));
     setTrabalhadoresDisponiveis(trabData || []);
     setObraTrabalhadores((obraTrabData as any) || []);
     setLoading(false);
@@ -144,7 +146,8 @@ export default function ObraDetalhePage() {
   if (!obra) return <div className="p-8 text-center text-ink-400 text-sm">Obra não encontrada.</div>;
 
   const totalMaoDeObra = obraTrabalhadores.reduce((s, ot) => s + calcularTotalTrabalhador(ot), 0);
-  const margem = (obra.valor_total || 0) - totalDespesas - totalMaoDeObra;
+  const valorTotalComCliente = (obra.valor_total || 0) + totalDespesasCliente;
+  const margem = valorTotalComCliente - totalDespesas - totalMaoDeObra;
 
   return (
     <div className="p-4 md:p-8 max-w-4xl">
@@ -165,10 +168,13 @@ export default function ObraDetalhePage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="card p-5">
           <p className="text-ink-400 text-sm mb-1">Orçamentado</p>
-          <p className="text-xl font-heading font-semibold text-ink-800">{formatMoney(obra.valor_total || 0)}</p>
+          <p className="text-xl font-heading font-semibold text-ink-800">{formatMoney(valorTotalComCliente)}</p>
+          {totalDespesasCliente > 0 && (
+            <p className="text-xs text-ink-400 mt-1">{formatMoney(obra.valor_total || 0)} + {formatMoney(totalDespesasCliente)} a cobrar</p>
+          )}
         </div>
         <div className="card p-5">
-          <p className="text-ink-400 text-sm mb-1">Despesas/Materiais</p>
+          <p className="text-ink-400 text-sm mb-1">Despesas (custo)</p>
           <p className="text-xl font-heading font-semibold text-ink-800">{formatMoney(totalDespesas)}</p>
         </div>
         <div className="card p-5">

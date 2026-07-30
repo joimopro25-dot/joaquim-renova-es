@@ -12,7 +12,7 @@ type Despesa = {
   id: string;
   obra_id: string | null;
   subempreitada_id: string | null;
-  imputar: boolean;
+  tipo_imputacao: string;
   descricao: string;
   categoria: string;
   valor: number;
@@ -24,6 +24,12 @@ type Despesa = {
 };
 
 type LinhaSplit = { destino: string; valor: string };
+
+const TIPOS_IMPUTACAO = [
+  { value: 'custo', label: 'Custo da empresa (desconta a margem)' },
+  { value: 'cliente', label: 'A cobrar ao cliente (soma ao valor total, não desconta)' },
+  { value: 'registo', label: 'Só registo (não afeta nenhum cálculo)' },
+];
 
 const CATEGORIAS = [
   { value: 'material', label: 'Material' },
@@ -65,7 +71,7 @@ export default function DespesasPage() {
   const [fornecedor, setFornecedor] = useState('');
   const [dataDespesa, setDataDespesa] = useState(() => new Date().toISOString().slice(0, 10));
   const [ficheiro, setFicheiro] = useState<File | null>(null);
-  const [imputar, setImputar] = useState(true);
+  const [tipoImputacao, setTipoImputacao] = useState('custo');
 
   const [linhas, setLinhas] = useState<LinhaSplit[]>([{ destino: '', valor: '' }, { destino: OPCAO_GERAL, valor: '' }]);
 
@@ -92,7 +98,7 @@ export default function DespesasPage() {
 
   function resetForm() {
     setDestino(''); setDescricao(''); setCategoria('material'); setValor(''); setFornecedor('');
-    setDataDespesa(new Date().toISOString().slice(0, 10)); setFicheiro(null); setImputar(true);
+    setDataDespesa(new Date().toISOString().slice(0, 10)); setFicheiro(null); setTipoImputacao('custo');
     setLinhas([{ destino: '', valor: '' }, { destino: OPCAO_GERAL, valor: '' }]);
     setDividir(false);
     setEditandoId(null);
@@ -108,7 +114,7 @@ export default function DespesasPage() {
     setFornecedor(d.fornecedor || '');
     setDataDespesa(d.data_despesa);
     setFicheiro(null);
-    setImputar(d.imputar);
+    setTipoImputacao(d.tipo_imputacao);
     setDividir(false);
     setShowForm(true);
   }
@@ -147,7 +153,7 @@ export default function DespesasPage() {
           valor: parseFloat(valor) || 0,
           fornecedor: fornecedor || null,
           data_despesa: dataDespesa,
-          imputar,
+          tipo_imputacao: tipoImputacao,
         };
         if (ficheiro) {
           update.comprovativo_url = await enviarComprovativo(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1]);
@@ -169,7 +175,7 @@ export default function DespesasPage() {
             fornecedor: fornecedor || null,
             data_despesa: dataDespesa,
             comprovativo_url: comprovativoUrl,
-            imputar,
+            tipo_imputacao: tipoImputacao,
           }))
         );
         if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
@@ -185,7 +191,7 @@ export default function DespesasPage() {
           fornecedor: fornecedor || null,
           data_despesa: dataDespesa,
           comprovativo_url: comprovativoUrl,
-          imputar,
+          tipo_imputacao: tipoImputacao,
         }]);
         if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
       }
@@ -224,7 +230,7 @@ export default function DespesasPage() {
       fornecedor: duplicando.fornecedor,
       data_despesa: dataDuplicar,
       comprovativo_url: null,
-      imputar: duplicando.imputar,
+      tipo_imputacao: duplicando.tipo_imputacao,
     }]);
     setADuplicar(false);
     if (error) { alert('Erro: ' + error.message); return; }
@@ -349,10 +355,12 @@ export default function DespesasPage() {
               </div>
             )}
 
-            <label className="flex items-center gap-2 text-sm text-ink-600 pt-1">
-              <input type="checkbox" checked={imputar} onChange={(e) => setImputar(e.target.checked)} />
-              Contar para a margem da obra/subempreitada (desliga para só ficar registada, sem afetar o cálculo)
-            </label>
+            <div className="pt-1">
+              <label className="block text-sm text-ink-600 mb-1">Quem paga esta despesa?</label>
+              <select value={tipoImputacao} onChange={(e) => setTipoImputacao(e.target.value)} className="input w-full">
+                {TIPOS_IMPUTACAO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
 
             <div className="flex gap-2">
               {editandoId && (
@@ -400,7 +408,8 @@ export default function DespesasPage() {
                           <Paperclip size={13} className="text-ink-300" /> {d.descricao}
                         </a>
                       ) : d.descricao}
-                      {!d.imputar && <span className="badge bg-sand-100 text-ink-400 ml-2 text-[10px]">não imputada</span>}
+                      {d.tipo_imputacao === 'cliente' && <span className="badge bg-blue-100 text-blue-700 ml-2 text-[10px]">a cobrar ao cliente</span>}
+                      {d.tipo_imputacao === 'registo' && <span className="badge bg-sand-100 text-ink-400 ml-2 text-[10px]">só registo</span>}
                     </td>
                     <td className="p-4 text-ink-500">{destinoLabel(d)}</td>
                     <td className="p-4"><span className="badge bg-sand-100 text-ink-600">{CATEGORIAS.find((c) => c.value === d.categoria)?.label || d.categoria}</span></td>

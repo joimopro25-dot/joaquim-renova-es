@@ -16,6 +16,7 @@ type Email = {
   corpo_texto: string | null;
   lida: boolean;
   data: string;
+  obras: { titulo: string } | null;
 };
 
 type Cliente = { id: string; nome: string; email: string | null };
@@ -47,10 +48,10 @@ export default function EmailPage() {
     setLoading(true);
     const { data } = await supabase
       .from('emails')
-      .select('id, direcao, de, de_nome, para, cc, assunto, corpo_texto, lida, data')
+      .select('id, direcao, de, de_nome, para, cc, assunto, corpo_texto, lida, data, obras(titulo)')
       .eq('direcao', tab)
       .order('data', { ascending: false });
-    setEmails(data || []);
+    setEmails((data as any) || []);
     setLoading(false);
   }
 
@@ -234,7 +235,10 @@ export default function EmailPage() {
                   <p className={`truncate ${!email.lida && tab === 'recebido' ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>
                     {tab === 'recebido' ? (email.de_nome || email.de) : email.para}
                   </p>
-                  <p className={`text-sm truncate ${!email.lida && tab === 'recebido' ? 'font-medium text-ink-800' : 'text-ink-500'}`}>{email.assunto}</p>
+                  <p className={`text-sm truncate ${!email.lida && tab === 'recebido' ? 'font-medium text-ink-800' : 'text-ink-500'}`}>
+                    {email.assunto}
+                    {email.obras?.titulo && <span className="badge bg-sand-100 text-ink-600 ml-2 text-[10px] align-middle">{email.obras.titulo}</span>}
+                  </p>
                   <p className="text-xs text-ink-400 truncate">{email.corpo_texto?.slice(0, 100)}</p>
                 </div>
                 <span className="text-xs text-ink-400 shrink-0 whitespace-nowrap">

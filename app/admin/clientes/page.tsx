@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { useRouter } from 'next/navigation';
 import { Plus, Search, Users, Mail, Loader2 } from 'lucide-react';
 
 export default function ClientesPage() {
+  const router = useRouter();
   const [clientes, setClientes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -126,14 +128,14 @@ export default function ClientesPage() {
                 </tr>
               ) : (
                 filtrados.map((c) => (
-                  <tr key={c.id} className="hover:bg-sand-50 transition-colors">
+                  <tr key={c.id} onClick={() => router.push(`/admin/clientes/${c.id}`)} className="hover:bg-sand-50 transition-colors cursor-pointer">
                     <td className="p-4 font-medium text-ink-800">{c.nome}</td>
                     <td className="p-4 text-ink-500">{c.email || '—'}</td>
                     <td className="p-4 text-ink-500">{c.telefone || '—'}</td>
                     <td className="p-4 font-mono text-ink-500 text-sm">{c.nif || '—'}</td>
                     <td className="p-4 text-right">
                       <button
-                        onClick={() => enviarAcesso(c)}
+                        onClick={(ev) => { ev.stopPropagation(); enviarAcesso(c); }}
                         disabled={convidando === c.id || !c.email}
                         className="text-brand-600 hover:text-brand-700 text-sm flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ml-auto"
                         title={c.email ? 'Enviar acesso ao portal por email' : 'Sem email registado'}

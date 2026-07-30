@@ -16,6 +16,7 @@ type Email = {
   corpo_texto: string | null;
   corpo_html: string | null;
   data: string;
+  obras: { titulo: string } | null;
 };
 
 type Anexo = { id: string; nome_ficheiro: string | null; url: string };
@@ -50,7 +51,7 @@ export default function EmailDetalhe() {
   const carregar = useCallback(async () => {
     setLoading(true);
     const [{ data: emailData }, { data: anexosData }] = await Promise.all([
-      supabase.from('emails').select('*').eq('id', id).single(),
+      supabase.from('emails').select('*, obras(titulo)').eq('id', id).single(),
       supabase.from('email_anexos').select('*').eq('email_id', id),
     ]);
     setEmail(emailData as any);
@@ -126,7 +127,10 @@ export default function EmailDetalhe() {
       </button>
 
       <div className="card p-6 mb-6">
-        <h2 className="text-xl font-heading font-semibold text-ink-800 mb-3">{email.assunto}</h2>
+        <h2 className="text-xl font-heading font-semibold text-ink-800 mb-3">
+          {email.assunto}
+          {email.obras?.titulo && <span className="badge bg-sand-100 text-ink-600 ml-2 text-xs align-middle">{email.obras.titulo}</span>}
+        </h2>
         <div className="text-sm text-ink-500 space-y-0.5 mb-4 pb-4 border-b border-sand-100">
           <p><span className="text-ink-400">De:</span> {email.de_nome ? `${email.de_nome} <${email.de}>` : email.de}</p>
           <p><span className="text-ink-400">Para:</span> {email.para}</p>

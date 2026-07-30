@@ -7,7 +7,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
 import InstallAppButton from '../../components/InstallAppButton';
 import {
-  LayoutDashboard, Users, Briefcase, Receipt, Package, FileText, Inbox, Globe as GlobeIcon, Images, BookMarked, HardHat, UsersRound, Mail,
+  LayoutDashboard, Users, Briefcase, Receipt, Package, FileText, Inbox, Globe as GlobeIcon, Images, BookMarked, HardHat, UsersRound, Mail, BellRing,
   Menu, X, ChevronLeft, ChevronRight, Globe, LogOut,
 } from 'lucide-react';
 
@@ -38,6 +38,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [emailsNaoLidos, setEmailsNaoLidos] = useState(0);
+  const [permissaoNotificacao, setPermissaoNotificacao] = useState<NotificationPermission | null>(null);
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('admin-collapsed') === 'true');
@@ -71,6 +73,38 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     });
     return () => listener.subscription.unsubscribe();
   }, [isLoginPage, router]);
+
+  useEffect(() => {
+    if (typeof Notification !== 'undefined') setPermissaoNotificacao(Notification.permission);
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let anterior = -1;
+
+    async function verificarEmails() {
+      const { count } = await supabase.from('emails').select('id', { count: 'exact', head: true }).eq('direcao', 'recebido').eq('lida', false);
+      const atual = count || 0;
+      if (anterior >= 0 && atual > anterior && permissaoNotificacao === 'granted') {
+        new Notification(atual - anterior === 1 ? 'Novo email recebido' : `${atual - anterior} novos emails recebidos`, {
+          body: 'geral@projetarconforto.pt',
+          icon: '/icons/admin-192.png',
+        });
+      }
+      anterior = atual;
+      setEmailsNaoLidos(atual);
+    }
+
+    verificarEmails();
+    const intervalo = setInterval(verificarEmails, 45000);
+    return () => clearInterval(intervalo);
+  }, [isAdmin, permissaoNotificacao]);
+
+  async function pedirNotificacoes() {
+    if (typeof Notification === 'undefined') return;
+    const resultado = await Notification.requestPermission();
+    setPermissaoNotificacao(resultado);
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -133,7 +167,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                   setSidebarOpen(false);
                 }}
                 title={item.comingSoon ? `${item.label} (em breve)` : item.label}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
+                className={`relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                   ${collapsed ? 'md:justify-center' : ''}
                   ${item.comingSoon ? 'text-ink-500 cursor-not-allowed' : active ? 'bg-ink-800 text-copper-300 font-medium' : 'text-ink-300 hover:bg-ink-800 hover:text-sand-100'}`}
               >
@@ -142,13 +176,25 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 {item.comingSoon && !collapsed && (
                   <span className="badge bg-ink-800 text-ink-400 ml-auto text-[10px]">em breve</span>
                 )}
-                {active && !collapsed && !item.comingSoon && <ChevronRight size={14} className="ml-auto text-copper-400" />}
+                {item.path === '/admin/email' && emailsNaoLidos > 0 && (
+                  <span className={`badge bg-brand-500 text-white text-[10px] ${collapsed ? 'absolute top-1 right-1' : 'ml-auto'}`}>{emailsNaoLidos}</span>
+                )}
+                {active && !collapsed && !item.comingSoon && emailsNaoLidos === 0 && <ChevronRight size={14} className="ml-auto text-copper-400" />}
               </Link>
             );
           })}
         </nav>
 
         <div className="p-2.5 border-t border-ink-800">
+          {permissaoNotificacao === 'default' && (
+            <button
+              onClick={pedirNotificacoes}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-ink-300 hover:bg-ink-800 hover:text-sand-100 w-full ${collapsed ? 'md:justify-center' : ''}`}
+            >
+              <BellRing size={18} className="shrink-0" />
+              <span className={collapsed ? 'md:hidden' : ''}>Ativar Notificações</span>
+            </button>
+          )}
           <InstallAppButton
             scope="/admin/"
             className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-ink-300 hover:bg-ink-800 hover:text-sand-100 w-full ${collapsed ? 'md:justify-center' : ''}`}

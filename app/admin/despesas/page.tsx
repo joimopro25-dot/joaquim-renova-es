@@ -7,9 +7,12 @@ import { Plus, Receipt, Paperclip, Trash2, Camera, Rows3, X } from 'lucide-react
 import ScanFatura from './ScanFatura';
 
 type Obra = { id: string; titulo: string };
+type Subempreitada = { id: string; descricao: string };
 type Despesa = {
   id: string;
   obra_id: string | null;
+  subempreitada_id: string | null;
+  imputar: boolean;
   descricao: string;
   categoria: string;
   valor: number;
@@ -17,14 +20,18 @@ type Despesa = {
   fornecedor: string | null;
   comprovativo_url: string | null;
   obras: { titulo: string } | null;
+  subempreitadas: { descricao: string } | null;
 };
 
-type LinhaSplit = { obraId: string; valor: string };
+type LinhaSplit = { destino: string; valor: string };
 
 const CATEGORIAS = [
   { value: 'material', label: 'Material' },
   { value: 'ferramenta', label: 'Ferramenta' },
   { value: 'combustivel', label: 'Combustível' },
+  { value: 'portagens', label: 'Portagens' },
+  { value: 'deslocacao', label: 'Deslocação' },
+  { value: 'almoco', label: 'Almoço' },
   { value: 'subcontratacao', label: 'Subcontratação' },
   { value: 'transporte', label: 'Transporte' },
   { value: 'ordenado', label: 'Ordenado/Pagamento' },
@@ -33,42 +40,54 @@ const CATEGORIAS = [
 
 const OPCAO_GERAL = 'geral';
 
+function parseDestino(destino: string): { obra_id: string | null; subempreitada_id: string | null } {
+  if (destino === OPCAO_GERAL || !destino) return { obra_id: null, subempreitada_id: null };
+  const [tipo, valorId] = destino.split(':');
+  if (tipo === 'obra') return { obra_id: valorId, subempreitada_id: null };
+  if (tipo === 'sub') return { obra_id: null, subempreitada_id: valorId };
+  return { obra_id: null, subempreitada_id: null };
+}
+
 export default function DespesasPage() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [obras, setObras] = useState<Obra[]>([]);
+  const [subs, setSubs] = useState<Subempreitada[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showScan, setShowScan] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dividir, setDividir] = useState(false);
 
-  const [obraId, setObraId] = useState('');
+  const [destino, setDestino] = useState('');
   const [descricao, setDescricao] = useState('');
   const [categoria, setCategoria] = useState('material');
   const [valor, setValor] = useState('');
   const [fornecedor, setFornecedor] = useState('');
   const [dataDespesa, setDataDespesa] = useState(() => new Date().toISOString().slice(0, 10));
   const [ficheiro, setFicheiro] = useState<File | null>(null);
+  const [imputar, setImputar] = useState(true);
 
-  const [linhas, setLinhas] = useState<LinhaSplit[]>([{ obraId: '', valor: '' }, { obraId: OPCAO_GERAL, valor: '' }]);
+  const [linhas, setLinhas] = useState<LinhaSplit[]>([{ destino: '', valor: '' }, { destino: OPCAO_GERAL, valor: '' }]);
 
   async function carregar() {
     setLoading(true);
-    const [{ data: despesasData }, { data: obrasData }] = await Promise.all([
-      supabase.from('despesas').select('*, obras(titulo)').order('data_despesa', { ascending: false }),
+    const [{ data: despesasData }, { data: obrasData }, { data: subsData }] = await Promise.all([
+      supabase.from('despesas').select('*, obras(titulo), subempreitadas(descricao)').order('data_despesa', { ascending: false }),
       supabase.from('obras').select('id, titulo').order('titulo'),
+      supabase.from('subempreitadas').select('id, descricao').order('descricao'),
     ]);
     setDespesas((despesasData as any) || []);
     setObras(obrasData || []);
+    setSubs(subsData || []);
     setLoading(false);
   }
 
   useEffect(() => { carregar(); }, []);
 
   function resetForm() {
-    setObraId(''); setDescricao(''); setCategoria('material'); setValor(''); setFornecedor('');
-    setDataDespesa(new Date().toISOString().slice(0, 10)); setFicheiro(null);
-    setLinhas([{ obraId: '', valor: '' }, { obraId: OPCAO_GERAL, valor: '' }]);
+    setDestino(''); setDescricao(''); setCategoria('material'); setValor(''); setFornecedor('');
+    setDataDespesa(new Date().toISOString().slice(0, 10)); setFicheiro(null); setImputar(true);
+    setLinhas([{ destino: '', valor: '' }, { destino: OPCAO_GERAL, valor: '' }]);
     setDividir(false);
     setShowForm(false);
   }
@@ -78,7 +97,7 @@ export default function DespesasPage() {
   }
 
   function adicionarLinha() {
-    setLinhas((prev) => [...prev, { obraId: '', valor: '' }]);
+    setLinhas((prev) => [...prev, { destino: '', valor: '' }]);
   }
 
   function removerLinha(idx: number) {
@@ -99,35 +118,37 @@ export default function DespesasPage() {
 
     try {
       if (dividir) {
-        const validas = linhas.filter((l) => l.obraId && parseFloat(l.valor) > 0);
-        if (validas.length === 0) { alert('Adiciona pelo menos uma linha com obra e valor.'); setUploading(false); return; }
+        const validas = linhas.filter((l) => l.destino && parseFloat(l.valor) > 0);
+        if (validas.length === 0) { alert('Adiciona pelo menos uma linha com destino e valor.'); setUploading(false); return; }
 
         const comprovativoUrl = await enviarComprovativo('geral');
 
         const { error } = await supabase.from('despesas').insert(
           validas.map((l) => ({
-            obra_id: l.obraId === OPCAO_GERAL ? null : l.obraId,
+            ...parseDestino(l.destino),
             descricao,
             categoria,
             valor: parseFloat(l.valor) || 0,
             fornecedor: fornecedor || null,
             data_despesa: dataDespesa,
             comprovativo_url: comprovativoUrl,
+            imputar,
           }))
         );
         if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
       } else {
-        if (!obraId) { alert('Escolhe uma obra ou "Despesa Geral".'); setUploading(false); return; }
-        const comprovativoUrl = await enviarComprovativo(obraId === OPCAO_GERAL ? 'geral' : obraId);
+        if (!destino) { alert('Escolhe uma obra, subempreitada ou "Despesa Geral".'); setUploading(false); return; }
+        const comprovativoUrl = await enviarComprovativo(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1]);
 
         const { error } = await supabase.from('despesas').insert([{
-          obra_id: obraId === OPCAO_GERAL ? null : obraId,
+          ...parseDestino(destino),
           descricao,
           categoria,
           valor: parseFloat(valor) || 0,
           fornecedor: fornecedor || null,
           data_despesa: dataDespesa,
           comprovativo_url: comprovativoUrl,
+          imputar,
         }]);
         if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
       }
@@ -150,6 +171,12 @@ export default function DespesasPage() {
 
   const totalGeral = despesas.reduce((s, d) => s + d.valor, 0);
   const somaLinhas = linhas.reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
+
+  function destinoLabel(d: Despesa) {
+    if (d.subempreitada_id) return d.subempreitadas?.descricao || '—';
+    if (d.obra_id) return d.obras?.titulo || '—';
+    return 'Geral';
+  }
 
   return (
     <div className="p-4 md:p-8">
@@ -190,7 +217,7 @@ export default function DespesasPage() {
 
           <form onSubmit={adicionarDespesa} className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <input type="text" placeholder="Descrição (ex: Fatura Leroy Merlin)" value={descricao} onChange={(e) => setDescricao(e.target.value)} className="input" required />
+              <input type="text" placeholder="Descrição (ex: Fatura Leroy Merlin, Portagens A1)" value={descricao} onChange={(e) => setDescricao(e.target.value)} className="input" required />
               <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="input">
                 {CATEGORIAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
@@ -198,20 +225,29 @@ export default function DespesasPage() {
               <input type="date" value={dataDespesa} onChange={(e) => setDataDespesa(e.target.value)} className="input" />
               <label className="input flex items-center gap-2 cursor-pointer md:col-span-2 text-ink-500">
                 <Paperclip size={16} className="shrink-0" />
-                {ficheiro ? ficheiro.name : 'Anexar foto/PDF da fatura (opcional)'}
+                {ficheiro ? ficheiro.name : 'Anexar foto/PDF do comprovativo (opcional)'}
                 <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setFicheiro(e.target.files?.[0] || null)} />
               </label>
             </div>
 
             {dividir ? (
               <div className="space-y-2 pt-2 border-t border-sand-100">
-                <p className="text-xs text-ink-400">Divide o valor total desta fatura/pagamento por várias obras (ou "Stock/Geral" para material sem obra associada).</p>
+                <p className="text-xs text-ink-400">Divide o valor total desta fatura/pagamento por várias obras, subempreitadas e/ou "Stock/Geral".</p>
                 {linhas.map((l, idx) => (
                   <div key={idx} className="flex items-center gap-2">
-                    <select value={l.obraId} onChange={(e) => atualizarLinha(idx, 'obraId', e.target.value)} className="input flex-1">
-                      <option value="">Selecionar Obra</option>
+                    <select value={l.destino} onChange={(e) => atualizarLinha(idx, 'destino', e.target.value)} className="input flex-1">
+                      <option value="">Selecionar destino</option>
                       <option value={OPCAO_GERAL}>— Stock / Despesa Geral (sem obra) —</option>
-                      {obras.map((o) => <option key={o.id} value={o.id}>{o.titulo}</option>)}
+                      {obras.length > 0 && (
+                        <optgroup label="Obras">
+                          {obras.map((o) => <option key={o.id} value={`obra:${o.id}`}>{o.titulo}</option>)}
+                        </optgroup>
+                      )}
+                      {subs.length > 0 && (
+                        <optgroup label="Subempreitadas">
+                          {subs.map((s) => <option key={s.id} value={`sub:${s.id}`}>{s.descricao}</option>)}
+                        </optgroup>
+                      )}
                     </select>
                     <input type="number" step="0.01" placeholder="Valor (€)" value={l.valor} onChange={(e) => atualizarLinha(idx, 'valor', e.target.value)} className="input w-32" />
                     <button type="button" onClick={() => removerLinha(idx)} className="text-ink-300 hover:text-red-600 shrink-0"><X size={16} /></button>
@@ -226,14 +262,28 @@ export default function DespesasPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-sand-100">
-                <select value={obraId} onChange={(e) => setObraId(e.target.value)} className="input" required>
-                  <option value="">Selecionar Obra</option>
+                <select value={destino} onChange={(e) => setDestino(e.target.value)} className="input md:col-span-2" required>
+                  <option value="">Selecionar destino</option>
                   <option value={OPCAO_GERAL}>— Despesa Geral (sem obra, ex: ordenado) —</option>
-                  {obras.map((o) => <option key={o.id} value={o.id}>{o.titulo}</option>)}
+                  {obras.length > 0 && (
+                    <optgroup label="Obras">
+                      {obras.map((o) => <option key={o.id} value={`obra:${o.id}`}>{o.titulo}</option>)}
+                    </optgroup>
+                  )}
+                  {subs.length > 0 && (
+                    <optgroup label="Subempreitadas">
+                      {subs.map((s) => <option key={s.id} value={`sub:${s.id}`}>{s.descricao}</option>)}
+                    </optgroup>
+                  )}
                 </select>
-                <input type="number" step="0.01" placeholder="Valor (€)" value={valor} onChange={(e) => setValor(e.target.value)} className="input md:col-span-2" required />
+                <input type="number" step="0.01" placeholder="Valor (€)" value={valor} onChange={(e) => setValor(e.target.value)} className="input" required />
               </div>
             )}
+
+            <label className="flex items-center gap-2 text-sm text-ink-600 pt-1">
+              <input type="checkbox" checked={imputar} onChange={(e) => setImputar(e.target.checked)} />
+              Contar para a margem da obra/subempreitada (desliga para só ficar registada, sem afetar o cálculo)
+            </label>
 
             <button disabled={uploading} className="btn-primary justify-center w-full disabled:opacity-60">
               {uploading ? 'A guardar...' : 'Adicionar Despesa'}
@@ -249,7 +299,7 @@ export default function DespesasPage() {
               <tr>
                 <th className="p-4 font-medium">Data</th>
                 <th className="p-4 font-medium">Descrição</th>
-                <th className="p-4 font-medium">Obra</th>
+                <th className="p-4 font-medium">Obra/Subempreitada</th>
                 <th className="p-4 font-medium">Categoria</th>
                 <th className="p-4 font-medium">Fornecedor</th>
                 <th className="p-4 font-medium text-right">Valor</th>
@@ -276,8 +326,9 @@ export default function DespesasPage() {
                           <Paperclip size={13} className="text-ink-300" /> {d.descricao}
                         </a>
                       ) : d.descricao}
+                      {!d.imputar && <span className="badge bg-sand-100 text-ink-400 ml-2 text-[10px]">não imputada</span>}
                     </td>
-                    <td className="p-4 text-ink-500">{d.obra_id ? (d.obras?.titulo || '—') : 'Geral'}</td>
+                    <td className="p-4 text-ink-500">{destinoLabel(d)}</td>
                     <td className="p-4"><span className="badge bg-sand-100 text-ink-600">{CATEGORIAS.find((c) => c.value === d.categoria)?.label || d.categoria}</span></td>
                     <td className="p-4 text-ink-500">{d.fornecedor || '—'}</td>
                     <td className="p-4 text-right text-ink-800 font-medium">{formatMoney(d.valor)}</td>

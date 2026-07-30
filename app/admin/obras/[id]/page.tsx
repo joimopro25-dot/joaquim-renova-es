@@ -64,7 +64,7 @@ export default function ObraDetalhePage() {
     const [{ data: obraData }, { data: fotosData }, { data: despesasData }, { data: trabData }, { data: obraTrabData }] = await Promise.all([
       supabase.from('obras').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('fotos_obra').select('*').eq('obra_id', id).order('criado_em', { ascending: false }),
-      supabase.from('despesas').select('valor').eq('obra_id', id),
+      supabase.from('despesas').select('valor').eq('obra_id', id).eq('imputar', true),
       supabase.from('trabalhadores').select('id, nome, tipo_valor_padrao, valor_padrao').eq('ativo', true).order('nome'),
       supabase.from('obra_trabalhadores').select('*, trabalhadores(nome), obra_trabalhador_entradas(quantidade)').eq('obra_id', id),
     ]);

@@ -74,6 +74,7 @@ export default function SubempreitadaDetalhe() {
   const [uploading, setUploading] = useState(false);
   const [trabalhadoresDisponiveis, setTrabalhadoresDisponiveis] = useState<Trabalhador[]>([]);
   const [subTrabalhadores, setSubTrabalhadores] = useState<SubTrabalhador[]>([]);
+  const [totalDespesas, setTotalDespesas] = useState(0);
   const [showTrabalhadorForm, setShowTrabalhadorForm] = useState(false);
   const [trabalhadorId, setTrabalhadorId] = useState('');
   const [tipoValorTrab, setTipoValorTrab] = useState('dia');
@@ -95,18 +96,20 @@ export default function SubempreitadaDetalhe() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: subData }, { data: entradasData }, { data: anexosData }, { data: trabData }, { data: subTrabData }] = await Promise.all([
+    const [{ data: subData }, { data: entradasData }, { data: anexosData }, { data: trabData }, { data: subTrabData }, { data: despesasData }] = await Promise.all([
       supabase.from('subempreitadas').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('subempreitada_entradas').select('*').eq('subempreitada_id', id).order('data'),
       supabase.from('subempreitada_anexos').select('*').eq('subempreitada_id', id).order('criado_em'),
       supabase.from('trabalhadores').select('id, nome, tipo_valor_padrao, valor_padrao').eq('ativo', true).order('nome'),
       supabase.from('obra_trabalhadores').select('*, trabalhadores(nome), obra_trabalhador_entradas(quantidade)').eq('subempreitada_id', id),
+      supabase.from('despesas').select('valor').eq('subempreitada_id', id).eq('imputar', true),
     ]);
     setSub(subData as any);
     setEntradas(entradasData || []);
     setAnexos(anexosData || []);
     setTrabalhadoresDisponiveis(trabData || []);
     setSubTrabalhadores((subTrabData as any) || []);
+    setTotalDespesas((despesasData || []).reduce((s, d: any) => s + (d.valor || 0), 0));
     setLoading(false);
   }, [id]);
 
@@ -477,6 +480,12 @@ export default function SubempreitadaDetalhe() {
             <span className="text-ink-500">A Receber</span>
             <span className="text-ink-800">{formatMoney(total)}</span>
           </div>
+          {totalDespesas > 0 && (
+            <div className="flex justify-between">
+              <span className="text-ink-500">Despesas</span>
+              <span className="text-ink-800">− {formatMoney(totalDespesas)}</span>
+            </div>
+          )}
           {totalTrabalhadores > 0 && (
             <div className="flex justify-between">
               <span className="text-ink-500">Mão de Obra</span>
@@ -485,7 +494,7 @@ export default function SubempreitadaDetalhe() {
           )}
           <div className="flex justify-between pt-2 border-t border-sand-100 font-semibold text-base">
             <span className="text-ink-800">Margem</span>
-            <span className="text-brand-600">{formatMoney(total - totalTrabalhadores)}</span>
+            <span className="text-brand-600">{formatMoney(total - totalDespesas - totalTrabalhadores)}</span>
           </div>
         </div>
       </div>

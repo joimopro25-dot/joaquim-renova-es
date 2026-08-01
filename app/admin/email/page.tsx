@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
-import { Inbox, Send, Plus, Paperclip, X, Mail as MailIcon, PenLine } from 'lucide-react';
+import { Inbox, Send, Plus, Paperclip, X, Mail as MailIcon, PenLine, Eye, ArrowLeft } from 'lucide-react';
 
 type Email = {
   id: string;
@@ -42,7 +42,9 @@ export default function EmailPage() {
 
   const [assinatura, setAssinatura] = useState('');
   const [assinaturaHtmlAvancado, setAssinaturaHtmlAvancado] = useState(false);
+  const [mensagemPadrao, setMensagemPadrao] = useState('');
   const [assinaturaGuardando, setAssinaturaGuardando] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
 
   async function carregar() {
     setLoading(true);
@@ -61,10 +63,11 @@ export default function EmailPage() {
   }
 
   async function carregarAssinatura() {
-    const { data } = await supabase.from('email_assinatura').select('assinatura_html').eq('id', 1).maybeSingle();
+    const { data } = await supabase.from('email_assinatura').select('assinatura_html, mensagem_padrao').eq('id', 1).maybeSingle();
     const html = data?.assinatura_html || '';
     setAssinatura(html);
     setAssinaturaHtmlAvancado(html.includes('<'));
+    setMensagemPadrao(data?.mensagem_padrao || '');
   }
 
   useEffect(() => { carregar(); }, [tab]);
@@ -72,7 +75,13 @@ export default function EmailPage() {
 
   function resetCompor() {
     setPara(''); setCc(''); setAssunto(''); setCorpo(''); setAnexos([]); setErro('');
+    setPreviewing(false);
     setShowCompor(false);
+  }
+
+  function abrirCompor() {
+    setCorpo(mensagemPadrao);
+    setShowCompor(true);
   }
 
   async function anexarFicheiro(e: React.ChangeEvent<HTMLInputElement>) {
@@ -95,22 +104,27 @@ export default function EmailPage() {
   async function guardarAssinatura(e: React.FormEvent) {
     e.preventDefault();
     setAssinaturaGuardando(true);
-    await supabase.from('email_assinatura').upsert([{ id: 1, assinatura_html: assinatura || null }]);
+    await supabase.from('email_assinatura').upsert([{ id: 1, assinatura_html: assinatura || null, mensagem_padrao: mensagemPadrao || null }]);
     setAssinaturaGuardando(false);
     setShowAssinatura(false);
   }
 
-  async function enviarEmail(e: React.FormEvent) {
+  function gerarCorpoHtml(): string {
+    let corpoHtml = `<p>${corpo.split('\n').map((l) => l || '&nbsp;').join('</p><p>')}</p>`;
+    if (assinatura) {
+      corpoHtml += assinaturaHtmlAvancado ? assinatura : `<p>${assinatura.split('\n').map((l) => l || '&nbsp;').join('</p><p>')}</p>`;
+    }
+    return corpoHtml;
+  }
+
+  async function enviarEmail(e: React.FormEvent | React.MouseEvent) {
     e.preventDefault();
     setErro('');
     setEnviando(true);
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { setErro('Sessão expirada, atualiza a página.'); setEnviando(false); return; }
 
-    let corpoHtml = `<p>${corpo.split('\n').map((l) => l || '&nbsp;').join('</p><p>')}</p>`;
-    if (assinatura) {
-      corpoHtml += assinaturaHtmlAvancado ? assinatura : `<p>${assinatura.split('\n').map((l) => l || '&nbsp;').join('</p><p>')}</p>`;
-    }
+    const corpoHtml = gerarCorpoHtml();
 
     const resp = await fetch('/api/email/enviar', {
       method: 'POST',
@@ -146,7 +160,7 @@ export default function EmailPage() {
           <button onClick={() => setShowAssinatura((v) => !v)} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100">
             <PenLine size={16} /> Assinatura
           </button>
-          <button onClick={() => setShowCompor((v) => !v)} className="btn-primary">
+          <button onClick={() => (showCompor ? resetCompor() : abrirCompor())} className="btn-primary">
             <Plus size={18} /> Novo Email
           </button>
         </div>
@@ -167,9 +181,21 @@ export default function EmailPage() {
               <input type="checkbox" checked={assinaturaHtmlAvancado} onChange={(e) => setAssinaturaHtmlAvancado(e.target.checked)} />
               É código HTML (colaste uma assinatura já formatada, ex: do Gmail) — não converter quebras de linha automaticamente
             </label>
+
+            <div className="pt-3 border-t border-sand-100">
+              <h3 className="font-semibold text-ink-700 mb-1">Mensagem Padrão</h3>
+              <p className="text-xs text-ink-400 mb-2">Texto que aparece já preenchido (mas editável) sempre que abres "Novo Email".</p>
+              <textarea
+                placeholder={'Ex:\nSem outro assunto, de momento,\nSubscrevo-me, com os melhores cumprimentos,'}
+                value={mensagemPadrao}
+                onChange={(e) => setMensagemPadrao(e.target.value)}
+                className="input min-h-[90px] text-sm"
+              />
+            </div>
+
             <div className="flex gap-2 pt-2 border-t border-sand-100">
               <button type="button" onClick={() => setShowAssinatura(false)} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 flex-1 justify-center">Cancelar</button>
-              <button disabled={assinaturaGuardando} className="btn-primary flex-1 justify-center disabled:opacity-60">{assinaturaGuardando ? 'A guardar...' : 'Guardar Assinatura'}</button>
+              <button disabled={assinaturaGuardando} className="btn-primary flex-1 justify-center disabled:opacity-60">{assinaturaGuardando ? 'A guardar...' : 'Guardar'}</button>
             </div>
           </form>
         </div>
@@ -177,41 +203,69 @@ export default function EmailPage() {
 
       {showCompor && (
         <div className="card p-6 mb-6">
-          <h2 className="font-semibold text-ink-700 mb-4">Novo Email</h2>
-          <form onSubmit={enviarEmail} className="space-y-3">
-            <input type="email" list="clientes-email" placeholder="Para (escreve ou escolhe um cliente)" value={para} onChange={(e) => setPara(e.target.value)} className="input" required />
-            <datalist id="clientes-email">
-              {clientes.map((c) => <option key={c.id} value={c.email || ''}>{c.nome}</option>)}
-            </datalist>
-            <input type="email" placeholder="Cc (opcional)" value={cc} onChange={(e) => setCc(e.target.value)} className="input" />
-            <input type="text" placeholder="Assunto" value={assunto} onChange={(e) => setAssunto(e.target.value)} className="input" required />
-            <textarea placeholder="Escreve a mensagem..." value={corpo} onChange={(e) => setCorpo(e.target.value)} className="input min-h-[160px]" required />
+          <h2 className="font-semibold text-ink-700 mb-4">{previewing ? 'Pré-visualização' : 'Novo Email'}</h2>
 
-            {anexos.length > 0 && (
-              <div className="space-y-1">
-                {anexos.map((a) => (
-                  <div key={a.nome} className="flex items-center justify-between gap-2 p-2 bg-sand-50 rounded-lg text-sm">
-                    <span className="flex items-center gap-1.5 text-ink-700 truncate"><Paperclip size={13} className="text-ink-300 shrink-0" /> {a.nome}</span>
-                    <button type="button" onClick={() => removerAnexo(a.nome)} className="text-ink-300 hover:text-red-600 shrink-0"><X size={14} /></button>
-                  </div>
-                ))}
+          {previewing ? (
+            <div className="space-y-3">
+              <div className="text-sm text-ink-500 space-y-0.5 pb-3 border-b border-sand-100">
+                <p><span className="text-ink-400">Para:</span> {para}</p>
+                {cc && <p><span className="text-ink-400">Cc:</span> {cc}</p>}
+                <p><span className="text-ink-400">Assunto:</span> {assunto}</p>
               </div>
-            )}
-
-            <label className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 cursor-pointer inline-flex w-fit">
-              <Paperclip size={15} /> {aEnviarFicheiro ? 'A anexar...' : 'Anexar Ficheiro'}
-              <input type="file" className="hidden" disabled={aEnviarFicheiro} onChange={anexarFicheiro} />
-            </label>
-
-            {assinatura && <p className="text-xs text-ink-400">A tua assinatura será adicionada automaticamente ao enviar.</p>}
-
-            {erro && <p className="text-sm text-red-600">{erro}</p>}
-
-            <div className="flex gap-2 pt-2 border-t border-sand-100">
-              <button type="button" onClick={resetCompor} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 flex-1 justify-center">Cancelar</button>
-              <button disabled={enviando} className="btn-primary flex-1 justify-center disabled:opacity-60">{enviando ? 'A enviar...' : 'Enviar'}</button>
+              <div className="border border-sand-200 rounded-lg p-4 text-sm text-ink-800" dangerouslySetInnerHTML={{ __html: gerarCorpoHtml() }} />
+              {anexos.length > 0 && (
+                <div className="space-y-1">
+                  {anexos.map((a) => (
+                    <p key={a.nome} className="flex items-center gap-1.5 text-sm text-ink-600"><Paperclip size={13} className="text-ink-300" /> {a.nome}</p>
+                  ))}
+                </div>
+              )}
+              {erro && <p className="text-sm text-red-600">{erro}</p>}
+              <div className="flex gap-2 pt-2 border-t border-sand-100">
+                <button type="button" onClick={() => setPreviewing(false)} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 flex-1 justify-center">
+                  <ArrowLeft size={15} /> Voltar a Editar
+                </button>
+                <button onClick={enviarEmail} disabled={enviando} className="btn-primary flex-1 justify-center disabled:opacity-60">
+                  {enviando ? 'A enviar...' : 'Confirmar e Enviar'}
+                </button>
+              </div>
             </div>
-          </form>
+          ) : (
+            <form onSubmit={(e) => { e.preventDefault(); setPreviewing(true); }} className="space-y-3">
+              <input type="email" list="clientes-email" placeholder="Para (escreve ou escolhe um cliente)" value={para} onChange={(e) => setPara(e.target.value)} className="input" required />
+              <datalist id="clientes-email">
+                {clientes.map((c) => <option key={c.id} value={c.email || ''}>{c.nome}</option>)}
+              </datalist>
+              <input type="email" placeholder="Cc (opcional)" value={cc} onChange={(e) => setCc(e.target.value)} className="input" />
+              <input type="text" placeholder="Assunto" value={assunto} onChange={(e) => setAssunto(e.target.value)} className="input" required />
+              <textarea placeholder="Escreve a mensagem..." value={corpo} onChange={(e) => setCorpo(e.target.value)} className="input min-h-[160px]" required />
+
+              {anexos.length > 0 && (
+                <div className="space-y-1">
+                  {anexos.map((a) => (
+                    <div key={a.nome} className="flex items-center justify-between gap-2 p-2 bg-sand-50 rounded-lg text-sm">
+                      <span className="flex items-center gap-1.5 text-ink-700 truncate"><Paperclip size={13} className="text-ink-300 shrink-0" /> {a.nome}</span>
+                      <button type="button" onClick={() => removerAnexo(a.nome)} className="text-ink-300 hover:text-red-600 shrink-0"><X size={14} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <label className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 cursor-pointer inline-flex w-fit">
+                <Paperclip size={15} /> {aEnviarFicheiro ? 'A anexar...' : 'Anexar Ficheiro'}
+                <input type="file" className="hidden" disabled={aEnviarFicheiro} onChange={anexarFicheiro} />
+              </label>
+
+              {assinatura && <p className="text-xs text-ink-400">A tua assinatura será adicionada automaticamente ao enviar.</p>}
+
+              <div className="flex gap-2 pt-2 border-t border-sand-100">
+                <button type="button" onClick={resetCompor} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 flex-1 justify-center">Cancelar</button>
+                <button className="btn-primary flex-1 justify-center">
+                  <Eye size={15} /> Pré-visualizar
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       )}
 

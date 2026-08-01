@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { formatMoney } from '../../lib/format';
-import { Users, Briefcase, Euro, ArrowRight, Receipt, HardHat, UsersRound, AlertTriangle } from 'lucide-react';
+import { Users, Briefcase, Euro, ArrowRight, Receipt, HardHat, UsersRound, AlertTriangle, Calendar } from 'lucide-react';
 
 type Obra = {
   id: string;
@@ -15,6 +15,7 @@ type Obra = {
 };
 
 type ObraEmRisco = { id: string; titulo: string; margem: number };
+type TarefaAtrasada = { id: string; titulo: string; obraId: string; obraTitulo: string; dataFimPrevista: string };
 
 const ESTADOS: Record<string, { label: string; color: string }> = {
   orcamento: { label: 'Orçamento', color: 'bg-sand-100 text-ink-600' },
@@ -33,10 +34,11 @@ export default function AdminDashboard() {
   const [totalMaoDeObra, setTotalMaoDeObra] = useState(0);
   const [recentes, setRecentes] = useState<Obra[]>([]);
   const [obrasEmRisco, setObrasEmRisco] = useState<ObraEmRisco[]>([]);
+  const [tarefasAtrasadas, setTarefasAtrasadas] = useState<TarefaAtrasada[]>([]);
 
   useEffect(() => {
     async function carregar() {
-      const [{ count: clientesCount }, { data: obras }, { data: despesas }, { data: subs }, { data: trabs }, { data: despesasObra }, { data: trabsObra }] = await Promise.all([
+      const [{ count: clientesCount }, { data: obras }, { data: despesas }, { data: subs }, { data: trabs }, { data: despesasObra }, { data: trabsObra }, { data: tarefasData }] = await Promise.all([
         supabase.from('clientes').select('*', { count: 'exact', head: true }),
         supabase
           .from('obras')
@@ -47,6 +49,7 @@ export default function AdminDashboard() {
         supabase.from('obra_trabalhadores').select('tipo_valor, valor_unitario, obra_trabalhador_entradas(quantidade)').eq('estado', 'pago'),
         supabase.from('despesas').select('obra_id, valor, tipo_imputacao').not('obra_id', 'is', null),
         supabase.from('obra_trabalhadores').select('obra_id, tipo_valor, valor_unitario, obra_trabalhador_entradas(quantidade)').not('obra_id', 'is', null),
+        supabase.from('obra_tarefas').select('id, titulo, obra_id, data_fim_prevista, estado, obras(titulo)').neq('estado', 'concluida'),
       ]);
 
       setTotalClientes(clientesCount || 0);
@@ -79,6 +82,12 @@ export default function AdminDashboard() {
       }
       setObrasEmRisco(risco);
 
+      const hoje = new Date(new Date().toDateString());
+      const atrasadas = (tarefasData || [])
+        .filter((t: any) => new Date(t.data_fim_prevista) < hoje)
+        .map((t: any) => ({ id: t.id, titulo: t.titulo, obraId: t.obra_id, obraTitulo: t.obras?.titulo || '—', dataFimPrevista: t.data_fim_prevista }));
+      setTarefasAtrasadas(atrasadas);
+
       setLoading(false);
     }
     carregar();
@@ -105,6 +114,22 @@ export default function AdminDashboard() {
               <Link key={o.id} href={`/admin/obras/${o.id}`} className="flex items-center justify-between text-sm text-red-700 hover:underline">
                 <span>{o.titulo}</span>
                 <span className="font-medium">{formatMoney(o.margem)}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tarefasAtrasadas.length > 0 && (
+        <div className="card p-4 mb-6 bg-red-50 border-red-200">
+          <p className="text-sm font-medium text-red-800 flex items-center gap-2 mb-2">
+            <Calendar size={16} /> {tarefasAtrasadas.length} tarefa{tarefasAtrasadas.length !== 1 ? 's' : ''} atrasada{tarefasAtrasadas.length !== 1 ? 's' : ''} no cronograma
+          </p>
+          <div className="space-y-1">
+            {tarefasAtrasadas.map((t) => (
+              <Link key={t.id} href={`/admin/obras/${t.obraId}`} className="flex items-center justify-between text-sm text-red-700 hover:underline">
+                <span>{t.titulo} <span className="text-red-500">· {t.obraTitulo}</span></span>
+                <span className="font-medium">{new Date(t.dataFimPrevista).toLocaleDateString('pt-PT')}</span>
               </Link>
             ))}
           </div>

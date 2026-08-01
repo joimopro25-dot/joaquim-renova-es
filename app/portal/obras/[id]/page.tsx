@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
-import { ArrowLeft, ImageOff, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ImageOff, ShieldCheck, CheckCircle2, Circle, Loader2 } from 'lucide-react';
 
 type Obra = {
   id: string;
@@ -14,6 +14,8 @@ type Obra = {
 };
 
 type Foto = { id: string; url: string; legenda: string | null };
+
+type Tarefa = { id: string; titulo: string; data_inicio: string; data_fim_prevista: string; estado: string };
 
 type Garantia = {
   id: string;
@@ -46,18 +48,21 @@ export default function PortalObraDetalhe() {
   const [obra, setObra] = useState<Obra | null>(null);
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [garantias, setGarantias] = useState<Garantia[]>([]);
+  const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function carregar() {
-      const [{ data: obraData }, { data: fotosData }, { data: garantiasData }] = await Promise.all([
+      const [{ data: obraData }, { data: fotosData }, { data: garantiasData }, { data: tarefasData }] = await Promise.all([
         supabase.from('obras').select('id, titulo, descricao, status, progresso_percentagem').eq('id', id).single(),
         supabase.from('fotos_obra').select('id, url, legenda').eq('obra_id', id).order('criado_em', { ascending: false }),
         supabase.from('garantias').select('id, equipamento, marca_modelo, fornecedor, data_compra, duracao_meses, anexo_url, anexo_nome').eq('obra_id', id).order('criado_em', { ascending: false }),
+        supabase.from('obra_tarefas').select('id, titulo, data_inicio, data_fim_prevista, estado').eq('obra_id', id).order('data_inicio'),
       ]);
       setObra(obraData as any);
       setFotos(fotosData || []);
       setGarantias(garantiasData || []);
+      setTarefas(tarefasData || []);
       setLoading(false);
     }
     carregar();
@@ -91,6 +96,29 @@ export default function PortalObraDetalhe() {
           <div className="bg-brand-500 h-full transition-all" style={{ width: `${obra.progresso_percentagem}%` }} />
         </div>
       </div>
+
+      {tarefas.length > 0 && (
+        <div className="card p-6 mb-6">
+          <h3 className="font-semibold text-ink-700 mb-4">Cronograma</h3>
+          <div className="space-y-4">
+            {tarefas.map((t) => (
+              <div key={t.id} className="flex items-start gap-3">
+                {t.estado === 'concluida' ? (
+                  <CheckCircle2 size={18} className="text-green-500 shrink-0 mt-0.5" />
+                ) : t.estado === 'em_curso' ? (
+                  <Loader2 size={18} className="text-blue-500 shrink-0 mt-0.5" />
+                ) : (
+                  <Circle size={18} className="text-ink-300 shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <p className={`text-sm font-medium ${t.estado === 'concluida' ? 'text-ink-500 line-through' : 'text-ink-800'}`}>{t.titulo}</p>
+                  <p className="text-xs text-ink-400">{new Date(t.data_inicio).toLocaleDateString('pt-PT')} – {new Date(t.data_fim_prevista).toLocaleDateString('pt-PT')}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card p-6">
         <h3 className="font-semibold text-ink-700 mb-4">Fotos</h3>

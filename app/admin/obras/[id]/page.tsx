@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import Link from 'next/link';
-import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle, ShieldCheck, Plus } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle, ShieldCheck, Plus, Calendar, Check } from 'lucide-react';
 
 type Obra = {
   id: string;
@@ -38,6 +38,26 @@ function calcularFimGarantia(g: Garantia): Date | null {
   fim.setMonth(fim.getMonth() + (g.duracao_meses || 0));
   return fim;
 }
+
+type Tarefa = {
+  id: string;
+  titulo: string;
+  data_inicio: string;
+  data_fim_prevista: string;
+  estado: string;
+  data_fim_real: string | null;
+  notas: string | null;
+};
+
+function estaAtrasada(t: Tarefa): boolean {
+  return t.estado !== 'concluida' && new Date(t.data_fim_prevista) < new Date(new Date().toDateString());
+}
+
+const ESTADOS_TAREFA: Record<string, { label: string; cor: string }> = {
+  pendente: { label: 'Pendente', cor: 'bg-sand-300' },
+  em_curso: { label: 'Em Curso', cor: 'bg-blue-400' },
+  concluida: { label: 'Concluída', cor: 'bg-green-500' },
+};
 
 type Trabalhador = { id: string; nome: string; tipo_valor_padrao: string; valor_padrao: number };
 type ObraTrabalhador = {
@@ -91,15 +111,24 @@ export default function ObraDetalhePage() {
   const [tipoValorTrab, setTipoValorTrab] = useState('dia');
   const [valorUnitarioTrab, setValorUnitarioTrab] = useState('');
 
+  const [tarefas, setTarefas] = useState<Tarefa[]>([]);
+  const [showTarefaForm, setShowTarefaForm] = useState(false);
+  const [tTitulo, setTTitulo] = useState('');
+  const [tDataInicio, setTDataInicio] = useState(() => new Date().toISOString().slice(0, 10));
+  const [tDataFim, setTDataFim] = useState(() => new Date().toISOString().slice(0, 10));
+  const [tNotas, setTNotas] = useState('');
+  const [aGuardarTarefa, setAGuardarTarefa] = useState(false);
+
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: obraData }, { data: fotosData }, { data: despesasData }, { data: trabData }, { data: obraTrabData }, { data: garantiasData }] = await Promise.all([
+    const [{ data: obraData }, { data: fotosData }, { data: despesasData }, { data: trabData }, { data: obraTrabData }, { data: garantiasData }, { data: tarefasData }] = await Promise.all([
       supabase.from('obras').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('fotos_obra').select('*').eq('obra_id', id).order('criado_em', { ascending: false }),
       supabase.from('despesas').select('valor, tipo_imputacao').eq('obra_id', id),
       supabase.from('trabalhadores').select('id, nome, tipo_valor_padrao, valor_padrao').eq('ativo', true).order('nome'),
       supabase.from('obra_trabalhadores').select('*, trabalhadores(nome), obra_trabalhador_entradas(quantidade)').eq('obra_id', id),
       supabase.from('garantias').select('*').eq('obra_id', id).order('criado_em', { ascending: false }),
+      supabase.from('obra_tarefas').select('*').eq('obra_id', id).order('data_inicio'),
     ]);
     setObra(obraData as any);
     setFotos(fotosData || []);
@@ -108,6 +137,7 @@ export default function ObraDetalhePage() {
     setTrabalhadoresDisponiveis(trabData || []);
     setObraTrabalhadores((obraTrabData as any) || []);
     setGarantias(garantiasData || []);
+    setTarefas(tarefasData || []);
     setLoading(false);
   }, [id]);
 
@@ -213,6 +243,38 @@ export default function ObraDetalhePage() {
     carregar();
   }
 
+  async function adicionarTarefa(e: React.FormEvent) {
+    e.preventDefault();
+    setAGuardarTarefa(true);
+    const { error } = await supabase.from('obra_tarefas').insert([{
+      obra_id: id,
+      titulo: tTitulo,
+      data_inicio: tDataInicio,
+      data_fim_prevista: tDataFim,
+      notas: tNotas || null,
+      ordem: tarefas.length,
+    }]);
+    setAGuardarTarefa(false);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setTTitulo(''); setTDataInicio(new Date().toISOString().slice(0, 10)); setTDataFim(new Date().toISOString().slice(0, 10)); setTNotas('');
+    setShowTarefaForm(false);
+    carregar();
+  }
+
+  async function mudarEstadoTarefa(tarefaId: string, novoEstado: string) {
+    await supabase.from('obra_tarefas').update({
+      estado: novoEstado,
+      data_fim_real: novoEstado === 'concluida' ? new Date().toISOString().slice(0, 10) : null,
+    }).eq('id', tarefaId);
+    carregar();
+  }
+
+  async function removerTarefa(tarefaId: string) {
+    if (!confirm('Remover esta tarefa?')) return;
+    await supabase.from('obra_tarefas').delete().eq('id', tarefaId);
+    carregar();
+  }
+
   if (loading) return <div className="p-8 text-center text-ink-300 text-sm">A carregar...</div>;
   if (!obra) return <div className="p-8 text-center text-ink-400 text-sm">Obra não encontrada.</div>;
 
@@ -221,6 +283,13 @@ export default function ObraDetalhePage() {
   const margem = valorTotalComCliente - totalDespesas - totalMaoDeObra;
   const margemPercentagem = valorTotalComCliente > 0 ? (margem / valorTotalComCliente) * 100 : 0;
   const risco = margem < 0 ? 'critico' : margemPercentagem < 10 ? 'atencao' : null;
+
+  const tarefasAtrasadas = tarefas.filter(estaAtrasada);
+  const datasInicio = tarefas.map((t) => new Date(t.data_inicio).getTime());
+  const datasFim = tarefas.map((t) => new Date(t.data_fim_prevista).getTime());
+  const cronogramaMin = datasInicio.length ? Math.min(...datasInicio) : 0;
+  const cronogramaMax = datasFim.length ? Math.max(...datasFim) : 0;
+  const cronogramaSpan = Math.max(cronogramaMax - cronogramaMin, 1);
 
   return (
     <div className="p-4 md:p-8 max-w-4xl">
@@ -244,6 +313,13 @@ export default function ObraDetalhePage() {
           {risco === 'critico'
             ? <>Atenção: as despesas e mão de obra já ultrapassam o valor orçamentado nesta obra (margem de {formatMoney(margem)}).</>
             : <>Margem baixa nesta obra ({margemPercentagem.toFixed(1)}% do orçamentado) — vale a pena rever custos antes de continuar.</>}
+        </div>
+      )}
+
+      {tarefasAtrasadas.length > 0 && (
+        <div className="card p-4 mb-6 flex items-center gap-2.5 text-sm bg-red-50 border-red-200 text-red-800">
+          <Calendar size={18} className="shrink-0" />
+          {tarefasAtrasadas.length} tarefa{tarefasAtrasadas.length !== 1 ? 's' : ''} atrasada{tarefasAtrasadas.length !== 1 ? 's' : ''} no cronograma: {tarefasAtrasadas.map((t) => t.titulo).join(', ')}.
         </div>
       )}
 
@@ -312,6 +388,74 @@ export default function ObraDetalhePage() {
                 </div>
               </Link>
             ))}
+          </div>
+        )}
+      </div>
+
+      <div className="card p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-ink-700 flex items-center gap-2"><Calendar size={16} /> Cronograma (visível ao cliente)</h3>
+          <button onClick={() => setShowTarefaForm((v) => !v)} className="btn-primary text-sm py-1.5">
+            <Plus size={15} /> Adicionar Tarefa
+          </button>
+        </div>
+
+        {showTarefaForm && (
+          <form onSubmit={adicionarTarefa} className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4 p-3 bg-sand-50 rounded-lg">
+            <input type="text" placeholder="Tarefa (ex: Demolição)" value={tTitulo} onChange={(e) => setTTitulo(e.target.value)} className="input md:col-span-2" required />
+            <div>
+              <label className="text-xs text-ink-400">Início</label>
+              <input type="date" value={tDataInicio} onChange={(e) => setTDataInicio(e.target.value)} className="input w-full mt-1" required />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Fim previsto</label>
+              <input type="date" value={tDataFim} onChange={(e) => setTDataFim(e.target.value)} className="input w-full mt-1" required />
+            </div>
+            <input type="text" placeholder="Notas (opcional)" value={tNotas} onChange={(e) => setTNotas(e.target.value)} className="input md:col-span-3" />
+            <button disabled={aGuardarTarefa} className="btn-primary justify-center disabled:opacity-60">
+              {aGuardarTarefa ? 'A guardar...' : 'Guardar'}
+            </button>
+          </form>
+        )}
+
+        {tarefas.length === 0 ? (
+          <p className="text-sm text-ink-400 text-center py-4">Ainda sem tarefas no cronograma.</p>
+        ) : (
+          <div className="space-y-3">
+            {tarefas.map((t) => {
+              const atrasada = estaAtrasada(t);
+              const info = ESTADOS_TAREFA[t.estado] || ESTADOS_TAREFA.pendente;
+              const inicio = new Date(t.data_inicio).getTime();
+              const fim = new Date(t.data_fim_prevista).getTime();
+              const left = ((inicio - cronogramaMin) / cronogramaSpan) * 100;
+              const width = Math.max(((fim - inicio) / cronogramaSpan) * 100, 2);
+              return (
+                <div key={t.id} className="text-sm">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="font-medium text-ink-800">{t.titulo}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-ink-400">{new Date(t.data_inicio).toLocaleDateString('pt-PT')} – {new Date(t.data_fim_prevista).toLocaleDateString('pt-PT')}</span>
+                      <span className={`badge ${atrasada ? 'bg-red-100 text-red-700' : t.estado === 'concluida' ? 'bg-green-100 text-green-700' : t.estado === 'em_curso' ? 'bg-blue-100 text-blue-700' : 'bg-sand-100 text-ink-600'}`}>
+                        {atrasada ? 'Atrasada' : info.label}
+                      </span>
+                      {t.estado !== 'concluida' && (
+                        <button onClick={() => mudarEstadoTarefa(t.id, t.estado === 'pendente' ? 'em_curso' : 'concluida')} className="text-ink-300 hover:text-green-600" title={t.estado === 'pendente' ? 'Marcar como Em Curso' : 'Marcar como Concluída'}>
+                          <Check size={15} />
+                        </button>
+                      )}
+                      <button onClick={() => removerTarefa(t.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={14} /></button>
+                    </div>
+                  </div>
+                  <div className="w-full bg-sand-100 rounded-full h-2.5 relative overflow-hidden">
+                    <div
+                      className={`absolute h-full rounded-full ${atrasada ? 'bg-red-500' : info.cor}`}
+                      style={{ left: `${left}%`, width: `${width}%` }}
+                    />
+                  </div>
+                  {t.notas && <p className="text-xs text-ink-400 mt-1">{t.notas}</p>}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

@@ -95,15 +95,33 @@ export async function POST(req: NextRequest) {
   }
 
   const data = await resp.json();
-  const textoResposta: string = data?.content?.[0]?.text || '';
+  const textoResposta: string = (data?.content || [])
+    .filter((bloco: any) => bloco.type === 'text')
+    .map((bloco: any) => bloco.text)
+    .join('\n\n');
 
   let extraido;
   try {
-    const limpo = textoResposta.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '');
-    extraido = JSON.parse(limpo);
+    extraido = extrairJSON(textoResposta);
   } catch {
     return NextResponse.json({ error: 'Não foi possível interpretar a resposta da IA.', bruto: textoResposta }, { status: 502 });
   }
 
   return NextResponse.json(extraido);
+}
+
+function extrairJSON(texto: string): any {
+  let corpo = texto.trim();
+  const fenceMatch = corpo.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenceMatch) corpo = fenceMatch[1].trim();
+  try {
+    return JSON.parse(corpo);
+  } catch {
+    const inicio = corpo.indexOf('{');
+    const fim = corpo.lastIndexOf('}');
+    if (inicio !== -1 && fim > inicio) {
+      return JSON.parse(corpo.slice(inicio, fim + 1));
+    }
+    throw new Error('JSON inválido');
+  }
 }

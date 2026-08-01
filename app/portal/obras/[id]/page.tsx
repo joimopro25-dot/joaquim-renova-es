@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
-import { ArrowLeft, ImageOff } from 'lucide-react';
+import { ArrowLeft, ImageOff, ShieldCheck } from 'lucide-react';
 
 type Obra = {
   id: string;
@@ -14,6 +14,24 @@ type Obra = {
 };
 
 type Foto = { id: string; url: string; legenda: string | null };
+
+type Garantia = {
+  id: string;
+  equipamento: string;
+  marca_modelo: string | null;
+  fornecedor: string | null;
+  data_compra: string | null;
+  duracao_meses: number;
+  anexo_url: string | null;
+  anexo_nome: string | null;
+};
+
+function calcularFimGarantia(g: Garantia): Date | null {
+  if (!g.data_compra) return null;
+  const fim = new Date(g.data_compra);
+  fim.setMonth(fim.getMonth() + (g.duracao_meses || 0));
+  return fim;
+}
 
 const ESTADOS: Record<string, { label: string; color: string }> = {
   orcamento: { label: 'Orçamento', color: 'bg-sand-100 text-ink-600' },
@@ -27,16 +45,19 @@ export default function PortalObraDetalhe() {
   const router = useRouter();
   const [obra, setObra] = useState<Obra | null>(null);
   const [fotos, setFotos] = useState<Foto[]>([]);
+  const [garantias, setGarantias] = useState<Garantia[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function carregar() {
-      const [{ data: obraData }, { data: fotosData }] = await Promise.all([
+      const [{ data: obraData }, { data: fotosData }, { data: garantiasData }] = await Promise.all([
         supabase.from('obras').select('id, titulo, descricao, status, progresso_percentagem').eq('id', id).single(),
         supabase.from('fotos_obra').select('id, url, legenda').eq('obra_id', id).order('criado_em', { ascending: false }),
+        supabase.from('garantias').select('id, equipamento, marca_modelo, fornecedor, data_compra, duracao_meses, anexo_url, anexo_nome').eq('obra_id', id).order('criado_em', { ascending: false }),
       ]);
       setObra(obraData as any);
       setFotos(fotosData || []);
+      setGarantias(garantiasData || []);
       setLoading(false);
     }
     carregar();
@@ -89,6 +110,35 @@ export default function PortalObraDetalhe() {
           </div>
         )}
       </div>
+
+      {garantias.length > 0 && (
+        <div className="card p-6 mt-6">
+          <h3 className="font-semibold text-ink-700 mb-4 flex items-center gap-2"><ShieldCheck size={16} /> Garantias</h3>
+          <div className="space-y-2">
+            {garantias.map((g) => {
+              const fim = calcularFimGarantia(g);
+              const valida = fim ? fim.getTime() >= Date.now() : null;
+              return (
+                <div key={g.id} className="flex items-center justify-between gap-3 p-3 border border-sand-200 rounded-lg text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink-800">
+                      {g.equipamento}
+                      {g.marca_modelo && <span className="text-ink-400 font-normal"> · {g.marca_modelo}</span>}
+                    </p>
+                    <p className="text-xs text-ink-400">
+                      {fim ? (valida ? `Válida até ${fim.toLocaleDateString('pt-PT')}` : `Expirou em ${fim.toLocaleDateString('pt-PT')}`) : 'Sem data de compra definida'}
+                      {g.anexo_url && <> · <a href={g.anexo_url} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">{g.anexo_nome || 'documento'}</a></>}
+                    </p>
+                  </div>
+                  {valida !== null && (
+                    <span className={`badge shrink-0 ${valida ? 'bg-green-100 text-green-700' : 'bg-sand-100 text-ink-500'}`}>{valida ? 'Válida' : 'Expirada'}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

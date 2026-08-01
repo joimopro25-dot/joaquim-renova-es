@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import Link from 'next/link';
-import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle, ShieldCheck, Plus } from 'lucide-react';
 
 type Obra = {
   id: string;
@@ -18,6 +18,26 @@ type Obra = {
 };
 
 type Foto = { id: string; url: string; legenda: string | null; criado_em: string };
+
+type Garantia = {
+  id: string;
+  equipamento: string;
+  marca_modelo: string | null;
+  numero_serie: string | null;
+  fornecedor: string | null;
+  data_compra: string | null;
+  duracao_meses: number;
+  notas: string | null;
+  anexo_url: string | null;
+  anexo_nome: string | null;
+};
+
+function calcularFimGarantia(g: Garantia): Date | null {
+  if (!g.data_compra) return null;
+  const fim = new Date(g.data_compra);
+  fim.setMonth(fim.getMonth() + (g.duracao_meses || 0));
+  return fim;
+}
 
 type Trabalhador = { id: string; nome: string; tipo_valor_padrao: string; valor_padrao: number };
 type ObraTrabalhador = {
@@ -55,6 +75,17 @@ export default function ObraDetalhePage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [legenda, setLegenda] = useState('');
+  const [garantias, setGarantias] = useState<Garantia[]>([]);
+  const [showGarantiaForm, setShowGarantiaForm] = useState(false);
+  const [gEquipamento, setGEquipamento] = useState('');
+  const [gMarcaModelo, setGMarcaModelo] = useState('');
+  const [gNumeroSerie, setGNumeroSerie] = useState('');
+  const [gFornecedor, setGFornecedor] = useState('');
+  const [gDataCompra, setGDataCompra] = useState(() => new Date().toISOString().slice(0, 10));
+  const [gDuracaoMeses, setGDuracaoMeses] = useState('24');
+  const [gNotas, setGNotas] = useState('');
+  const [gFicheiro, setGFicheiro] = useState<File | null>(null);
+  const [aGuardarGarantia, setAGuardarGarantia] = useState(false);
   const [showTrabalhadorForm, setShowTrabalhadorForm] = useState(false);
   const [trabalhadorId, setTrabalhadorId] = useState('');
   const [tipoValorTrab, setTipoValorTrab] = useState('dia');
@@ -62,12 +93,13 @@ export default function ObraDetalhePage() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: obraData }, { data: fotosData }, { data: despesasData }, { data: trabData }, { data: obraTrabData }] = await Promise.all([
+    const [{ data: obraData }, { data: fotosData }, { data: despesasData }, { data: trabData }, { data: obraTrabData }, { data: garantiasData }] = await Promise.all([
       supabase.from('obras').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('fotos_obra').select('*').eq('obra_id', id).order('criado_em', { ascending: false }),
       supabase.from('despesas').select('valor, tipo_imputacao').eq('obra_id', id),
       supabase.from('trabalhadores').select('id, nome, tipo_valor_padrao, valor_padrao').eq('ativo', true).order('nome'),
       supabase.from('obra_trabalhadores').select('*, trabalhadores(nome), obra_trabalhador_entradas(quantidade)').eq('obra_id', id),
+      supabase.from('garantias').select('*').eq('obra_id', id).order('criado_em', { ascending: false }),
     ]);
     setObra(obraData as any);
     setFotos(fotosData || []);
@@ -75,6 +107,7 @@ export default function ObraDetalhePage() {
     setTotalDespesasCliente((despesasData || []).filter((d: any) => d.tipo_imputacao === 'cliente').reduce((s, d: any) => s + (d.valor || 0), 0));
     setTrabalhadoresDisponiveis(trabData || []);
     setObraTrabalhadores((obraTrabData as any) || []);
+    setGarantias(garantiasData || []);
     setLoading(false);
   }, [id]);
 
@@ -139,6 +172,44 @@ export default function ObraDetalhePage() {
   async function removerFoto(fotoId: string) {
     if (!confirm('Remover esta foto?')) return;
     await supabase.from('fotos_obra').delete().eq('id', fotoId);
+    carregar();
+  }
+
+  async function adicionarGarantia(e: React.FormEvent) {
+    e.preventDefault();
+    setAGuardarGarantia(true);
+    let anexoUrl: string | null = null;
+    let anexoNome: string | null = null;
+    if (gFicheiro) {
+      const path = `${id}/${Date.now()}-${gFicheiro.name}`;
+      const { error: uploadError } = await supabase.storage.from('garantias').upload(path, gFicheiro);
+      if (uploadError) { alert('Erro ao anexar: ' + uploadError.message); setAGuardarGarantia(false); return; }
+      anexoUrl = supabase.storage.from('garantias').getPublicUrl(path).data.publicUrl;
+      anexoNome = gFicheiro.name;
+    }
+    const { error } = await supabase.from('garantias').insert([{
+      obra_id: id,
+      equipamento: gEquipamento,
+      marca_modelo: gMarcaModelo || null,
+      numero_serie: gNumeroSerie || null,
+      fornecedor: gFornecedor || null,
+      data_compra: gDataCompra || null,
+      duracao_meses: parseInt(gDuracaoMeses) || 0,
+      notas: gNotas || null,
+      anexo_url: anexoUrl,
+      anexo_nome: anexoNome,
+    }]);
+    setAGuardarGarantia(false);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setGEquipamento(''); setGMarcaModelo(''); setGNumeroSerie(''); setGFornecedor('');
+    setGDataCompra(new Date().toISOString().slice(0, 10)); setGDuracaoMeses('24'); setGNotas(''); setGFicheiro(null);
+    setShowGarantiaForm(false);
+    carregar();
+  }
+
+  async function removerGarantia(garantiaId: string) {
+    if (!confirm('Remover esta garantia?')) return;
+    await supabase.from('garantias').delete().eq('id', garantiaId);
     carregar();
   }
 
@@ -295,6 +366,72 @@ export default function ObraDetalhePage() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      <div className="card p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-ink-700 flex items-center gap-2"><ShieldCheck size={16} /> Garantias de Equipamentos (visível ao cliente)</h3>
+          <button onClick={() => setShowGarantiaForm((v) => !v)} className="btn-primary text-sm py-1.5">
+            <Plus size={15} /> Adicionar
+          </button>
+        </div>
+
+        {showGarantiaForm && (
+          <form onSubmit={adicionarGarantia} className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4 p-3 bg-sand-50 rounded-lg">
+            <input type="text" placeholder="Equipamento (ex: Caldeira)" value={gEquipamento} onChange={(e) => setGEquipamento(e.target.value)} className="input" required />
+            <input type="text" placeholder="Marca/Modelo" value={gMarcaModelo} onChange={(e) => setGMarcaModelo(e.target.value)} className="input" />
+            <input type="text" placeholder="Nº de Série" value={gNumeroSerie} onChange={(e) => setGNumeroSerie(e.target.value)} className="input" />
+            <input type="text" placeholder="Fornecedor" value={gFornecedor} onChange={(e) => setGFornecedor(e.target.value)} className="input" />
+            <div>
+              <label className="text-xs text-ink-400">Data de compra</label>
+              <input type="date" value={gDataCompra} onChange={(e) => setGDataCompra(e.target.value)} className="input w-full mt-1" />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Garantia (meses)</label>
+              <input type="number" value={gDuracaoMeses} onChange={(e) => setGDuracaoMeses(e.target.value)} className="input w-full mt-1" />
+            </div>
+            <input type="text" placeholder="Notas (opcional)" value={gNotas} onChange={(e) => setGNotas(e.target.value)} className="input md:col-span-3" />
+            <label className="input flex items-center gap-2 cursor-pointer text-ink-500 md:col-span-2">
+              <Upload size={15} className="shrink-0" />
+              {gFicheiro ? gFicheiro.name : 'Anexar fatura/certificado (opcional)'}
+              <input type="file" className="hidden" onChange={(e) => setGFicheiro(e.target.files?.[0] || null)} />
+            </label>
+            <button disabled={aGuardarGarantia} className="btn-primary justify-center disabled:opacity-60">
+              {aGuardarGarantia ? 'A guardar...' : 'Guardar Garantia'}
+            </button>
+          </form>
+        )}
+
+        {garantias.length === 0 ? (
+          <p className="text-sm text-ink-400 text-center py-4">Ainda sem garantias registadas.</p>
+        ) : (
+          <div className="space-y-2">
+            {garantias.map((g) => {
+              const fim = calcularFimGarantia(g);
+              const valida = fim ? fim.getTime() >= Date.now() : null;
+              return (
+                <div key={g.id} className="flex items-center justify-between gap-3 p-3 border border-sand-200 rounded-lg text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink-800">
+                      {g.equipamento}
+                      {g.marca_modelo && <span className="text-ink-400 font-normal"> · {g.marca_modelo}</span>}
+                    </p>
+                    <p className="text-xs text-ink-400">
+                      {fim ? (valida ? `Válida até ${fim.toLocaleDateString('pt-PT')}` : `Expirou em ${fim.toLocaleDateString('pt-PT')}`) : 'Sem data de compra definida'}
+                      {g.anexo_url && <> · <a href={g.anexo_url} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">{g.anexo_nome || 'documento'}</a></>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {valida !== null && (
+                      <span className={`badge ${valida ? 'bg-green-100 text-green-700' : 'bg-sand-100 text-ink-500'}`}>{valida ? 'Válida' : 'Expirada'}</span>
+                    )}
+                    <button onClick={() => removerGarantia(g.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={15} /></button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import { moPorUnidade, precoPorUnidade, totalLinha, calcularTotais } from '../../../../lib/orcamento';
-import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Loader2 } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Loader2, Upload } from 'lucide-react';
+import ImportarOrcamento from '../ImportarOrcamento';
 
 type Linha = {
   id: string;
@@ -72,6 +73,7 @@ export default function OrcamentoDetalhePage() {
   const [rendimentoHoras, setRendimentoHoras] = useState('0');
   const [custoMaterial, setCustoMaterial] = useState('0');
 
+  const [showImportar, setShowImportar] = useState(false);
   const [showAssistente, setShowAssistente] = useState(false);
   const [mensagensChat, setMensagensChat] = useState<MensagemChat[]>([]);
   const [inputChat, setInputChat] = useState('');
@@ -388,8 +390,25 @@ export default function OrcamentoDetalhePage() {
         </div>
       </div>
 
+      {editavel && showImportar && (
+        <ImportarOrcamento
+          clientes={[]}
+          orcamentoExistenteId={orcamento.id}
+          orcamentoExistenteTitulo={orcamento.titulo}
+          onClose={() => setShowImportar(false)}
+          onSaved={() => { setShowImportar(false); carregar(); }}
+        />
+      )}
+
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-ink-700 mb-4">Mapa de Quantidades e Custos</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-ink-700">Mapa de Quantidades e Custos</h3>
+          {editavel && (
+            <button onClick={() => setShowImportar(true)} className="btn-primary bg-purple-600 hover:bg-purple-700 text-sm py-1.5">
+              <Upload size={15} /> Importar Documento
+            </button>
+          )}
+        </div>
 
         {Object.keys(linhasPorCapitulo).length > 0 && (
           <div className="overflow-x-auto mb-4 space-y-6">

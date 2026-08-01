@@ -27,7 +27,15 @@ function fileParaBase64(file: File): Promise<{ base64: string; mediaType: string
   });
 }
 
-export default function ImportarOrcamento({ clientes, onSaved, onClose }: { clientes: Cliente[]; onSaved: (id: string) => void; onClose: () => void }) {
+type Props = {
+  clientes: Cliente[];
+  onSaved: (id: string) => void;
+  onClose: () => void;
+  orcamentoExistenteId?: string;
+  orcamentoExistenteTitulo?: string;
+};
+
+export default function ImportarOrcamento({ clientes, onSaved, onClose, orcamentoExistenteId, orcamentoExistenteTitulo }: Props) {
   const [step, setStep] = useState<'upload' | 'loading' | 'review'>('upload');
   const [erro, setErro] = useState('');
   const [saving, setSaving] = useState(false);
@@ -81,24 +89,30 @@ export default function ImportarOrcamento({ clientes, onSaved, onClose }: { clie
   }
 
   async function confirmarCriar() {
-    if (!clienteId) { setErro('Escolhe o cliente deste orçamento.'); return; }
-    if (!titulo.trim()) { setErro('O orçamento precisa de um título.'); return; }
+    if (!orcamentoExistenteId) {
+      if (!clienteId) { setErro('Escolhe o cliente deste orçamento.'); return; }
+      if (!titulo.trim()) { setErro('O orçamento precisa de um título.'); return; }
+    }
     setSaving(true);
     setErro('');
 
-    const { data: orcamento, error: orcError } = await supabase.from('orcamentos').insert([{
-      cliente_id: clienteId,
-      titulo,
-      descricao: descricao || null,
-      status: 'rascunho',
-    }]).select().single();
+    let orcamentoId = orcamentoExistenteId;
 
-    if (orcError) { setErro('Erro ao criar orçamento: ' + orcError.message); setSaving(false); return; }
+    if (!orcamentoId) {
+      const { data: orcamento, error: orcError } = await supabase.from('orcamentos').insert([{
+        cliente_id: clienteId,
+        titulo,
+        descricao: descricao || null,
+        status: 'rascunho',
+      }]).select().single();
+      if (orcError) { setErro('Erro ao criar orçamento: ' + orcError.message); setSaving(false); return; }
+      orcamentoId = orcamento.id;
+    }
 
     if (linhas.length > 0) {
       const { error: linhasError } = await supabase.from('orcamento_linhas').insert(
         linhas.map((l) => ({
-          orcamento_id: orcamento.id,
+          orcamento_id: orcamentoId,
           capitulo: l.capitulo || 'Geral',
           descricao: l.descricao,
           unidade: l.unidade || 'un',
@@ -107,18 +121,20 @@ export default function ImportarOrcamento({ clientes, onSaved, onClose }: { clie
           custo_material: l.custo_material || 0,
         }))
       );
-      if (linhasError) { setErro('Orçamento criado, mas falhou ao adicionar linhas: ' + linhasError.message); setSaving(false); return; }
+      if (linhasError) { setErro((orcamentoExistenteId ? '' : 'Orçamento criado, mas ') + 'falhou ao adicionar linhas: ' + linhasError.message); setSaving(false); return; }
     }
 
     setSaving(false);
-    onSaved(orcamento.id);
+    onSaved(orcamentoId!);
   }
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-sand-100 sticky top-0 bg-white">
-          <h2 className="font-semibold text-ink-800 flex items-center gap-2"><FileText size={18} /> Importar Orçamento</h2>
+          <h2 className="font-semibold text-ink-800 flex items-center gap-2">
+            <FileText size={18} /> {orcamentoExistenteId ? `Importar Linhas para "${orcamentoExistenteTitulo}"` : 'Importar Orçamento'}
+          </h2>
           <button onClick={onClose} className="text-ink-400 hover:text-ink-700"><X size={20} /></button>
         </div>
 
@@ -143,14 +159,22 @@ export default function ImportarOrcamento({ clientes, onSaved, onClose }: { clie
 
           {step === 'review' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} className="input" required>
-                  <option value="">Selecionar Cliente</option>
-                  {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
-                <input type="text" placeholder="Título" value={titulo} onChange={(e) => setTitulo(e.target.value)} className="input" required />
-              </div>
-              <textarea placeholder="Descrição (opcional)" value={descricao} onChange={(e) => setDescricao(e.target.value)} className="input w-full" rows={2} />
+              {orcamentoExistenteId ? (
+                <p className="text-sm text-ink-500 bg-sand-50 border border-sand-200 rounded-lg p-3">
+                  As linhas abaixo vão ser adicionadas ao orçamento <strong>{orcamentoExistenteTitulo}</strong>, juntando-se às que já lá estão.
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} className="input" required>
+                      <option value="">Selecionar Cliente</option>
+                      {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </select>
+                    <input type="text" placeholder="Título" value={titulo} onChange={(e) => setTitulo(e.target.value)} className="input" required />
+                  </div>
+                  <textarea placeholder="Descrição (opcional)" value={descricao} onChange={(e) => setDescricao(e.target.value)} className="input w-full" rows={2} />
+                </>
+              )}
 
               <div className="border border-sand-200 rounded-lg overflow-hidden">
                 <table className="w-full text-left text-sm">
@@ -189,7 +213,7 @@ export default function ImportarOrcamento({ clientes, onSaved, onClose }: { clie
               {erro && <p className="text-sm text-red-600">{erro}</p>}
 
               <button onClick={confirmarCriar} disabled={saving} className="btn-primary w-full justify-center disabled:opacity-60">
-                <Check size={16} /> {saving ? 'A criar...' : 'Criar Orçamento'}
+                <Check size={16} /> {saving ? 'A guardar...' : orcamentoExistenteId ? 'Adicionar Linhas ao Orçamento' : 'Criar Orçamento'}
               </button>
             </div>
           )}

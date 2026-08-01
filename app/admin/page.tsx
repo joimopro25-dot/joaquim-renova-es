@@ -97,7 +97,7 @@ export default function AdminDashboard() {
         supabase.from('subempreitadas').select('id, estado, tipo_valor, valor_unitario, subempreitada_entradas(quantidade)'),
         supabase.from('despesas').select('obra_id, valor, tipo_imputacao').not('obra_id', 'is', null),
         supabase.from('obra_trabalhadores').select('obra_id, tipo_valor, valor_unitario, obra_trabalhador_entradas(quantidade)').not('obra_id', 'is', null),
-        supabase.from('despesas').select('obra_id, subempreitada_id, valor'),
+        supabase.from('despesas').select('obra_id, subempreitada_id, valor, tipo_imputacao').eq('tipo_imputacao', 'custo'),
         supabase.from('obra_tarefas').select('id, titulo, obra_id, data_fim_prevista, estado, obras(titulo)').neq('estado', 'concluida'),
       ]);
 
@@ -252,7 +252,7 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <div className="lg:col-span-1">
-          {!loading && <WidgetFunil titulo="Despesas" href="/admin/despesas" icone={Receipt} segmentos={segDespesas} />}
+          {!loading && <WidgetFunil titulo="Despesas (custo)" href="/admin/despesas" icone={Receipt} segmentos={segDespesas} />}
         </div>
 
         <div className="lg:col-span-2 card p-5">

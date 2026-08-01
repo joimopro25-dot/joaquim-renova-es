@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { formatMoney } from '../../lib/format';
-import { Users, Briefcase, Euro, ArrowRight, Receipt, HardHat, UsersRound } from 'lucide-react';
+import { Users, Briefcase, Euro, ArrowRight, Receipt, HardHat, UsersRound, AlertTriangle } from 'lucide-react';
 
 type Obra = {
   id: string;
@@ -13,6 +13,8 @@ type Obra = {
   valor_total: number | null;
   clientes: { nome: string } | null;
 };
+
+type ObraEmRisco = { id: string; titulo: string; margem: number };
 
 const ESTADOS: Record<string, { label: string; color: string }> = {
   orcamento: { label: 'Orçamento', color: 'bg-sand-100 text-ink-600' },
@@ -30,10 +32,11 @@ export default function AdminDashboard() {
   const [totalSubempreitadas, setTotalSubempreitadas] = useState(0);
   const [totalMaoDeObra, setTotalMaoDeObra] = useState(0);
   const [recentes, setRecentes] = useState<Obra[]>([]);
+  const [obrasEmRisco, setObrasEmRisco] = useState<ObraEmRisco[]>([]);
 
   useEffect(() => {
     async function carregar() {
-      const [{ count: clientesCount }, { data: obras }, { data: despesas }, { data: subs }, { data: trabs }] = await Promise.all([
+      const [{ count: clientesCount }, { data: obras }, { data: despesas }, { data: subs }, { data: trabs }, { data: despesasObra }, { data: trabsObra }] = await Promise.all([
         supabase.from('clientes').select('*', { count: 'exact', head: true }),
         supabase
           .from('obras')
@@ -42,6 +45,8 @@ export default function AdminDashboard() {
         supabase.from('despesas').select('valor'),
         supabase.from('subempreitadas').select('tipo_valor, valor_unitario, subempreitada_entradas(quantidade)').eq('estado', 'pago'),
         supabase.from('obra_trabalhadores').select('tipo_valor, valor_unitario, obra_trabalhador_entradas(quantidade)').eq('estado', 'pago'),
+        supabase.from('despesas').select('obra_id, valor, tipo_imputacao').not('obra_id', 'is', null),
+        supabase.from('obra_trabalhadores').select('obra_id, tipo_valor, valor_unitario, obra_trabalhador_entradas(quantidade)').not('obra_id', 'is', null),
       ]);
 
       setTotalClientes(clientesCount || 0);
@@ -58,6 +63,22 @@ export default function AdminDashboard() {
         return sum + (t.tipo_valor === 'fixo' ? t.valor_unitario : qtd * t.valor_unitario);
       }, 0));
       setRecentes(obrasList.slice(0, 5));
+
+      const risco: ObraEmRisco[] = [];
+      for (const o of obrasList) {
+        if (o.status !== 'em_curso' && o.status !== 'pausada') continue;
+        const despesasCusto = (despesasObra || []).filter((d: any) => d.obra_id === o.id && d.tipo_imputacao === 'custo').reduce((s: number, d: any) => s + (d.valor || 0), 0);
+        const despesasCliente = (despesasObra || []).filter((d: any) => d.obra_id === o.id && d.tipo_imputacao === 'cliente').reduce((s: number, d: any) => s + (d.valor || 0), 0);
+        const maoDeObra = (trabsObra || []).filter((t: any) => t.obra_id === o.id).reduce((s: number, t: any) => {
+          const qtd = t.tipo_valor === 'fixo' ? 1 : t.obra_trabalhador_entradas.reduce((a: number, e: any) => a + e.quantidade, 0);
+          return s + (t.tipo_valor === 'fixo' ? t.valor_unitario : qtd * t.valor_unitario);
+        }, 0);
+        const valorTotalComCliente = (o.valor_total || 0) + despesasCliente;
+        const margem = valorTotalComCliente - despesasCusto - maoDeObra;
+        if (margem < 0) risco.push({ id: o.id, titulo: o.titulo, margem });
+      }
+      setObrasEmRisco(risco);
+
       setLoading(false);
     }
     carregar();
@@ -74,6 +95,22 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-4 md:p-8">
+      {obrasEmRisco.length > 0 && (
+        <div className="card p-4 mb-6 bg-red-50 border-red-200">
+          <p className="text-sm font-medium text-red-800 flex items-center gap-2 mb-2">
+            <AlertTriangle size={16} /> {obrasEmRisco.length} obra{obrasEmRisco.length !== 1 ? 's' : ''} com margem negativa — despesas e mão de obra já ultrapassam o orçamentado
+          </p>
+          <div className="space-y-1">
+            {obrasEmRisco.map((o) => (
+              <Link key={o.id} href={`/admin/obras/${o.id}`} className="flex items-center justify-between text-sm text-red-700 hover:underline">
+                <span>{o.titulo}</span>
+                <span className="font-medium">{formatMoney(o.margem)}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
         {stats.map((s) => (
           <Link key={s.label} href={s.href} className="card p-5 hover:border-brand-200 transition-colors">

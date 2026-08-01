@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, RotateCcw, Printer, Paperclip, Upload, UserPlus, HardHat, Pencil } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, RotateCcw, Printer, Paperclip, Upload, UserPlus, HardHat, Pencil, ShieldCheck } from 'lucide-react';
 
 type Entrada = {
   id: string;
@@ -25,6 +25,9 @@ type Subempreitada = {
   metodo_pagamento: string | null;
   fatura_emitida: boolean;
   data_pagamento: string | null;
+  retencao_percentagem: number;
+  retencao_liberada: boolean;
+  data_liberacao_retencao: string | null;
   clientes: { nome: string } | null;
 };
 
@@ -94,6 +97,7 @@ export default function SubempreitadaDetalhe() {
   const [showEditarValor, setShowEditarValor] = useState(false);
   const [editTipoValor, setEditTipoValor] = useState('hora');
   const [editValorUnitario, setEditValorUnitario] = useState('');
+  const [editRetencao, setEditRetencao] = useState('0');
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -215,6 +219,7 @@ export default function SubempreitadaDetalhe() {
     if (sub) {
       setEditTipoValor(sub.tipo_valor);
       setEditValorUnitario(String(sub.valor_unitario));
+      setEditRetencao(String(sub.retencao_percentagem || 0));
     }
     setShowEditarValor(true);
   }
@@ -224,9 +229,19 @@ export default function SubempreitadaDetalhe() {
     const { error } = await supabase.from('subempreitadas').update({
       tipo_valor: editTipoValor,
       valor_unitario: parseFloat(editValorUnitario) || 0,
+      retencao_percentagem: parseFloat(editRetencao) || 0,
     }).eq('id', id);
     if (error) { alert('Erro: ' + error.message); return; }
     setShowEditarValor(false);
+    carregar();
+  }
+
+  async function libertarRetencao() {
+    if (!confirm('Marcar a retenção de garantia como recebida/libertada?')) return;
+    await supabase.from('subempreitadas').update({
+      retencao_liberada: true,
+      data_liberacao_retencao: new Date().toISOString().slice(0, 10),
+    }).eq('id', id);
     carregar();
   }
 
@@ -241,6 +256,7 @@ export default function SubempreitadaDetalhe() {
   const total = sub.tipo_valor === 'fixo' ? sub.valor_unitario : totalQuantidade * sub.valor_unitario;
   const totalTrabalhadores = subTrabalhadores.reduce((s, ot) => s + calcularTotalTrabalhador(ot), 0);
   const unidade = sub.tipo_valor === 'dia' ? 'dia(s)' : 'h';
+  const valorRetido = (total + totalDespesasCliente) * ((sub.retencao_percentagem || 0) / 100);
 
   return (
     <div className="p-4 md:p-8 max-w-4xl">
@@ -274,7 +290,11 @@ export default function SubempreitadaDetalhe() {
             <option value="fixo">Valor Fixo</option>
           </select>
           <input type="number" step="0.01" placeholder="Valor (€)" value={editValorUnitario} onChange={(e) => setEditValorUnitario(e.target.value)} className="input" required />
-          <div className="flex gap-2">
+          <div>
+            <label className="text-xs text-ink-400">Retenção de Garantia (%)</label>
+            <input type="number" step="0.1" min="0" max="100" value={editRetencao} onChange={(e) => setEditRetencao(e.target.value)} className="input w-full mt-1" />
+          </div>
+          <div className="flex gap-2 md:col-span-3">
             <button className="btn-primary justify-center flex-1">Guardar</button>
             <button type="button" onClick={() => setShowEditarValor(false)} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100">Cancelar</button>
           </div>
@@ -504,8 +524,28 @@ export default function SubempreitadaDetalhe() {
             <span className="text-ink-800">Margem</span>
             <span className="text-brand-600">{formatMoney(total + totalDespesasCliente - totalDespesas - totalTrabalhadores)}</span>
           </div>
+          {sub.retencao_percentagem > 0 && (
+            <div className="flex justify-between text-ink-400 pt-1">
+              <span>Retenção de Garantia ({sub.retencao_percentagem}%)</span>
+              <span>− {formatMoney(valorRetido)}</span>
+            </div>
+          )}
         </div>
       </div>
+
+      {sub.retencao_percentagem > 0 && (
+        <div className={`card p-4 mt-6 flex flex-wrap items-center justify-between gap-3 ${sub.retencao_liberada ? 'bg-green-50 border-green-100' : 'bg-amber-50 border-amber-100'}`}>
+          <p className="text-sm flex items-center gap-2">
+            <ShieldCheck size={16} className={sub.retencao_liberada ? 'text-green-600' : 'text-amber-600'} />
+            {sub.retencao_liberada
+              ? <>Retenção de {formatMoney(valorRetido)} já libertada em {sub.data_liberacao_retencao ? new Date(sub.data_liberacao_retencao).toLocaleDateString('pt-PT') : '—'}.</>
+              : <>Retenção de garantia pendente: {formatMoney(valorRetido)}.</>}
+          </p>
+          {!sub.retencao_liberada && (
+            <button onClick={libertarRetencao} className="btn-primary bg-amber-600 hover:bg-amber-700 text-sm py-1.5">Marcar como Recebida</button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

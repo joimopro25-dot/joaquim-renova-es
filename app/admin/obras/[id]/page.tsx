@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import Link from 'next/link';
-import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle } from 'lucide-react';
 
 type Obra = {
   id: string;
@@ -148,6 +148,8 @@ export default function ObraDetalhePage() {
   const totalMaoDeObra = obraTrabalhadores.reduce((s, ot) => s + calcularTotalTrabalhador(ot), 0);
   const valorTotalComCliente = (obra.valor_total || 0) + totalDespesasCliente;
   const margem = valorTotalComCliente - totalDespesas - totalMaoDeObra;
+  const margemPercentagem = valorTotalComCliente > 0 ? (margem / valorTotalComCliente) * 100 : 0;
+  const risco = margem < 0 ? 'critico' : margemPercentagem < 10 ? 'atencao' : null;
 
   return (
     <div className="p-4 md:p-8 max-w-4xl">
@@ -164,6 +166,15 @@ export default function ObraDetalhePage() {
           {ESTADOS.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
         </select>
       </div>
+
+      {risco && (
+        <div className={`card p-4 mb-6 flex items-center gap-2.5 text-sm ${risco === 'critico' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+          <AlertTriangle size={18} className="shrink-0" />
+          {risco === 'critico'
+            ? <>Atenção: as despesas e mão de obra já ultrapassam o valor orçamentado nesta obra (margem de {formatMoney(margem)}).</>
+            : <>Margem baixa nesta obra ({margemPercentagem.toFixed(1)}% do orçamentado) — vale a pena rever custos antes de continuar.</>}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="card p-5">

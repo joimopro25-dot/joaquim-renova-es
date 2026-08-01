@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
 import { calcularTotais } from '../../../lib/orcamento';
-import { Plus, FileText } from 'lucide-react';
+import { Plus, FileText, Upload } from 'lucide-react';
+import ImportarOrcamento from './ImportarOrcamento';
 
 type Cliente = { id: string; nome: string };
 type Orcamento = {
@@ -32,6 +33,7 @@ export default function OrcamentosPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showImportar, setShowImportar] = useState(false);
   const [clienteId, setClienteId] = useState('');
   const [titulo, setTitulo] = useState('');
   const [creating, setCreating] = useState(false);
@@ -70,10 +72,23 @@ export default function OrcamentosPage() {
     <div className="p-4 md:p-8">
       <div className="flex justify-between items-center mb-6">
         <p className="text-sm text-ink-400">{orcamentos.length} orçamento{orcamentos.length !== 1 ? 's' : ''}</p>
-        <button onClick={() => setShowForm((v) => !v)} className="btn-primary">
-          <Plus size={18} /> Novo Orçamento
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowImportar(true)} className="btn-primary bg-purple-600 hover:bg-purple-700">
+            <Upload size={18} /> Importar Documento
+          </button>
+          <button onClick={() => setShowForm((v) => !v)} className="btn-primary">
+            <Plus size={18} /> Novo Orçamento
+          </button>
+        </div>
       </div>
+
+      {showImportar && (
+        <ImportarOrcamento
+          clientes={clientes}
+          onClose={() => setShowImportar(false)}
+          onSaved={(orcId) => { window.location.href = `/admin/orcamentos/${orcId}`; }}
+        />
+      )}
 
       {showForm && (
         <div className="card p-6 mb-6">

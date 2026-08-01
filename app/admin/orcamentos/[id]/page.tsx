@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import { moPorUnidade, precoPorUnidade, totalLinha, calcularTotais } from '../../../../lib/orcamento';
-import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Loader2, Upload } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Loader2, Upload, Printer } from 'lucide-react';
 import ImportarOrcamento from '../ImportarOrcamento';
 
 type Linha = {
@@ -266,6 +266,12 @@ export default function OrcamentoDetalhePage() {
           <p className="text-sm text-ink-400">{orcamento.clientes?.nome || '—'}</p>
         </div>
         <span className={`badge ${info.color}`}>{info.label}</span>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        <a href={`/admin/orcamentos/${id}/relatorio`} target="_blank" rel="noreferrer" className="btn-primary bg-ink-700 hover:bg-ink-800">
+          <Printer size={16} /> Pré-visualizar / Imprimir
+        </a>
       </div>
 
       {orcamento.status !== 'convertido' && (

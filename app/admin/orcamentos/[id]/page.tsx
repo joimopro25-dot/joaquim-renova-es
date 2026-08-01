@@ -5,12 +5,22 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import { moPorUnidade, precoPorUnidade, totalLinha, calcularTotais } from '../../../../lib/orcamento';
-import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Loader2 } from 'lucide-react';
 
 type Linha = {
   id: string;
   descricao: string;
   capitulo: string;
+  unidade: string;
+  quantidade: number;
+  rendimento_horas: number;
+  custo_material: number;
+};
+
+type MensagemChat = { role: 'user' | 'assistant'; content: string };
+type LinhaProposta = {
+  capitulo: string;
+  descricao: string;
   unidade: string;
   quantidade: number;
   rendimento_horas: number;
@@ -62,6 +72,15 @@ export default function OrcamentoDetalhePage() {
   const [rendimentoHoras, setRendimentoHoras] = useState('0');
   const [custoMaterial, setCustoMaterial] = useState('0');
 
+  const [showAssistente, setShowAssistente] = useState(false);
+  const [mensagensChat, setMensagensChat] = useState<MensagemChat[]>([]);
+  const [inputChat, setInputChat] = useState('');
+  const [aPensar, setAPensar] = useState(false);
+  const [erroChat, setErroChat] = useState('');
+  const [linhasPropostas, setLinhasPropostas] = useState<LinhaProposta[] | null>(null);
+  const [linhasSelecionadas, setLinhasSelecionadas] = useState<Set<number>>(new Set());
+  const [aAdicionarPropostas, setAAdicionarPropostas] = useState(false);
+
   const carregar = useCallback(async () => {
     setLoading(true);
     const [{ data: orc }, { data: linhasData }, { data: precarioData }] = await Promise.all([
@@ -101,6 +120,83 @@ export default function OrcamentoDetalhePage() {
     }]);
     if (error) { alert('Erro: ' + error.message); return; }
     setDescricao(''); setQuantidade('1'); setRendimentoHoras('0'); setCustoMaterial('0');
+    carregar();
+  }
+
+  function extrairLinhasPropostas(texto: string): LinhaProposta[] | null {
+    const match = texto.match(/```json\s*([\s\S]*?)```/i);
+    if (!match) return null;
+    try {
+      const dados = JSON.parse(match[1].trim());
+      if (Array.isArray(dados)) return dados;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  function textoSemJson(texto: string): string {
+    return texto.replace(/```json\s*[\s\S]*?```/i, '').trim();
+  }
+
+  async function enviarMensagemChat(e: React.FormEvent) {
+    e.preventDefault();
+    if (!inputChat.trim() || !orcamento) return;
+    setErroChat('');
+    const novasMensagens: MensagemChat[] = [...mensagensChat, { role: 'user', content: inputChat }];
+    setMensagensChat(novasMensagens);
+    setInputChat('');
+    setAPensar(true);
+    setLinhasPropostas(null);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { setErroChat('Sessão expirada, atualiza a página.'); setAPensar(false); return; }
+
+    const contexto = `Orçamento "${orcamento.titulo}" para o cliente ${orcamento.clientes?.nome || '—'}. Taxa horária de mão-de-obra definida: ${orcamento.taxa_horaria} €/h. Capítulos já usados neste orçamento: ${capitulosExistentes.join(', ') || 'nenhum ainda'}.`;
+
+    const resp = await fetch('/api/orcamentos/assistente', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ mensagens: novasMensagens, contexto }),
+    });
+    const json = await resp.json();
+    setAPensar(false);
+    if (!resp.ok) { setErroChat(json.error || 'Erro ao falar com o assistente.'); return; }
+
+    setMensagensChat((prev) => [...prev, { role: 'assistant', content: json.resposta }]);
+    const propostas = extrairLinhasPropostas(json.resposta);
+    if (propostas && propostas.length > 0) {
+      setLinhasPropostas(propostas);
+      setLinhasSelecionadas(new Set(propostas.map((_, i) => i)));
+    }
+  }
+
+  function alternarSelecao(idx: number) {
+    setLinhasSelecionadas((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  }
+
+  async function adicionarLinhasPropostas() {
+    if (!linhasPropostas) return;
+    setAAdicionarPropostas(true);
+    const selecionadas = linhasPropostas.filter((_, i) => linhasSelecionadas.has(i));
+    const { error } = await supabase.from('orcamento_linhas').insert(
+      selecionadas.map((l) => ({
+        orcamento_id: id,
+        capitulo: l.capitulo || 'Geral',
+        descricao: l.descricao,
+        unidade: l.unidade || 'un',
+        quantidade: l.quantidade || 1,
+        rendimento_horas: l.rendimento_horas || 0,
+        custo_material: l.custo_material || 0,
+      }))
+    );
+    setAAdicionarPropostas(false);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setLinhasPropostas(null);
     carregar();
   }
 
@@ -192,6 +288,78 @@ export default function OrcamentoDetalhePage() {
             <button onClick={converterEmObra} disabled={converting} className="btn-primary bg-purple-600 hover:bg-purple-700 disabled:opacity-60">
               <ArrowRightCircle size={16} /> {converting ? 'A converter...' : 'Converter em Obra'}
             </button>
+          )}
+        </div>
+      )}
+
+      {editavel && (
+        <div className="card p-6 mb-6">
+          <button onClick={() => setShowAssistente((v) => !v)} className="flex items-center gap-2 font-semibold text-ink-700 w-full">
+            <Sparkles size={16} className="text-brand-500" /> Assistente de Orçamentação
+            <span className="text-xs font-normal text-ink-400 ml-auto">{showAssistente ? 'fechar' : 'abrir'}</span>
+          </button>
+
+          {showAssistente && (
+            <div className="mt-4">
+              <p className="text-xs text-ink-400 mb-3">
+                Descreve o trabalho (ex: "reparar fachada com 9m², descolamento de reboco") e conversa com o assistente sobre técnica, materiais e preços. Quando houver informação suficiente, ele propõe linhas para adicionares ao orçamento.
+              </p>
+
+              {mensagensChat.length > 0 && (
+                <div className="space-y-3 mb-3 max-h-[420px] overflow-y-auto pr-1">
+                  {mensagensChat.map((m, i) => (
+                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${m.role === 'user' ? 'bg-brand-500 text-white' : 'bg-sand-50 text-ink-800 border border-sand-200'}`}>
+                        {m.role === 'assistant' ? textoSemJson(m.content) : m.content}
+                      </div>
+                    </div>
+                  ))}
+                  {aPensar && (
+                    <div className="flex justify-start">
+                      <div className="bg-sand-50 border border-sand-200 rounded-lg px-3 py-2 text-sm text-ink-400 flex items-center gap-2">
+                        <Loader2 size={14} className="animate-spin" /> A pensar...
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {linhasPropostas && linhasPropostas.length > 0 && (
+                <div className="border border-brand-200 bg-brand-50/40 rounded-lg p-3 mb-3">
+                  <p className="text-xs font-medium text-brand-700 mb-2">Linhas propostas — escolhe as que queres adicionar:</p>
+                  <div className="space-y-1.5 mb-3">
+                    {linhasPropostas.map((l, i) => (
+                      <label key={i} className="flex items-start gap-2 text-sm bg-white rounded-md p-2 border border-sand-200 cursor-pointer">
+                        <input type="checkbox" checked={linhasSelecionadas.has(i)} onChange={() => alternarSelecao(i)} className="mt-1" />
+                        <span className="flex-1">
+                          <span className="text-ink-800 font-medium">{l.descricao}</span>
+                          <span className="text-ink-400"> · {l.capitulo} · {l.quantidade} {l.unidade} · {l.rendimento_horas}h/un · {formatMoney(l.custo_material)}/un mat.</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <button onClick={adicionarLinhasPropostas} disabled={aAdicionarPropostas || linhasSelecionadas.size === 0} className="btn-primary text-sm py-1.5 disabled:opacity-60">
+                    {aAdicionarPropostas ? 'A adicionar...' : `Adicionar ${linhasSelecionadas.size} Linha(s) ao Orçamento`}
+                  </button>
+                </div>
+              )}
+
+              {erroChat && <p className="text-sm text-red-600 mb-2">{erroChat}</p>}
+
+              <form onSubmit={enviarMensagemChat} className="flex gap-2">
+                <textarea
+                  value={inputChat}
+                  onChange={(e) => setInputChat(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensagemChat(e); } }}
+                  placeholder="Escreve aqui..."
+                  className="input flex-1 min-h-[44px]"
+                  disabled={aPensar}
+                />
+                <button disabled={aPensar || !inputChat.trim()} className="btn-primary disabled:opacity-60">
+                  <Send size={16} />
+                </button>
+              </form>
+            </div>
           )}
         </div>
       )}

@@ -134,10 +134,17 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="text-center text-xs text-ink-300 py-8">
-        {settings?.telefone && <span>{settings.telefone} · </span>}
-        {settings?.email && <span>{settings.email} · </span>}
-        © {new Date().getFullYear()} Projetar Conforto
+      <footer className="text-center text-xs text-ink-300 py-8 space-y-2">
+        <p>
+          {settings?.telefone && <span>{settings.telefone} · </span>}
+          {settings?.email && <span>{settings.email} · </span>}
+          © {new Date().getFullYear()} Projetar Conforto
+        </p>
+        <p>
+          <Link href="/termos-condicoes" className="hover:text-ink-500 hover:underline">Termos e Condições</Link>
+          {' · '}
+          <Link href="/politica-privacidade" className="hover:text-ink-500 hover:underline">Política de Privacidade</Link>
+        </p>
       </footer>
     </main>
   );

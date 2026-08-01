@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { DIVISOES, NOMES_DIVISOES } from '../lib/divisoes';
+import Link from 'next/link';
 import { CheckCircle2, Send, ArrowRight, ArrowLeft, Plus, X } from 'lucide-react';
 
 type Instancia = { id: string; tipo: string; label: string; area: string; intervencoes: string[]; notas: string };
@@ -19,6 +20,7 @@ export default function PedidoOrcamento() {
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [mensagem, setMensagem] = useState('');
+  const [aceitouPrivacidade, setAceitouPrivacidade] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState('');
@@ -49,6 +51,7 @@ export default function PedidoOrcamento() {
 
   async function enviarPedido(e: React.FormEvent) {
     e.preventDefault();
+    if (!aceitouPrivacidade) { setErro('Tem de aceitar a Política de Privacidade para enviar o pedido.'); return; }
     setEnviando(true);
     setErro('');
 
@@ -190,6 +193,14 @@ export default function PedidoOrcamento() {
               <input type="tel" placeholder="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} className="input w-full" />
             </div>
             <textarea placeholder="Algo mais que queira acrescentar? (opcional)" value={mensagem} onChange={(e) => setMensagem(e.target.value)} className="input w-full" rows={3} />
+            <label className="flex items-start gap-2 text-xs text-ink-500">
+              <input type="checkbox" checked={aceitouPrivacidade} onChange={(e) => setAceitouPrivacidade(e.target.checked)} className="mt-0.5" required />
+              <span>
+                Li e aceito a{' '}
+                <Link href="/politica-privacidade" target="_blank" className="text-brand-600 hover:underline">Política de Privacidade</Link>
+                {' '}quanto ao tratamento dos meus dados para resposta a este pedido.
+              </span>
+            </label>
           </div>
           {erro && <p className="text-sm text-red-600 mb-3">{erro}</p>}
           <div className="flex gap-2">

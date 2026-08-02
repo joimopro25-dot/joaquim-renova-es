@@ -83,9 +83,11 @@ export default function PortfolioPage() {
     carregar();
   }
 
-  async function definirCapa(projetoId: string, tipo: string, fotoId: string) {
+  async function definirCapa(projetoId: string, tipo: string, fotoId: string, atual: boolean) {
     await supabase.from('projeto_fotos').update({ capa: false }).eq('projeto_id', projetoId).eq('tipo', tipo);
-    await supabase.from('projeto_fotos').update({ capa: true }).eq('id', fotoId);
+    if (!atual) {
+      await supabase.from('projeto_fotos').update({ capa: true }).eq('id', fotoId);
+    }
     carregar();
   }
 
@@ -149,7 +151,10 @@ export default function PortfolioPage() {
                         </label>
                       ))}
                     </div>
-                    <p className="text-xs text-ink-400 mb-2">Clica na estrela para escolher a foto "antes" e a foto "depois" mais chamativas (aparecem lado a lado no site).</p>
+                    <p className="text-xs text-ink-400 mb-2">
+                      Clica na estrela para escolher a foto "antes"/"depois"/"geral" mais chamativa de cada tipo. Clica outra vez para tirar.
+                      Se destacares uma foto "geral", essa aparece sozinha no site em vez do par antes/depois.
+                    </p>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                       {fotosProjeto.map((f) => (
                         <div key={f.id} className={`relative group rounded-lg ${f.capa ? 'ring-2 ring-brand-500' : ''}`}>
@@ -157,8 +162,8 @@ export default function PortfolioPage() {
                           <span className="badge bg-white/90 text-ink-600 absolute bottom-1 left-1 text-[10px]">{f.tipo}</span>
                           {f.capa && <span className="badge bg-brand-500 text-white absolute bottom-1 right-1 text-[10px]">Destaque</span>}
                           <button
-                            onClick={() => definirCapa(p.id, f.tipo, f.id)}
-                            title={`Definir como foto "${f.tipo}" em destaque`}
+                            onClick={() => definirCapa(p.id, f.tipo, f.id, f.capa)}
+                            title={f.capa ? 'Tirar destaque' : `Definir como foto "${f.tipo}" em destaque`}
                             className={`absolute top-1 left-1 bg-white/90 rounded-md p-1 ${f.capa ? 'text-brand-500' : 'text-ink-400 opacity-0 group-hover:opacity-100'} transition-opacity`}
                           >
                             <Star size={13} fill={f.capa ? 'currentColor' : 'none'} />

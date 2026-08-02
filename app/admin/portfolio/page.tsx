@@ -152,8 +152,9 @@ export default function PortfolioPage() {
                       ))}
                     </div>
                     <p className="text-xs text-ink-400 mb-2">
-                      Clica na estrela para escolher a foto "antes"/"depois"/"geral" mais chamativa de cada tipo. Clica outra vez para tirar.
-                      Se destacares uma foto "geral", essa aparece sozinha no site em vez do par antes/depois.
+                      Cada tipo tem o seu próprio destaque: podes marcar uma foto "antes" <strong>e</strong> uma foto "depois" ao mesmo tempo (ficam as duas guardadas) — essas aparecem lado a lado no site.
+                      Clica na estrela outra vez para tirar o destaque dessa foto.
+                      Se destacares também uma foto "geral", essa passa a aparecer sozinha em vez do par antes/depois.
                     </p>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                       {fotosProjeto.map((f) => (

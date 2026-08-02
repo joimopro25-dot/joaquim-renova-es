@@ -17,6 +17,8 @@ type Linha = {
   custo_material: number;
 };
 
+type Foto = { id: string; url: string; legenda: string | null };
+
 type Orcamento = {
   titulo: string;
   descricao: string | null;
@@ -31,16 +33,19 @@ export default function RelatorioOrcamento() {
   const { id } = useParams<{ id: string }>();
   const [orcamento, setOrcamento] = useState<Orcamento | null>(null);
   const [linhas, setLinhas] = useState<Linha[]>([]);
+  const [fotos, setFotos] = useState<Foto[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function carregar() {
-      const [{ data: orc }, { data: linhasData }] = await Promise.all([
+      const [{ data: orc }, { data: linhasData }, { data: fotosData }] = await Promise.all([
         supabase.from('orcamentos').select('*, clientes(nome, nif, morada)').eq('id', id).single(),
         supabase.from('orcamento_linhas').select('*').eq('orcamento_id', id).order('criado_em'),
+        supabase.from('orcamento_fotos').select('id, url, legenda').eq('orcamento_id', id).order('criado_em', { ascending: false }),
       ]);
       setOrcamento(orc as any);
       setLinhas(linhasData || []);
+      setFotos(fotosData || []);
       setLoading(false);
     }
     carregar();
@@ -134,6 +139,20 @@ export default function RelatorioOrcamento() {
           </div>
         </div>
       </div>
+
+      {fotos.length > 0 && (
+        <div className="mb-8 break-inside-avoid">
+          <h3 className="font-semibold text-ink-800 mb-3 text-sm uppercase tracking-wide">Fotos</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {fotos.map((f) => (
+              <div key={f.id} className="break-inside-avoid">
+                <img src={f.url} alt={f.legenda || ''} className="w-full aspect-[4/3] object-cover rounded-lg border border-sand-200" />
+                {f.legenda && <p className="text-xs text-ink-500 mt-1">{f.legenda}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="text-xs text-ink-400 border-t border-sand-200 pt-4">
         <p>Orçamento válido por 30 dias. Condições de pagamento a combinar.</p>

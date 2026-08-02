@@ -125,6 +125,11 @@ export default function OrcamentoDetalhePage() {
     carregar();
   }
 
+  async function atualizarLegendaFoto(fotoId: string, legenda: string) {
+    setFotos((prev) => prev.map((f) => (f.id === fotoId ? { ...f, legenda } : f)));
+    await supabase.from('orcamento_fotos').update({ legenda: legenda || null }).eq('id', fotoId);
+  }
+
   useEffect(() => { carregar(); }, [carregar]);
 
   const capitulosExistentes = useMemo(() => Array.from(new Set(linhas.map((l) => l.capitulo))), [linhas]);
@@ -546,7 +551,13 @@ export default function OrcamentoDetalhePage() {
             {fotos.map((f) => (
               <div key={f.id} className="relative group">
                 <img src={f.url} alt={f.legenda || ''} className="w-full aspect-square object-cover rounded-lg border border-sand-200" />
-                {f.legenda && <p className="text-xs text-ink-500 mt-1 truncate">{f.legenda}</p>}
+                <input
+                  type="text"
+                  placeholder="Legenda (ex: Estado atual, Como vai ficar...)"
+                  defaultValue={f.legenda || ''}
+                  onBlur={(e) => { if (e.target.value !== (f.legenda || '')) atualizarLegendaFoto(f.id, e.target.value); }}
+                  className="input w-full mt-1 text-xs py-1 px-1.5"
+                />
                 <button
                   onClick={() => removerFoto(f.id)}
                   className="absolute top-1.5 right-1.5 bg-white/90 rounded-md p-1 text-ink-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"

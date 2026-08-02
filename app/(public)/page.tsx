@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { ICONES } from '../../lib/icons';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, X } from 'lucide-react';
 import PedidoOrcamento from '../../components/PedidoOrcamento';
 
 type SiteSettings = { hero_titulo: string; hero_subtitulo: string; telefone: string | null; email: string | null };
@@ -35,6 +35,7 @@ export default function HomePage() {
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [inspiracoes, setInspiracoes] = useState<Inspiracao[]>([]);
+  const [ampliada, setAmpliada] = useState<Inspiracao | null>(null);
 
   useEffect(() => {
     async function carregar() {
@@ -134,16 +135,35 @@ export default function HomePage() {
           <p className="text-sm text-ink-400 text-center mb-10">Imagens ilustrativas geradas por IA, para dar ideias — não são obras realizadas por nós.</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {inspiracoes.map((it) => (
-              <div key={it.id} className="card overflow-hidden p-0">
+              <button key={it.id} onClick={() => setAmpliada(it)} className="card overflow-hidden p-0 text-left cursor-zoom-in">
                 <img src={it.url} className="w-full aspect-square object-cover" />
                 <div className="p-3">
                   <span className="badge bg-sand-100 text-ink-500 text-[10px] mb-1 inline-block">{INSPIRACAO_CATEGORIA_LABEL[it.categoria] || it.categoria}</span>
                   <p className="text-sm text-ink-700">{it.titulo}</p>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </section>
+      )}
+
+      {ampliada && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setAmpliada(null)}
+        >
+          <button
+            onClick={() => setAmpliada(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2"
+            aria-label="Fechar"
+          >
+            <X size={22} />
+          </button>
+          <div className="max-w-4xl max-h-[85vh] w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <img src={ampliada.url} alt={ampliada.titulo} className="max-w-full max-h-[75vh] object-contain rounded-lg" />
+            <p className="text-white/90 text-sm mt-3">{ampliada.titulo}</p>
+          </div>
+        </div>
       )}
 
       <section className="px-6 md:px-12 py-12 max-w-2xl mx-auto">

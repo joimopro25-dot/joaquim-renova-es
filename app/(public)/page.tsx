@@ -102,19 +102,16 @@ export default function HomePage() {
           <h2 className="text-2xl font-heading font-semibold text-ink-800 text-center mb-10">Projetos</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {projetos.map((p) => {
-              const capa = p.fotos.find((f) => f.capa);
-              const antes = p.fotos.find((f) => f.tipo === 'antes');
-              const depois = p.fotos.find((f) => f.tipo === 'depois');
-              const geral = p.fotos.find((f) => f.tipo === 'geral') || p.fotos[0];
+              const antes = p.fotos.find((f) => f.tipo === 'antes' && f.capa) || p.fotos.find((f) => f.tipo === 'antes');
+              const depois = p.fotos.find((f) => f.tipo === 'depois' && f.capa) || p.fotos.find((f) => f.tipo === 'depois');
+              const geral = p.fotos.find((f) => f.tipo === 'geral' && f.capa) || p.fotos.find((f) => f.tipo === 'geral') || p.fotos[0];
               return (
                 <button
                   key={p.id}
                   onClick={() => { setProjetoAberto(p); setFotoIndex(0); }}
                   className="card overflow-hidden text-left cursor-pointer hover:shadow-md transition-shadow"
                 >
-                  {capa ? (
-                    <img src={capa.url} className="w-full aspect-video object-cover" />
-                  ) : antes && depois ? (
+                  {antes && depois ? (
                     <div className="grid grid-cols-2">
                       <div className="relative">
                         <img src={antes.url} className="w-full aspect-square object-cover" />

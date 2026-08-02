@@ -11,6 +11,16 @@ type SiteSettings = { hero_titulo: string; hero_subtitulo: string; telefone: str
 type Servico = { id: string; titulo: string; descricao: string | null; icone: string };
 type Foto = { id: string; url: string; tipo: string };
 type Projeto = { id: string; titulo: string; categoria: string; descricao: string | null; fotos: Foto[] };
+type Inspiracao = { id: string; titulo: string; categoria: string; url: string };
+
+const INSPIRACAO_CATEGORIA_LABEL: Record<string, string> = {
+  casa_banho: 'Casa de Banho',
+  cozinha: 'Cozinha',
+  sala: 'Sala',
+  exterior_jardim: 'Exterior/Jardim',
+  ripados: 'Ripados',
+  outro: 'Outro',
+};
 
 const CATEGORIA_LABEL: Record<string, string> = {
   renovacao: 'Renovação',
@@ -24,17 +34,20 @@ export default function HomePage() {
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
+  const [inspiracoes, setInspiracoes] = useState<Inspiracao[]>([]);
 
   useEffect(() => {
     async function carregar() {
-      const [{ data: s }, { data: sv }, { data: pj }] = await Promise.all([
+      const [{ data: s }, { data: sv }, { data: pj }, { data: ins }] = await Promise.all([
         supabase.from('site_settings').select('*').eq('id', 1).single(),
         supabase.from('servicos_site').select('*').order('ordem'),
         supabase.from('projetos').select('*, projeto_fotos(id, url, tipo)').eq('destaque', true).order('ordem', { ascending: false }),
+        supabase.from('inspiracoes').select('id, titulo, categoria, url').order('ordem', { ascending: false }),
       ]);
       setSettings(s);
       setServicos(sv || []);
       setProjetos((pj || []).map((p: any) => ({ ...p, fotos: p.projeto_fotos || [] })));
+      setInspiracoes(ins || []);
     }
     carregar();
   }, []);
@@ -111,6 +124,24 @@ export default function HomePage() {
                 </div>
               );
             })}
+          </div>
+        </section>
+      )}
+
+      {inspiracoes.length > 0 && (
+        <section className="px-6 md:px-12 py-12 max-w-5xl mx-auto">
+          <h2 className="text-2xl font-heading font-semibold text-ink-800 text-center mb-2">Inspire-se</h2>
+          <p className="text-sm text-ink-400 text-center mb-10">Imagens ilustrativas geradas por IA, para dar ideias — não são obras realizadas por nós.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {inspiracoes.map((it) => (
+              <div key={it.id} className="card overflow-hidden p-0">
+                <img src={it.url} className="w-full aspect-square object-cover" />
+                <div className="p-3">
+                  <span className="badge bg-sand-100 text-ink-500 text-[10px] mb-1 inline-block">{INSPIRACAO_CATEGORIA_LABEL[it.categoria] || it.categoria}</span>
+                  <p className="text-sm text-ink-700">{it.titulo}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       )}

@@ -6,8 +6,10 @@ const body = Inter({ subsets: ["latin"], variable: "--font-body" });
 const heading = Poppins({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-heading" });
 
 export const metadata: Metadata = {
-  title: "Projetar Conforto - CRM & Gestão",
-  description: "Plataforma de gestão de obras e orçamentos",
+  metadataBase: new URL("https://projetarconforto.pt"),
+  title: "Projetar Conforto",
+  description: "Renovações de casas em Portugal — pladur, capoto, casas de banho, cozinhas, quartos e jardins.",
+  icons: { icon: "/icon.png" },
 };
 
 export default function RootLayout({

@@ -4,6 +4,7 @@ import PortalShell from './PortalShell';
 export const metadata: Metadata = {
   title: 'Projetar Conforto',
   manifest: '/portal/manifest.webmanifest',
+  robots: { index: false, follow: false, nocache: true },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

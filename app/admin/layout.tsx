@@ -4,6 +4,7 @@ import AdminShell from './AdminShell';
 export const metadata: Metadata = {
   title: 'Projetar Conforto — Staff',
   manifest: '/admin/manifest.webmanifest',
+  robots: { index: false, follow: false, nocache: true },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

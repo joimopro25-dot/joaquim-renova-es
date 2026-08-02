@@ -31,16 +31,21 @@ export default function InspiracaoPage() {
 
   useEffect(() => { carregar(); }, []);
 
-  async function enviarImagem(e: React.ChangeEvent<HTMLInputElement>) {
-    const ficheiro = e.target.files?.[0];
-    if (!ficheiro) return;
-    if (!titulo.trim()) { alert('Escreve um título antes de carregar a imagem.'); e.target.value = ''; return; }
+  async function enviarImagens(e: React.ChangeEvent<HTMLInputElement>) {
+    const ficheiros = e.target.files;
+    if (!ficheiros || ficheiros.length === 0) return;
+    if (!titulo.trim()) { alert('Escreve um título antes de carregar as imagens.'); e.target.value = ''; return; }
     setUploading(true);
-    const path = `${Date.now()}-${ficheiro.name}`;
-    const { error: uploadError } = await supabase.storage.from('inspiracao').upload(path, ficheiro);
-    if (uploadError) { alert('Erro ao enviar: ' + uploadError.message); setUploading(false); return; }
-    const url = supabase.storage.from('inspiracao').getPublicUrl(path).data.publicUrl;
-    await supabase.from('inspiracoes').insert([{ titulo, categoria, url, ordem: itens.length }]);
+    const lista = Array.from(ficheiros);
+    for (let i = 0; i < lista.length; i++) {
+      const ficheiro = lista[i];
+      const path = `${Date.now()}-${ficheiro.name}`;
+      const { error: uploadError } = await supabase.storage.from('inspiracao').upload(path, ficheiro);
+      if (uploadError) { alert('Erro ao enviar ' + ficheiro.name + ': ' + uploadError.message); continue; }
+      const url = supabase.storage.from('inspiracao').getPublicUrl(path).data.publicUrl;
+      const nomeItem = lista.length > 1 ? `${titulo} ${i + 1}` : titulo;
+      await supabase.from('inspiracoes').insert([{ titulo: nomeItem, categoria, url, ordem: itens.length + i }]);
+    }
     setTitulo('');
     setUploading(false);
     e.target.value = '';
@@ -72,9 +77,10 @@ export default function InspiracaoPage() {
           </select>
         </div>
         <label className="btn-primary justify-center cursor-pointer mt-3 w-full md:w-auto">
-          <Upload size={16} /> {uploading ? 'A enviar...' : 'Carregar Imagem'}
-          <input type="file" accept="image/*" className="hidden" onChange={enviarImagem} disabled={uploading} />
+          <Upload size={16} /> {uploading ? 'A enviar...' : 'Carregar Imagens'}
+          <input type="file" accept="image/*" multiple className="hidden" onChange={enviarImagens} disabled={uploading} />
         </label>
+        <p className="text-xs text-ink-400 mt-2">Podes selecionar várias imagens de uma vez. Se carregares mais do que uma, o título recebe um número no fim (ex: "Cozinha 1", "Cozinha 2").</p>
       </div>
 
       {loading ? (

@@ -64,14 +64,16 @@ export default function PortfolioPage() {
     carregar();
   }
 
-  async function enviarFoto(projetoId: string, tipo: string, ficheiro: File | null) {
-    if (!ficheiro) return;
+  async function enviarFotos(projetoId: string, tipo: string, ficheiros: FileList | null) {
+    if (!ficheiros || ficheiros.length === 0) return;
     setUploading(true);
-    const path = `${projetoId}/${Date.now()}-${ficheiro.name}`;
-    const { error } = await supabase.storage.from('portfolio').upload(path, ficheiro);
-    if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
-    const url = supabase.storage.from('portfolio').getPublicUrl(path).data.publicUrl;
-    await supabase.from('projeto_fotos').insert([{ projeto_id: projetoId, url, tipo }]);
+    for (const ficheiro of Array.from(ficheiros)) {
+      const path = `${projetoId}/${Date.now()}-${ficheiro.name}`;
+      const { error } = await supabase.storage.from('portfolio').upload(path, ficheiro);
+      if (error) { alert('Erro: ' + error.message); continue; }
+      const url = supabase.storage.from('portfolio').getPublicUrl(path).data.publicUrl;
+      await supabase.from('projeto_fotos').insert([{ projeto_id: projetoId, url, tipo }]);
+    }
     setUploading(false);
     carregar();
   }
@@ -137,7 +139,7 @@ export default function PortfolioPage() {
                       {['antes', 'depois', 'geral'].map((tipo) => (
                         <label key={tipo} className="btn-primary text-xs px-3 py-1.5 cursor-pointer">
                           <Upload size={13} /> {uploading ? 'A enviar...' : `+ Foto (${tipo})`}
-                          <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => enviarFoto(p.id, tipo, e.target.files?.[0] || null)} />
+                          <input type="file" accept="image/*" multiple className="hidden" disabled={uploading} onChange={(e) => { enviarFotos(p.id, tipo, e.target.files); e.target.value = ''; }} />
                         </label>
                       ))}
                     </div>

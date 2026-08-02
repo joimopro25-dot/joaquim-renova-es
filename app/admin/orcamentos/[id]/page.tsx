@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import { moPorUnidade, precoPorUnidade, totalLinha, calcularTotais } from '../../../../lib/orcamento';
-import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Loader2, Upload, Printer } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Loader2, Upload, Printer, ImageOff } from 'lucide-react';
 import ImportarOrcamento from '../ImportarOrcamento';
 
 type Linha = {
@@ -27,6 +27,8 @@ type LinhaProposta = {
   rendimento_horas: number;
   custo_material: number;
 };
+
+type Foto = { id: string; url: string; legenda: string | null };
 
 type ItemPrecario = {
   id: string;
@@ -83,18 +85,45 @@ export default function OrcamentoDetalhePage() {
   const [linhasSelecionadas, setLinhasSelecionadas] = useState<Set<number>>(new Set());
   const [aAdicionarPropostas, setAAdicionarPropostas] = useState(false);
 
+  const [fotos, setFotos] = useState<Foto[]>([]);
+  const [legendaFoto, setLegendaFoto] = useState('');
+  const [aEnviarFoto, setAEnviarFoto] = useState(false);
+
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: orc }, { data: linhasData }, { data: precarioData }] = await Promise.all([
+    const [{ data: orc }, { data: linhasData }, { data: precarioData }, { data: fotosData }] = await Promise.all([
       supabase.from('orcamentos').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('orcamento_linhas').select('*').eq('orcamento_id', id).order('criado_em'),
       supabase.from('tabela_precos').select('*').order('categoria').order('descricao'),
+      supabase.from('orcamento_fotos').select('*').eq('orcamento_id', id).order('criado_em', { ascending: false }),
     ]);
     setOrcamento(orc as any);
     setLinhas(linhasData || []);
     setPrecario(precarioData || []);
+    setFotos(fotosData || []);
     setLoading(false);
   }, [id]);
+
+  async function enviarFoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const ficheiro = e.target.files?.[0];
+    if (!ficheiro) return;
+    setAEnviarFoto(true);
+    const path = `${id}/${Date.now()}-${ficheiro.name}`;
+    const { error: uploadError } = await supabase.storage.from('orcamentos').upload(path, ficheiro);
+    if (uploadError) { alert('Erro ao enviar foto: ' + uploadError.message); setAEnviarFoto(false); return; }
+    const url = supabase.storage.from('orcamentos').getPublicUrl(path).data.publicUrl;
+    await supabase.from('orcamento_fotos').insert([{ orcamento_id: id, url, legenda: legendaFoto || null }]);
+    setLegendaFoto('');
+    setAEnviarFoto(false);
+    e.target.value = '';
+    carregar();
+  }
+
+  async function removerFoto(fotoId: string) {
+    if (!confirm('Remover esta foto?')) return;
+    await supabase.from('orcamento_fotos').delete().eq('id', fotoId);
+    carregar();
+  }
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -495,6 +524,42 @@ export default function OrcamentoDetalhePage() {
             </button>
             </div>
           </form>
+        )}
+      </div>
+
+      <div className="card p-6 mb-6">
+        <h3 className="font-semibold text-ink-700 mb-4">Fotos (visíveis ao cliente)</h3>
+        {editavel && (
+          <div className="flex flex-col md:flex-row gap-2 mb-4">
+            <input type="text" placeholder="Legenda (opcional)" value={legendaFoto} onChange={(e) => setLegendaFoto(e.target.value)} className="input flex-1" />
+            <label className="btn-primary justify-center cursor-pointer">
+              <Upload size={16} /> {aEnviarFoto ? 'A enviar...' : 'Enviar Foto'}
+              <input type="file" accept="image/*" className="hidden" onChange={enviarFoto} disabled={aEnviarFoto} />
+            </label>
+          </div>
+        )}
+        {fotos.length === 0 ? (
+          <div className="text-center py-8 text-ink-400 text-sm">
+            <ImageOff size={24} className="mx-auto mb-2 text-ink-200" />
+            Ainda sem fotos.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {fotos.map((f) => (
+              <div key={f.id} className="relative group">
+                <img src={f.url} alt={f.legenda || ''} className="w-full aspect-square object-cover rounded-lg border border-sand-200" />
+                {f.legenda && <p className="text-xs text-ink-500 mt-1 truncate">{f.legenda}</p>}
+                {editavel && (
+                  <button
+                    onClick={() => removerFoto(f.id)}
+                    className="absolute top-1.5 right-1.5 bg-white/90 rounded-md p-1 text-ink-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

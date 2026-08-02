@@ -17,7 +17,7 @@ type Obra = {
   clientes: { nome: string } | null;
 };
 
-type Foto = { id: string; url: string; legenda: string | null; criado_em: string };
+type Foto = { id: string; url: string; legenda: string | null; criado_em: string; tarefa_id: string | null };
 
 type Garantia = {
   id: string;
@@ -95,6 +95,7 @@ export default function ObraDetalhePage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [legenda, setLegenda] = useState('');
+  const [uploadingTarefaId, setUploadingTarefaId] = useState<string | null>(null);
   const [garantias, setGarantias] = useState<Garantia[]>([]);
   const [showGarantiaForm, setShowGarantiaForm] = useState(false);
   const [gEquipamento, setGEquipamento] = useState('');
@@ -180,21 +181,21 @@ export default function ObraDetalhePage() {
     carregar();
   }
 
-  async function enviarFoto(e: React.ChangeEvent<HTMLInputElement>) {
+  async function enviarFoto(e: React.ChangeEvent<HTMLInputElement>, tarefaId?: string) {
     const ficheiro = e.target.files?.[0];
     if (!ficheiro) return;
-    setUploading(true);
+    if (tarefaId) setUploadingTarefaId(tarefaId); else setUploading(true);
     const path = `${id}/${Date.now()}-${ficheiro.name}`;
     const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, ficheiro);
     if (uploadError) {
       alert('Erro ao enviar foto: ' + uploadError.message);
-      setUploading(false);
+      if (tarefaId) setUploadingTarefaId(null); else setUploading(false);
       return;
     }
     const url = supabase.storage.from('fotos-obras').getPublicUrl(path).data.publicUrl;
-    await supabase.from('fotos_obra').insert([{ obra_id: id, url, legenda: legenda || null }]);
+    await supabase.from('fotos_obra').insert([{ obra_id: id, url, legenda: legenda || null, tarefa_id: tarefaId || null }]);
     setLegenda('');
-    setUploading(false);
+    if (tarefaId) setUploadingTarefaId(null); else setUploading(false);
     e.target.value = '';
     carregar();
   }
@@ -453,6 +454,23 @@ export default function ObraDetalhePage() {
                     />
                   </div>
                   {t.notas && <p className="text-xs text-ink-400 mt-1">{t.notas}</p>}
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    {fotos.filter((f) => f.tarefa_id === t.id).map((f) => (
+                      <div key={f.id} className="relative group">
+                        <img src={f.url} alt={f.legenda || ''} className="w-14 h-14 object-cover rounded-md border border-sand-200" />
+                        <button
+                          onClick={() => removerFoto(f.id)}
+                          className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 text-ink-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    ))}
+                    <label className="flex items-center gap-1 text-xs text-ink-400 hover:text-brand-600 cursor-pointer border border-dashed border-sand-300 rounded-md px-2 py-1.5">
+                      <Upload size={12} /> {uploadingTarefaId === t.id ? 'A enviar...' : 'Foto desta etapa'}
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => enviarFoto(e, t.id)} disabled={uploadingTarefaId === t.id} />
+                    </label>
+                  </div>
                 </div>
               );
             })}

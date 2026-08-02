@@ -13,7 +13,7 @@ type Obra = {
   progresso_percentagem: number;
 };
 
-type Foto = { id: string; url: string; legenda: string | null };
+type Foto = { id: string; url: string; legenda: string | null; tarefa_id: string | null };
 
 type Tarefa = { id: string; titulo: string; data_inicio: string; data_fim_prevista: string; estado: string };
 
@@ -55,7 +55,7 @@ export default function PortalObraDetalhe() {
     async function carregar() {
       const [{ data: obraData }, { data: fotosData }, { data: garantiasData }, { data: tarefasData }] = await Promise.all([
         supabase.from('obras').select('id, titulo, descricao, status, progresso_percentagem').eq('id', id).single(),
-        supabase.from('fotos_obra').select('id, url, legenda').eq('obra_id', id).order('criado_em', { ascending: false }),
+        supabase.from('fotos_obra').select('id, url, legenda, tarefa_id').eq('obra_id', id).order('criado_em', { ascending: false }),
         supabase.from('garantias').select('id, equipamento, marca_modelo, fornecedor, data_compra, duracao_meses, anexo_url, anexo_nome').eq('obra_id', id).order('criado_em', { ascending: false }),
         supabase.from('obra_tarefas').select('id, titulo, data_inicio, data_fim_prevista, estado').eq('obra_id', id).order('data_inicio'),
       ]);
@@ -113,6 +113,13 @@ export default function PortalObraDetalhe() {
                 <div>
                   <p className={`text-sm font-medium ${t.estado === 'concluida' ? 'text-ink-500 line-through' : 'text-ink-800'}`}>{t.titulo}</p>
                   <p className="text-xs text-ink-400">{new Date(t.data_inicio).toLocaleDateString('pt-PT')} – {new Date(t.data_fim_prevista).toLocaleDateString('pt-PT')}</p>
+                  {fotos.some((f) => f.tarefa_id === t.id) && (
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      {fotos.filter((f) => f.tarefa_id === t.id).map((f) => (
+                        <img key={f.id} src={f.url} alt={f.legenda || ''} className="w-12 h-12 object-cover rounded-md border border-sand-200" />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

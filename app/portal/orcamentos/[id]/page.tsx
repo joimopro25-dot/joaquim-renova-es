@@ -7,6 +7,8 @@ import { formatMoney } from '../../../../lib/format';
 import { moPorUnidade, precoPorUnidade, totalLinha, calcularTotais } from '../../../../lib/orcamento';
 import { ArrowLeft, Check, X } from 'lucide-react';
 
+type Foto = { id: string; url: string; legenda: string | null };
+
 type Linha = {
   id: string;
   descricao: string;
@@ -39,16 +41,19 @@ export default function PortalOrcamentoDetalhe() {
   const router = useRouter();
   const [orcamento, setOrcamento] = useState<Orcamento | null>(null);
   const [linhas, setLinhas] = useState<Linha[]>([]);
+  const [fotos, setFotos] = useState<Foto[]>([]);
   const [loading, setLoading] = useState(true);
   const [processando, setProcessando] = useState(false);
 
   async function carregar() {
-    const [{ data: orc }, { data: linhasData }] = await Promise.all([
+    const [{ data: orc }, { data: linhasData }, { data: fotosData }] = await Promise.all([
       supabase.from('orcamentos').select('*').eq('id', id).single(),
       supabase.from('orcamento_linhas').select('*').eq('orcamento_id', id).order('criado_em'),
+      supabase.from('orcamento_fotos').select('id, url, legenda').eq('orcamento_id', id).order('criado_em', { ascending: false }),
     ]);
     setOrcamento(orc as any);
     setLinhas(linhasData || []);
+    setFotos(fotosData || []);
     setLoading(false);
   }
 
@@ -139,6 +144,20 @@ export default function PortalOrcamentoDetalhe() {
           );
         })}
       </div>
+
+      {fotos.length > 0 && (
+        <div className="card p-6 mb-6">
+          <h3 className="font-semibold text-ink-700 mb-4">Fotos</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {fotos.map((f) => (
+              <div key={f.id}>
+                <img src={f.url} alt={f.legenda || ''} className="w-full aspect-square object-cover rounded-lg border border-sand-200" />
+                {f.legenda && <p className="text-xs text-ink-500 mt-1">{f.legenda}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card p-6">
         <div className="space-y-2 text-sm max-w-sm ml-auto">

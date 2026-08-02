@@ -60,7 +60,10 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-sand-50">
       <header className="flex items-center justify-between px-6 md:px-12 py-5">
-        <span className="font-heading font-bold text-lg text-brand-600">Projetar Conforto</span>
+        <span className="flex items-center gap-2 font-heading font-bold text-lg text-brand-600">
+          <img src="/logo-icon.png" alt="" className="h-8 w-8" />
+          Projetar Conforto
+        </span>
         <div className="flex gap-2 text-sm">
           <Link href="/admin" className="px-3 py-1.5 text-ink-400 hover:text-ink-700">Staff</Link>
           <Link href="/portal" className="px-3 py-1.5 border border-sand-200 rounded-lg text-ink-600 hover:bg-white">Área Cliente</Link>

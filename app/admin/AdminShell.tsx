@@ -134,14 +134,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
         <div className="h-16 flex items-center gap-2 px-4 border-b border-ink-800 shrink-0">
-          <div className="flex-1 min-w-0 leading-none">
-            <span className={`font-heading font-bold text-sand-50 tracking-wide ${collapsed ? 'md:text-sm' : 'text-lg'}`}>
-              {collapsed ? 'PC' : 'Projetar Conforto'}
-            </span>
-            {!collapsed && (
+          <img src="/logo-icon.png" alt="" className="h-8 w-8 rounded-md bg-white p-1 shrink-0" />
+          {!collapsed && (
+            <div className="flex-1 min-w-0 leading-none">
+              <span className="font-heading font-bold text-sand-50 tracking-wide text-lg">Projetar Conforto</span>
               <div className="text-[10px] uppercase tracking-widest text-copper-400 mt-0.5">Backoffice</div>
-            )}
-          </div>
+            </div>
+          )}
           <button
             onClick={() => setCollapsed((c) => !c)}
             className="hidden md:flex items-center justify-center border border-ink-700 rounded-md p-1.5 text-ink-300 hover:bg-ink-800 shrink-0"

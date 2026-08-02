@@ -3,11 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
-import { Plus, Receipt, Paperclip, Trash2, Camera, Rows3, X, Copy, Pencil, ChevronRight, Filter } from 'lucide-react';
+import { Plus, Receipt, Paperclip, Trash2, Camera, Rows3, X, Copy, Pencil, ChevronRight, Filter, CheckCircle2, Clock } from 'lucide-react';
 import ScanFatura from './ScanFatura';
 
 type Obra = { id: string; titulo: string };
 type Subempreitada = { id: string; descricao: string };
+type Fornecedor = { id: string; nome: string };
 type Despesa = {
   id: string;
   obra_id: string | null;
@@ -18,9 +19,13 @@ type Despesa = {
   valor: number;
   data_despesa: string;
   fornecedor: string | null;
+  fornecedor_id: string | null;
+  estado_pagamento: string;
+  data_pagamento: string | null;
   comprovativo_url: string | null;
   obras: { titulo: string } | null;
   subempreitadas: { descricao: string } | null;
+  fornecedores: { nome: string } | null;
 };
 
 type LinhaSplit = { destino: string; valor: string };
@@ -94,6 +99,7 @@ export default function DespesasPage() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [obras, setObras] = useState<Obra[]>([]);
   const [subs, setSubs] = useState<Subempreitada[]>([]);
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showScan, setShowScan] = useState(false);
@@ -104,10 +110,14 @@ export default function DespesasPage() {
   const [descricao, setDescricao] = useState('');
   const [categoria, setCategoria] = useState('material');
   const [valor, setValor] = useState('');
-  const [fornecedor, setFornecedor] = useState('');
+  const [fornecedorId, setFornecedorId] = useState('');
+  const [novoFornecedorNome, setNovoFornecedorNome] = useState('');
+  const [aCriarFornecedor, setACriarFornecedor] = useState(false);
   const [dataDespesa, setDataDespesa] = useState(() => new Date().toISOString().slice(0, 10));
   const [ficheiro, setFicheiro] = useState<File | null>(null);
   const [tipoImputacao, setTipoImputacao] = useState('custo');
+  const [estadoPagamento, setEstadoPagamento] = useState('pago');
+  const [dataPagamento, setDataPagamento] = useState(() => new Date().toISOString().slice(0, 10));
 
   const [linhas, setLinhas] = useState<LinhaSplit[]>([{ destino: '', valor: '' }, { destino: OPCAO_GERAL, valor: '' }]);
 
@@ -120,6 +130,7 @@ export default function DespesasPage() {
   const [filtroDestino, setFiltroDestino] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
+  const [filtroPagamento, setFiltroPagamento] = useState('');
   const [filtroPeriodo, setFiltroPeriodo] = useState('mes');
   const [filtroInicio, setFiltroInicio] = useState(() => new Date().toISOString().slice(0, 10));
   const [filtroFim, setFiltroFim] = useState(() => new Date().toISOString().slice(0, 10));
@@ -127,7 +138,7 @@ export default function DespesasPage() {
 
   async function carregar() {
     setLoading(true);
-    let query = supabase.from('despesas').select('*, obras(titulo), subempreitadas(descricao)').order('data_despesa', { ascending: false });
+    let query = supabase.from('despesas').select('*, obras(titulo), subempreitadas(descricao), fornecedores(nome)').order('data_despesa', { ascending: false });
 
     if (filtroDestino === OPCAO_GERAL) query = query.is('obra_id', null).is('subempreitada_id', null);
     else if (filtroDestino.startsWith('obra:')) query = query.eq('obra_id', filtroDestino.split(':')[1]);
@@ -135,23 +146,37 @@ export default function DespesasPage() {
 
     if (filtroCategoria) query = query.eq('categoria', filtroCategoria);
     if (filtroTipo) query = query.eq('tipo_imputacao', filtroTipo);
+    if (filtroPagamento) query = query.eq('estado_pagamento', filtroPagamento);
 
     const { inicio, fim } = calcularPeriodo(filtroPeriodo, { inicio: filtroInicio, fim: filtroFim });
     if (inicio) query = query.gte('data_despesa', inicio);
     if (fim) query = query.lte('data_despesa', fim);
 
-    const [{ data: despesasData }, { data: obrasData }, { data: subsData }] = await Promise.all([
+    const [{ data: despesasData }, { data: obrasData }, { data: subsData }, { data: fornecedoresData }] = await Promise.all([
       query,
       supabase.from('obras').select('id, titulo').order('titulo'),
       supabase.from('subempreitadas').select('id, descricao').order('descricao'),
+      supabase.from('fornecedores').select('id, nome').order('nome'),
     ]);
     setDespesas((despesasData as any) || []);
     setObras(obrasData || []);
     setSubs(subsData || []);
+    setFornecedores(fornecedoresData || []);
     setLoading(false);
   }
 
-  useEffect(() => { carregar(); }, [filtroDestino, filtroCategoria, filtroTipo, filtroPeriodo, filtroInicio, filtroFim]);
+  useEffect(() => { carregar(); }, [filtroDestino, filtroCategoria, filtroTipo, filtroPagamento, filtroPeriodo, filtroInicio, filtroFim]);
+
+  async function criarFornecedorRapido() {
+    if (!novoFornecedorNome.trim()) return;
+    setACriarFornecedor(true);
+    const { data, error } = await supabase.from('fornecedores').insert([{ nome: novoFornecedorNome.trim() }]).select().single();
+    setACriarFornecedor(false);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setFornecedores((prev) => [...prev, data].sort((a, b) => a.nome.localeCompare(b.nome)));
+    setFornecedorId(data.id);
+    setNovoFornecedorNome('');
+  }
 
   function toggleMes(chave: string) {
     setMesesColapsados((prev) => {
@@ -162,8 +187,9 @@ export default function DespesasPage() {
   }
 
   function resetForm() {
-    setDestino(''); setDescricao(''); setCategoria('material'); setValor(''); setFornecedor('');
+    setDestino(''); setDescricao(''); setCategoria('material'); setValor(''); setFornecedorId(''); setNovoFornecedorNome('');
     setDataDespesa(new Date().toISOString().slice(0, 10)); setFicheiro(null); setTipoImputacao('custo');
+    setEstadoPagamento('pago'); setDataPagamento(new Date().toISOString().slice(0, 10));
     setLinhas([{ destino: '', valor: '' }, { destino: OPCAO_GERAL, valor: '' }]);
     setDividir(false);
     setEditandoId(null);
@@ -176,10 +202,12 @@ export default function DespesasPage() {
     setDescricao(d.descricao);
     setCategoria(d.categoria);
     setValor(String(d.valor));
-    setFornecedor(d.fornecedor || '');
+    setFornecedorId(d.fornecedor_id || '');
     setDataDespesa(d.data_despesa);
     setFicheiro(null);
     setTipoImputacao(d.tipo_imputacao);
+    setEstadoPagamento(d.estado_pagamento || 'pago');
+    setDataPagamento(d.data_pagamento || new Date().toISOString().slice(0, 10));
     setDividir(false);
     setShowForm(true);
   }
@@ -216,9 +244,11 @@ export default function DespesasPage() {
           descricao,
           categoria,
           valor: parseFloat(valor) || 0,
-          fornecedor: fornecedor || null,
+          fornecedor_id: fornecedorId || null,
           data_despesa: dataDespesa,
           tipo_imputacao: tipoImputacao,
+          estado_pagamento: estadoPagamento,
+          data_pagamento: estadoPagamento === 'pago' ? dataPagamento : null,
         };
         if (ficheiro) {
           update.comprovativo_url = await enviarComprovativo(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1]);
@@ -237,10 +267,12 @@ export default function DespesasPage() {
             descricao,
             categoria,
             valor: parseFloat(l.valor) || 0,
-            fornecedor: fornecedor || null,
+            fornecedor_id: fornecedorId || null,
             data_despesa: dataDespesa,
             comprovativo_url: comprovativoUrl,
             tipo_imputacao: tipoImputacao,
+            estado_pagamento: estadoPagamento,
+            data_pagamento: estadoPagamento === 'pago' ? dataPagamento : null,
           }))
         );
         if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
@@ -253,10 +285,12 @@ export default function DespesasPage() {
           descricao,
           categoria,
           valor: parseFloat(valor) || 0,
-          fornecedor: fornecedor || null,
+          fornecedor_id: fornecedorId || null,
           data_despesa: dataDespesa,
           comprovativo_url: comprovativoUrl,
           tipo_imputacao: tipoImputacao,
+          estado_pagamento: estadoPagamento,
+          data_pagamento: estadoPagamento === 'pago' ? dataPagamento : null,
         }]);
         if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
       }
@@ -277,6 +311,15 @@ export default function DespesasPage() {
     carregar();
   }
 
+  async function alternarPagamento(d: Despesa) {
+    const novoEstado = d.estado_pagamento === 'pago' ? 'pendente' : 'pago';
+    await supabase.from('despesas').update({
+      estado_pagamento: novoEstado,
+      data_pagamento: novoEstado === 'pago' ? new Date().toISOString().slice(0, 10) : null,
+    }).eq('id', d.id);
+    carregar();
+  }
+
   function abrirDuplicar(d: Despesa) {
     setDuplicando(d);
     setDataDuplicar(new Date().toISOString().slice(0, 10));
@@ -292,10 +335,12 @@ export default function DespesasPage() {
       descricao: duplicando.descricao,
       categoria: duplicando.categoria,
       valor: duplicando.valor,
-      fornecedor: duplicando.fornecedor,
+      fornecedor_id: duplicando.fornecedor_id,
       data_despesa: dataDuplicar,
       comprovativo_url: null,
       tipo_imputacao: duplicando.tipo_imputacao,
+      estado_pagamento: duplicando.estado_pagamento,
+      data_pagamento: duplicando.estado_pagamento === 'pago' ? dataDuplicar : null,
     }]);
     setADuplicar(false);
     if (error) { alert('Erro: ' + error.message); return; }
@@ -304,6 +349,7 @@ export default function DespesasPage() {
   }
 
   const totalGeral = despesas.reduce((s, d) => s + d.valor, 0);
+  const totalPorPagar = despesas.filter((d) => d.estado_pagamento === 'pendente').reduce((s, d) => s + d.valor, 0);
   const somaLinhas = linhas.reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
 
   function destinoLabel(d: Despesa) {
@@ -317,6 +363,7 @@ export default function DespesasPage() {
       <div className="flex justify-between items-center mb-6">
         <p className="text-sm text-ink-400">
           {despesas.length} despesa{despesas.length !== 1 ? 's' : ''} · Total: {formatMoney(totalGeral)}
+          {totalPorPagar > 0 && <span className="text-amber-600"> · Por pagar: {formatMoney(totalPorPagar)}</span>}
         </p>
         <div className="flex gap-2">
           <button onClick={() => setShowScan(true)} className="btn-primary bg-purple-600 hover:bg-purple-700">
@@ -357,7 +404,12 @@ export default function DespesasPage() {
               <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="input">
                 {CATEGORIAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
-              <input type="text" placeholder="Fornecedor" value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} className="input" />
+              <div className="flex gap-1.5">
+                <select value={fornecedorId} onChange={(e) => setFornecedorId(e.target.value)} className="input flex-1">
+                  <option value="">Sem fornecedor</option>
+                  {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                </select>
+              </div>
               <input type="date" value={dataDespesa} onChange={(e) => setDataDespesa(e.target.value)} className="input" />
               <label className="input flex items-center gap-2 cursor-pointer md:col-span-2 text-ink-500">
                 <Paperclip size={16} className="shrink-0" />
@@ -368,6 +420,13 @@ export default function DespesasPage() {
                     : 'Anexar foto/PDF do comprovativo (opcional)'}
                 <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setFicheiro(e.target.files?.[0] || null)} />
               </label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input type="text" placeholder="Ou escreve o nome para criar um fornecedor novo" value={novoFornecedorNome} onChange={(e) => setNovoFornecedorNome(e.target.value)} className="input flex-1 text-sm" />
+              <button type="button" onClick={criarFornecedorRapido} disabled={!novoFornecedorNome.trim() || aCriarFornecedor} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 text-sm py-1.5 disabled:opacity-50">
+                {aCriarFornecedor ? 'A criar...' : '+ Fornecedor'}
+              </button>
             </div>
 
             {dividir ? (
@@ -420,11 +479,25 @@ export default function DespesasPage() {
               </div>
             )}
 
-            <div className="pt-1">
-              <label className="block text-sm text-ink-600 mb-1">Quem paga esta despesa?</label>
-              <select value={tipoImputacao} onChange={(e) => setTipoImputacao(e.target.value)} className="input w-full">
-                {TIPOS_IMPUTACAO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-sm text-ink-600 mb-1">Quem paga esta despesa?</label>
+                <select value={tipoImputacao} onChange={(e) => setTipoImputacao(e.target.value)} className="input w-full">
+                  {TIPOS_IMPUTACAO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-ink-600 mb-1">Já está paga?</label>
+                <div className="flex gap-2">
+                  <select value={estadoPagamento} onChange={(e) => setEstadoPagamento(e.target.value)} className="input flex-1">
+                    <option value="pago">Paga</option>
+                    <option value="pendente">Por pagar</option>
+                  </select>
+                  {estadoPagamento === 'pago' && (
+                    <input type="date" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} className="input w-40" />
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-2">
@@ -443,7 +516,7 @@ export default function DespesasPage() {
         <div className="flex items-center gap-1.5 text-sm text-ink-500 mb-3">
           <Filter size={14} /> Filtros
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
           <select value={filtroPeriodo} onChange={(e) => setFiltroPeriodo(e.target.value)} className="input">
             {PERIODOS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
@@ -475,6 +548,11 @@ export default function DespesasPage() {
             <option value="">Custo, Cliente e Registo</option>
             {TIPOS_IMPUTACAO.map((t) => <option key={t.value} value={t.value}>{t.label.split(' (')[0]}</option>)}
           </select>
+          <select value={filtroPagamento} onChange={(e) => setFiltroPagamento(e.target.value)} className="input">
+            <option value="">Pagas e Por Pagar</option>
+            <option value="pago">Só Pagas</option>
+            <option value="pendente">Só Por Pagar</option>
+          </select>
         </div>
       </div>
 
@@ -488,16 +566,17 @@ export default function DespesasPage() {
                 <th className="p-4 font-medium">Obra/Subempreitada</th>
                 <th className="p-4 font-medium">Categoria</th>
                 <th className="p-4 font-medium">Fornecedor</th>
+                <th className="p-4 font-medium">Estado</th>
                 <th className="p-4 font-medium text-right">Valor</th>
                 <th className="p-4 font-medium"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-sand-100">
               {loading ? (
-                <tr><td colSpan={7} className="p-10 text-center text-ink-300 text-sm">A carregar...</td></tr>
+                <tr><td colSpan={8} className="p-10 text-center text-ink-300 text-sm">A carregar...</td></tr>
               ) : despesas.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-10 text-center text-ink-400 text-sm">
+                  <td colSpan={8} className="p-10 text-center text-ink-400 text-sm">
                     <Receipt size={28} className="mx-auto mb-2 text-ink-200" />
                     Nenhuma despesa encontrada com estes filtros.
                   </td>
@@ -509,7 +588,7 @@ export default function DespesasPage() {
                   return (
                     <React.Fragment key={mesChave}>
                       <tr className="bg-sand-50/70">
-                        <td colSpan={7} className="p-0">
+                        <td colSpan={8} className="p-0">
                           <button type="button" onClick={() => toggleMes(mesChave)} className="flex items-center justify-between w-full px-4 py-2.5 text-sm">
                             <span className="flex items-center gap-1.5 font-medium text-ink-700">
                               <ChevronRight size={14} className={`transition-transform text-ink-400 ${colapsado ? '' : 'rotate-90'}`} />
@@ -534,7 +613,17 @@ export default function DespesasPage() {
                           </td>
                           <td className="p-4 text-ink-500">{destinoLabel(d)}</td>
                           <td className="p-4"><span className="badge bg-sand-100 text-ink-600">{CATEGORIAS.find((c) => c.value === d.categoria)?.label || d.categoria}</span></td>
-                          <td className="p-4 text-ink-500">{d.fornecedor || '—'}</td>
+                          <td className="p-4 text-ink-500">{d.fornecedores?.nome || d.fornecedor || '—'}</td>
+                          <td className="p-4">
+                            <button
+                              onClick={() => alternarPagamento(d)}
+                              className={`badge flex items-center gap-1 w-fit ${d.estado_pagamento === 'pago' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}
+                              title="Clicar para alternar"
+                            >
+                              {d.estado_pagamento === 'pago' ? <CheckCircle2 size={12} /> : <Clock size={12} />}
+                              {d.estado_pagamento === 'pago' ? 'Paga' : 'Por Pagar'}
+                            </button>
+                          </td>
                           <td className="p-4 text-right text-ink-800 font-medium">{formatMoney(d.valor)}</td>
                           <td className="p-4 text-right whitespace-nowrap">
                             <button onClick={() => abrirEditar(d)} className="text-ink-300 hover:text-brand-600 mr-2" title="Editar">

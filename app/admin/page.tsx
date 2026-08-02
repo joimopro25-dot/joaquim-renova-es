@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { formatMoney } from '../../lib/format';
 import { calcularTotais } from '../../lib/orcamento';
-import { Users, Briefcase, ArrowRight, Receipt, HardHat, FileText, AlertTriangle, Calendar, Inbox } from 'lucide-react';
+import { Users, Briefcase, ArrowRight, Receipt, HardHat, FileText, AlertTriangle, Calendar, Inbox, Clock } from 'lucide-react';
 
 type Obra = {
   id: string;
@@ -70,6 +70,7 @@ export default function AdminDashboard() {
   const [recentes, setRecentes] = useState<Obra[]>([]);
   const [obrasEmRisco, setObrasEmRisco] = useState<ObraEmRisco[]>([]);
   const [tarefasAtrasadas, setTarefasAtrasadas] = useState<TarefaAtrasada[]>([]);
+  const [despesasPorPagar, setDespesasPorPagar] = useState<{ count: number; total: number }>({ count: 0, total: 0 });
 
   const [segOrcamentos, setSegOrcamentos] = useState<Segmento[]>([]);
   const [segDespesas, setSegDespesas] = useState<Segmento[]>([]);
@@ -89,6 +90,7 @@ export default function AdminDashboard() {
         { data: trabsObra },
         { data: despesasTodas },
         { data: tarefasData },
+        { data: despesasPendentesData },
       ] = await Promise.all([
         supabase.from('clientes').select('*', { count: 'exact', head: true }),
         supabase.from('leads').select('*', { count: 'exact', head: true }),
@@ -99,6 +101,7 @@ export default function AdminDashboard() {
         supabase.from('obra_trabalhadores').select('obra_id, tipo_valor, valor_unitario, obra_trabalhador_entradas(quantidade)').not('obra_id', 'is', null),
         supabase.from('despesas').select('obra_id, subempreitada_id, valor, tipo_imputacao').eq('tipo_imputacao', 'custo'),
         supabase.from('obra_tarefas').select('id, titulo, obra_id, data_fim_prevista, estado, obras(titulo)').neq('estado', 'concluida'),
+        supabase.from('despesas').select('valor').eq('estado_pagamento', 'pendente'),
       ]);
 
       setTotalClientes(clientesCount || 0);
@@ -189,6 +192,10 @@ export default function AdminDashboard() {
         .map((t: any) => ({ id: t.id, titulo: t.titulo, obraId: t.obra_id, obraTitulo: t.obras?.titulo || '—', dataFimPrevista: t.data_fim_prevista }));
       setTarefasAtrasadas(atrasadas);
 
+      // --- Despesas por pagar ---
+      const pendentes = despesasPendentesData || [];
+      setDespesasPorPagar({ count: pendentes.length, total: pendentes.reduce((s: number, d: any) => s + (d.valor || 0), 0) });
+
       setLoading(false);
     }
     carregar();
@@ -228,6 +235,15 @@ export default function AdminDashboard() {
             ))}
           </div>
         </div>
+      )}
+
+      {despesasPorPagar.count > 0 && (
+        <Link href="/admin/despesas" className="card p-4 mb-6 bg-amber-50 border-amber-200 flex items-center justify-between hover:border-amber-300 transition-colors">
+          <p className="text-sm font-medium text-amber-800 flex items-center gap-2">
+            <Clock size={16} /> {despesasPorPagar.count} despesa{despesasPorPagar.count !== 1 ? 's' : ''} por pagar
+          </p>
+          <span className="text-sm font-semibold text-amber-800">{formatMoney(despesasPorPagar.total)}</span>
+        </Link>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

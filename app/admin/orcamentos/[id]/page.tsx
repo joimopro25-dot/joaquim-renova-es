@@ -529,15 +529,13 @@ export default function OrcamentoDetalhePage() {
 
       <div className="card p-6 mb-6">
         <h3 className="font-semibold text-ink-700 mb-4">Fotos (visíveis ao cliente)</h3>
-        {editavel && (
-          <div className="flex flex-col md:flex-row gap-2 mb-4">
-            <input type="text" placeholder="Legenda (opcional)" value={legendaFoto} onChange={(e) => setLegendaFoto(e.target.value)} className="input flex-1" />
-            <label className="btn-primary justify-center cursor-pointer">
-              <Upload size={16} /> {aEnviarFoto ? 'A enviar...' : 'Enviar Foto'}
-              <input type="file" accept="image/*" className="hidden" onChange={enviarFoto} disabled={aEnviarFoto} />
-            </label>
-          </div>
-        )}
+        <div className="flex flex-col md:flex-row gap-2 mb-4">
+          <input type="text" placeholder="Legenda (opcional)" value={legendaFoto} onChange={(e) => setLegendaFoto(e.target.value)} className="input flex-1" />
+          <label className="btn-primary justify-center cursor-pointer">
+            <Upload size={16} /> {aEnviarFoto ? 'A enviar...' : 'Enviar Foto'}
+            <input type="file" accept="image/*" className="hidden" onChange={enviarFoto} disabled={aEnviarFoto} />
+          </label>
+        </div>
         {fotos.length === 0 ? (
           <div className="text-center py-8 text-ink-400 text-sm">
             <ImageOff size={24} className="mx-auto mb-2 text-ink-200" />
@@ -549,14 +547,12 @@ export default function OrcamentoDetalhePage() {
               <div key={f.id} className="relative group">
                 <img src={f.url} alt={f.legenda || ''} className="w-full aspect-square object-cover rounded-lg border border-sand-200" />
                 {f.legenda && <p className="text-xs text-ink-500 mt-1 truncate">{f.legenda}</p>}
-                {editavel && (
-                  <button
-                    onClick={() => removerFoto(f.id)}
-                    className="absolute top-1.5 right-1.5 bg-white/90 rounded-md p-1 text-ink-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
+                <button
+                  onClick={() => removerFoto(f.id)}
+                  className="absolute top-1.5 right-1.5 bg-white/90 rounded-md p-1 text-ink-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
             ))}
           </div>

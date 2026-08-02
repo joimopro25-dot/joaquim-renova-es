@@ -4,12 +4,13 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { ICONES } from '../../lib/icons';
-import { CheckCircle2, X } from 'lucide-react';
+import { CheckCircle2, X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import PedidoOrcamento from '../../components/PedidoOrcamento';
+import PedidoProjetoIgual from '../../components/PedidoProjetoIgual';
 
 type SiteSettings = { hero_titulo: string; hero_subtitulo: string; telefone: string | null; email: string | null };
 type Servico = { id: string; titulo: string; descricao: string | null; icone: string };
-type Foto = { id: string; url: string; tipo: string };
+type Foto = { id: string; url: string; tipo: string; capa: boolean };
 type Projeto = { id: string; titulo: string; categoria: string; descricao: string | null; fotos: Foto[] };
 type Inspiracao = { id: string; titulo: string; categoria: string; url: string };
 
@@ -36,13 +37,16 @@ export default function HomePage() {
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [inspiracoes, setInspiracoes] = useState<Inspiracao[]>([]);
   const [ampliada, setAmpliada] = useState<Inspiracao | null>(null);
+  const [projetoAberto, setProjetoAberto] = useState<Projeto | null>(null);
+  const [fotoIndex, setFotoIndex] = useState(0);
+  const [pedirIgualPara, setPedirIgualPara] = useState<Projeto | null>(null);
 
   useEffect(() => {
     async function carregar() {
       const [{ data: s }, { data: sv }, { data: pj }, { data: ins }] = await Promise.all([
         supabase.from('site_settings').select('*').eq('id', 1).single(),
         supabase.from('servicos_site').select('*').order('ordem'),
-        supabase.from('projetos').select('*, projeto_fotos(id, url, tipo)').eq('destaque', true).order('ordem', { ascending: false }),
+        supabase.from('projetos').select('*, projeto_fotos(id, url, tipo, capa)').eq('destaque', true).order('ordem', { ascending: false }),
         supabase.from('inspiracoes').select('id, titulo, categoria, url').order('ordem', { ascending: false }),
       ]);
       setSettings(s);
@@ -98,12 +102,19 @@ export default function HomePage() {
           <h2 className="text-2xl font-heading font-semibold text-ink-800 text-center mb-10">Projetos</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {projetos.map((p) => {
+              const capa = p.fotos.find((f) => f.capa);
               const antes = p.fotos.find((f) => f.tipo === 'antes');
               const depois = p.fotos.find((f) => f.tipo === 'depois');
               const geral = p.fotos.find((f) => f.tipo === 'geral') || p.fotos[0];
               return (
-                <div key={p.id} className="card overflow-hidden">
-                  {antes && depois ? (
+                <button
+                  key={p.id}
+                  onClick={() => { setProjetoAberto(p); setFotoIndex(0); }}
+                  className="card overflow-hidden text-left cursor-pointer hover:shadow-md transition-shadow"
+                >
+                  {capa ? (
+                    <img src={capa.url} className="w-full aspect-video object-cover" />
+                  ) : antes && depois ? (
                     <div className="grid grid-cols-2">
                       <div className="relative">
                         <img src={antes.url} className="w-full aspect-square object-cover" />
@@ -121,8 +132,9 @@ export default function HomePage() {
                     <span className="badge bg-ink-800 text-copper-200 text-[10px] mb-2 inline-block">{CATEGORIA_LABEL[p.categoria] || p.categoria}</span>
                     <h3 className="font-semibold text-ink-800">{p.titulo}</h3>
                     {p.descricao && <p className="text-sm text-ink-500 mt-1">{p.descricao}</p>}
+                    {p.fotos.length > 1 && <p className="text-xs text-brand-600 mt-2">Ver {p.fotos.length} fotos</p>}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -164,6 +176,64 @@ export default function HomePage() {
             <p className="text-white/90 text-sm mt-3">{ampliada.titulo}</p>
           </div>
         </div>
+      )}
+
+      {projetoAberto && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setProjetoAberto(null)}>
+          <button
+            onClick={() => setProjetoAberto(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2"
+            aria-label="Fechar"
+          >
+            <X size={22} />
+          </button>
+          <div className="max-w-4xl w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <div className="relative w-full flex items-center justify-center">
+              {projetoAberto.fotos.length > 1 && (
+                <button
+                  onClick={() => setFotoIndex((i) => (i - 1 + projetoAberto.fotos.length) % projetoAberto.fotos.length)}
+                  className="absolute left-0 md:-left-12 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 z-10"
+                  aria-label="Foto anterior"
+                >
+                  <ChevronLeft size={22} />
+                </button>
+              )}
+              {projetoAberto.fotos[fotoIndex] && (
+                <img src={projetoAberto.fotos[fotoIndex].url} alt={projetoAberto.titulo} className="max-w-full max-h-[65vh] object-contain rounded-lg" />
+              )}
+              {projetoAberto.fotos.length > 1 && (
+                <button
+                  onClick={() => setFotoIndex((i) => (i + 1) % projetoAberto.fotos.length)}
+                  className="absolute right-0 md:-right-12 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 z-10"
+                  aria-label="Foto seguinte"
+                >
+                  <ChevronRight size={22} />
+                </button>
+              )}
+            </div>
+            {projetoAberto.fotos.length > 1 && (
+              <div className="flex gap-1.5 mt-3 flex-wrap justify-center">
+                {projetoAberto.fotos.map((f, i) => (
+                  <button key={f.id} onClick={() => setFotoIndex(i)} className={`w-2 h-2 rounded-full ${i === fotoIndex ? 'bg-white' : 'bg-white/30'}`} aria-label={`Foto ${i + 1}`} />
+                ))}
+              </div>
+            )}
+            <div className="text-center mt-4">
+              <h3 className="text-white font-heading font-semibold text-lg">{projetoAberto.titulo}</h3>
+              {projetoAberto.descricao && <p className="text-white/70 text-sm mt-1 max-w-lg">{projetoAberto.descricao}</p>}
+              <button
+                onClick={() => { setPedirIgualPara(projetoAberto); setProjetoAberto(null); }}
+                className="btn-primary mt-4"
+              >
+                <Sparkles size={16} /> Pedir Orçamento para um Projeto Igual
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pedirIgualPara && (
+        <PedidoProjetoIgual tituloProjeto={pedirIgualPara.titulo} onClose={() => setPedirIgualPara(null)} />
       )}
 
       <section className="px-6 md:px-12 py-12 max-w-2xl mx-auto">

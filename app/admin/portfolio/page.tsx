@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { Plus, Trash2, Upload, Images, X } from 'lucide-react';
+import { Plus, Trash2, Upload, Images, X, Star } from 'lucide-react';
 
 type Projeto = { id: string; titulo: string; categoria: string; descricao: string | null; destaque: boolean };
-type Foto = { id: string; projeto_id: string; url: string; tipo: string };
+type Foto = { id: string; projeto_id: string; url: string; tipo: string; capa: boolean };
 
 const CATEGORIAS = [
   { value: 'renovacao', label: 'Renovação' },
@@ -83,6 +83,12 @@ export default function PortfolioPage() {
     carregar();
   }
 
+  async function definirCapa(projetoId: string, fotoId: string) {
+    await supabase.from('projeto_fotos').update({ capa: false }).eq('projeto_id', projetoId);
+    await supabase.from('projeto_fotos').update({ capa: true }).eq('id', fotoId);
+    carregar();
+  }
+
   return (
     <div className="p-4 md:p-8">
       <div className="flex justify-between items-center mb-6">
@@ -143,11 +149,20 @@ export default function PortfolioPage() {
                         </label>
                       ))}
                     </div>
+                    <p className="text-xs text-ink-400 mb-2">Clica na estrela para escolher a foto de capa (a que aparece em primeiro no site).</p>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                       {fotosProjeto.map((f) => (
-                        <div key={f.id} className="relative group">
+                        <div key={f.id} className={`relative group rounded-lg ${f.capa ? 'ring-2 ring-brand-500' : ''}`}>
                           <img src={f.url} className="w-full aspect-square object-cover rounded-lg border border-sand-200" />
                           <span className="badge bg-white/90 text-ink-600 absolute bottom-1 left-1 text-[10px]">{f.tipo}</span>
+                          {f.capa && <span className="badge bg-brand-500 text-white absolute bottom-1 right-1 text-[10px]">Capa</span>}
+                          <button
+                            onClick={() => definirCapa(p.id, f.id)}
+                            title="Definir como foto de capa"
+                            className={`absolute top-1 left-1 bg-white/90 rounded-md p-1 ${f.capa ? 'text-brand-500' : 'text-ink-400 opacity-0 group-hover:opacity-100'} transition-opacity`}
+                          >
+                            <Star size={13} fill={f.capa ? 'currentColor' : 'none'} />
+                          </button>
                           <button onClick={() => removerFoto(f.id)} className="absolute top-1 right-1 bg-white/90 rounded-md p-1 text-ink-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
                             <X size={13} />
                           </button>

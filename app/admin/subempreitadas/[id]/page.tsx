@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, RotateCcw, Printer, Paperclip, Upload, UserPlus, HardHat, Pencil, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, RotateCcw, Printer, Paperclip, Upload, UserPlus, HardHat, Pencil, ShieldCheck, CalendarDays } from 'lucide-react';
 
 type Entrada = {
   id: string;
@@ -14,6 +14,14 @@ type Entrada = {
   hora_saida: string | null;
   quantidade: number;
   nota: string | null;
+};
+
+type Previsao = {
+  id: string;
+  titulo: string | null;
+  data_inicio: string;
+  data_fim_prevista: string;
+  notas: string | null;
 };
 
 type Subempreitada = {
@@ -99,19 +107,29 @@ export default function SubempreitadaDetalhe() {
   const [editValorUnitario, setEditValorUnitario] = useState('');
   const [editRetencao, setEditRetencao] = useState('0');
 
+  const [previsoes, setPrevisoes] = useState<Previsao[]>([]);
+  const [showPrevisaoForm, setShowPrevisaoForm] = useState(false);
+  const [pTitulo, setPTitulo] = useState('');
+  const [pDataInicio, setPDataInicio] = useState(() => new Date().toISOString().slice(0, 10));
+  const [pDataFim, setPDataFim] = useState(() => new Date().toISOString().slice(0, 10));
+  const [pNotas, setPNotas] = useState('');
+  const [aGuardarPrevisao, setAGuardarPrevisao] = useState(false);
+
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: subData }, { data: entradasData }, { data: anexosData }, { data: trabData }, { data: subTrabData }, { data: despesasData }] = await Promise.all([
+    const [{ data: subData }, { data: entradasData }, { data: anexosData }, { data: trabData }, { data: subTrabData }, { data: despesasData }, { data: previsoesData }] = await Promise.all([
       supabase.from('subempreitadas').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('subempreitada_entradas').select('*').eq('subempreitada_id', id).order('data'),
       supabase.from('subempreitada_anexos').select('*').eq('subempreitada_id', id).order('criado_em'),
       supabase.from('trabalhadores').select('id, nome, tipo_valor_padrao, valor_padrao').eq('ativo', true).order('nome'),
       supabase.from('obra_trabalhadores').select('*, trabalhadores(nome), obra_trabalhador_entradas(quantidade)').eq('subempreitada_id', id),
       supabase.from('despesas').select('valor, tipo_imputacao').eq('subempreitada_id', id),
+      supabase.from('subempreitada_previsoes').select('*').eq('subempreitada_id', id).order('data_inicio'),
     ]);
     setSub(subData as any);
     setEntradas(entradasData || []);
     setAnexos(anexosData || []);
+    setPrevisoes(previsoesData || []);
     setTrabalhadoresDisponiveis(trabData || []);
     setSubTrabalhadores((subTrabData as any) || []);
     setTotalDespesas((despesasData || []).filter((d: any) => d.tipo_imputacao === 'custo').reduce((s, d: any) => s + (d.valor || 0), 0));
@@ -179,18 +197,6 @@ export default function SubempreitadaDetalhe() {
       ? (horaEntrada && horaSaida ? calcularHoras(horaEntrada, horaSaida) : parseFloat(quantidadeManual) || 0)
       : (parseFloat(quantidadeManual) || 1);
 
-    const { data: conflitos } = await supabase
-      .from('obra_tarefas')
-      .select('titulo, obras(titulo)')
-      .eq('bloqueante', true)
-      .neq('estado', 'concluida')
-      .lte('data_inicio', data)
-      .gte('data_fim_prevista', data);
-    if (conflitos && conflitos.length > 0) {
-      const lista = conflitos.map((c: any) => `"${c.titulo}" (${c.obras?.titulo || 'obra'})`).join(', ');
-      if (!confirm(`Atenção: já tens presença marcada nesse dia numa obra tua: ${lista}. Queres registar mesmo assim?`)) return;
-    }
-
     const { error } = await supabase.from('subempreitada_entradas').insert([{
       subempreitada_id: id,
       data,
@@ -206,6 +212,44 @@ export default function SubempreitadaDetalhe() {
 
   async function removerEntrada(entradaId: string) {
     await supabase.from('subempreitada_entradas').delete().eq('id', entradaId);
+    carregar();
+  }
+
+  async function adicionarPrevisao(e: React.FormEvent) {
+    e.preventDefault();
+    setAGuardarPrevisao(true);
+
+    const { data: conflitos } = await supabase
+      .from('obra_tarefas')
+      .select('titulo, obras(titulo)')
+      .eq('bloqueante', true)
+      .neq('estado', 'concluida')
+      .lte('data_inicio', pDataFim)
+      .gte('data_fim_prevista', pDataInicio);
+    if (conflitos && conflitos.length > 0) {
+      const lista = conflitos.map((c: any) => `"${c.titulo}" (${c.obras?.titulo || 'obra'})`).join(', ');
+      if (!confirm(`Atenção: já tens presença marcada nesse período numa obra tua: ${lista}. Queres marcar mesmo assim?`)) {
+        setAGuardarPrevisao(false);
+        return;
+      }
+    }
+
+    const { error } = await supabase.from('subempreitada_previsoes').insert([{
+      subempreitada_id: id,
+      titulo: pTitulo || null,
+      data_inicio: pDataInicio,
+      data_fim_prevista: pDataFim,
+      notas: pNotas || null,
+    }]);
+    setAGuardarPrevisao(false);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setPTitulo(''); setPDataInicio(new Date().toISOString().slice(0, 10)); setPDataFim(new Date().toISOString().slice(0, 10)); setPNotas('');
+    setShowPrevisaoForm(false);
+    carregar();
+  }
+
+  async function removerPrevisao(previsaoId: string) {
+    await supabase.from('subempreitada_previsoes').delete().eq('id', previsaoId);
     carregar();
   }
 
@@ -349,6 +393,53 @@ export default function SubempreitadaDetalhe() {
 
       <div className="card p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-ink-700 flex items-center gap-2"><CalendarDays size={16} /> Previsão de Trabalho (calendário)</h3>
+          <button onClick={() => setShowPrevisaoForm((v) => !v)} className="btn-primary text-sm py-1.5">
+            <Plus size={15} /> Marcar
+          </button>
+        </div>
+        <p className="text-xs text-ink-400 mb-4">Marca aqui os dias em que vais/vais trabalhar para este empreiteiro — entra logo no Calendário e avisa-te se colidir com uma das tuas obras. É planeamento, não o registo de horas já feitas (isso é mais abaixo).</p>
+
+        {showPrevisaoForm && (
+          <form onSubmit={adicionarPrevisao} className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4 p-3 bg-sand-50 rounded-lg">
+            <input type="text" placeholder="Título (opcional, ex: Pintura sala)" value={pTitulo} onChange={(e) => setPTitulo(e.target.value)} className="input md:col-span-2" />
+            <div>
+              <label className="text-xs text-ink-400">Início</label>
+              <input type="date" value={pDataInicio} onChange={(e) => setPDataInicio(e.target.value)} className="input w-full mt-1" required />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Fim previsto</label>
+              <input type="date" value={pDataFim} onChange={(e) => setPDataFim(e.target.value)} className="input w-full mt-1" required />
+            </div>
+            <input type="text" placeholder="Notas (opcional)" value={pNotas} onChange={(e) => setPNotas(e.target.value)} className="input md:col-span-3" />
+            <button disabled={aGuardarPrevisao} className="btn-primary justify-center disabled:opacity-60">
+              {aGuardarPrevisao ? 'A guardar...' : 'Guardar'}
+            </button>
+          </form>
+        )}
+
+        {previsoes.length === 0 ? (
+          <p className="text-sm text-ink-400 text-center py-4">Ainda sem dias marcados.</p>
+        ) : (
+          <div className="space-y-2">
+            {previsoes.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-2 p-3 border border-sand-200 rounded-lg text-sm">
+                <div>
+                  <span className="font-medium text-ink-800">{p.titulo || sub.descricao}</span>
+                  <span className="text-ink-400 ml-2">
+                    {new Date(p.data_inicio).toLocaleDateString('pt-PT')}{p.data_inicio !== p.data_fim_prevista ? ` – ${new Date(p.data_fim_prevista).toLocaleDateString('pt-PT')}` : ''}
+                  </span>
+                  {p.notas && <p className="text-xs text-ink-400 mt-0.5">{p.notas}</p>}
+                </div>
+                <button onClick={() => removerPrevisao(p.id)} className="text-ink-300 hover:text-red-600 shrink-0"><Trash2 size={15} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="card p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-ink-700 flex items-center gap-2"><HardHat size={16} /> Trabalhadores neste Trabalho</h3>
           <button onClick={() => setShowTrabalhadorForm((v) => !v)} className="btn-primary text-sm py-1.5">
             <UserPlus size={15} /> Atribuir
@@ -432,11 +523,11 @@ export default function SubempreitadaDetalhe() {
 
       {sub.tipo_valor !== 'fixo' && (
         <div className="card p-6 mb-6">
-          <h3 className="font-semibold text-ink-700 mb-1">Registo de {sub.tipo_valor === 'hora' ? 'Horas' : 'Dias'} (geral)</h3>
+          <h3 className="font-semibold text-ink-700 mb-1">Registo de {sub.tipo_valor === 'hora' ? 'Horas' : 'Dias'} Já Trabalhados (geral)</h3>
           <p className="text-xs text-ink-400 mb-4">
-            Usa isto para horas não atribuídas a um trabalhador específico. As horas de cada trabalhador (na secção acima) somam-se automaticamente a este total.
+            Isto é para faturação — regista aqui as horas/dias já feitos. Usa isto para horas não atribuídas a um trabalhador específico; as horas de cada trabalhador (na secção acima) somam-se automaticamente a este total.
             {totalQuantidadeTrabalhadores > 0 && ` Trabalhadores já contribuem com ${totalQuantidadeTrabalhadores} ${unidade}.`}
-            {' '}Dica: também podes usar isto para marcar um dia futuro (ex: "amanhã") — aparece logo no Calendário.
+            {' '}Para planear um dia futuro, usa a "Previsão de Trabalho" no topo da página.
           </p>
 
           {entradas.length > 0 && (

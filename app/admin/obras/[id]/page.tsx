@@ -251,17 +251,26 @@ export default function ObraDetalhePage() {
     setAGuardarTarefa(true);
 
     if (tBloqueante) {
-      const { data: conflitos } = await supabase
-        .from('obra_tarefas')
-        .select('titulo, data_inicio, data_fim_prevista, obras(titulo)')
-        .neq('obra_id', id)
-        .eq('bloqueante', true)
-        .neq('estado', 'concluida')
-        .lte('data_inicio', tDataFim)
-        .gte('data_fim_prevista', tDataInicio);
-      if (conflitos && conflitos.length > 0) {
-        const lista = conflitos.map((c: any) => `"${c.titulo}" (${c.obras?.titulo || 'outra obra'})`).join(', ');
-        if (!confirm(`Atenção: já tens presença marcada nesse período noutra obra: ${lista}. Queres criar mesmo assim?`)) {
+      const [{ data: conflitosObras }, { data: conflitosSubs }] = await Promise.all([
+        supabase
+          .from('obra_tarefas')
+          .select('titulo, data_inicio, data_fim_prevista, obras(titulo)')
+          .neq('obra_id', id)
+          .eq('bloqueante', true)
+          .neq('estado', 'concluida')
+          .lte('data_inicio', tDataFim)
+          .gte('data_fim_prevista', tDataInicio),
+        supabase
+          .from('subempreitada_previsoes')
+          .select('titulo, subempreitadas(descricao)')
+          .lte('data_inicio', tDataFim)
+          .gte('data_fim_prevista', tDataInicio),
+      ]);
+      const listaObras = (conflitosObras || []).map((c: any) => `"${c.titulo}" (${c.obras?.titulo || 'outra obra'})`);
+      const listaSubs = (conflitosSubs || []).map((c: any) => `"${c.titulo || c.subempreitadas?.descricao || 'trabalho'}" (subempreitada)`);
+      const lista = [...listaObras, ...listaSubs];
+      if (lista.length > 0) {
+        if (!confirm(`Atenção: já tens presença marcada nesse período: ${lista.join(', ')}. Queres criar mesmo assim?`)) {
           setAGuardarTarefa(false);
           return;
         }

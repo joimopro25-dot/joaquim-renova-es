@@ -56,9 +56,9 @@ export default function CalendarioPage() {
 
   async function carregar() {
     setLoading(true);
-    const [{ data: tarefasData }, { data: entradasData }] = await Promise.all([
+    const [{ data: tarefasData }, { data: previsoesData }] = await Promise.all([
       supabase.from('obra_tarefas').select('id, titulo, data_inicio, data_fim_prevista, estado, bloqueante, obra_id, obras(titulo)').order('data_inicio'),
-      supabase.from('subempreitada_entradas').select('id, data, nota, subempreitada_id, subempreitadas(descricao, clientes(nome))').order('data'),
+      supabase.from('subempreitada_previsoes').select('id, titulo, data_inicio, data_fim_prevista, notas, subempreitada_id, subempreitadas(descricao, clientes(nome))').order('data_inicio'),
     ]);
 
     const dasObras: ItemCalendario[] = ((tarefasData as any) || []).map((t: any) => ({
@@ -73,16 +73,16 @@ export default function CalendarioPage() {
       link: `/admin/obras/${t.obra_id}`,
     }));
 
-    const dasSubs: ItemCalendario[] = ((entradasData as any) || []).map((e: any) => ({
-      id: `sub-${e.id}`,
+    const dasSubs: ItemCalendario[] = ((previsoesData as any) || []).map((p: any) => ({
+      id: `sub-${p.id}`,
       tipo: 'subempreitada' as const,
-      titulo: e.subempreitadas?.descricao || 'Trabalho subcontratado',
-      subtitulo: e.subempreitadas?.clientes?.nome ? `Para: ${e.subempreitadas.clientes.nome}` : (e.nota || ''),
-      data_inicio: e.data,
-      data_fim_prevista: e.data,
+      titulo: p.titulo || p.subempreitadas?.descricao || 'Trabalho subcontratado',
+      subtitulo: p.subempreitadas?.clientes?.nome ? `Para: ${p.subempreitadas.clientes.nome}` : (p.notas || ''),
+      data_inicio: p.data_inicio,
+      data_fim_prevista: p.data_fim_prevista,
       concluida: false,
       bloqueante: true,
-      link: `/admin/subempreitadas/${e.subempreitada_id}`,
+      link: `/admin/subempreitadas/${p.subempreitada_id}`,
     }));
 
     setItens([...dasObras, ...dasSubs]);

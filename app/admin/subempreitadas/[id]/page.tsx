@@ -122,6 +122,7 @@ export default function SubempreitadaDetalhe() {
   const [pHoraFim, setPHoraFim] = useState('');
   const [pNotas, setPNotas] = useState('');
   const [aGuardarPrevisao, setAGuardarPrevisao] = useState(false);
+  const [previsaoEditandoId, setPrevisaoEditandoId] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -223,6 +224,23 @@ export default function SubempreitadaDetalhe() {
     carregar();
   }
 
+  function limparFormPrevisao() {
+    setPTitulo(''); setPDataInicio(new Date().toISOString().slice(0, 10)); setPDataFim(new Date().toISOString().slice(0, 10)); setPHoraInicio(''); setPHoraFim(''); setPNotas('');
+    setPrevisaoEditandoId(null);
+    setShowPrevisaoForm(false);
+  }
+
+  function abrirEditarPrevisao(p: Previsao) {
+    setPTitulo(p.titulo || '');
+    setPDataInicio(p.data_inicio);
+    setPDataFim(p.data_fim_prevista);
+    setPHoraInicio(p.hora_inicio ? p.hora_inicio.slice(0, 5) : '');
+    setPHoraFim(p.hora_fim ? p.hora_fim.slice(0, 5) : '');
+    setPNotas(p.notas || '');
+    setPrevisaoEditandoId(p.id);
+    setShowPrevisaoForm(true);
+  }
+
   async function adicionarPrevisao(e: React.FormEvent) {
     e.preventDefault();
     if (pDataFim < pDataInicio) { alert('A data de fim não pode ser antes da data de início.'); return; }
@@ -243,19 +261,20 @@ export default function SubempreitadaDetalhe() {
       }
     }
 
-    const { error } = await supabase.from('subempreitada_previsoes').insert([{
-      subempreitada_id: id,
+    const dados = {
       titulo: pTitulo || null,
       data_inicio: pDataInicio,
       data_fim_prevista: pDataFim,
       hora_inicio: pHoraInicio || null,
       hora_fim: pHoraFim || null,
       notas: pNotas || null,
-    }]);
+    };
+    const { error } = previsaoEditandoId
+      ? await supabase.from('subempreitada_previsoes').update(dados).eq('id', previsaoEditandoId)
+      : await supabase.from('subempreitada_previsoes').insert([{ subempreitada_id: id, ...dados }]);
     setAGuardarPrevisao(false);
     if (error) { alert('Erro: ' + error.message); return; }
-    setPTitulo(''); setPDataInicio(new Date().toISOString().slice(0, 10)); setPDataFim(new Date().toISOString().slice(0, 10)); setPHoraInicio(''); setPHoraFim(''); setPNotas('');
-    setShowPrevisaoForm(false);
+    limparFormPrevisao();
     carregar();
   }
 
@@ -451,7 +470,7 @@ export default function SubempreitadaDetalhe() {
       <div className="card p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-ink-700 flex items-center gap-2"><CalendarDays size={16} /> Previsão de Trabalho (calendário)</h3>
-          <button onClick={() => setShowPrevisaoForm((v) => !v)} className="btn-primary text-sm py-1.5">
+          <button onClick={() => { if (showPrevisaoForm) { limparFormPrevisao(); } else { setPrevisaoEditandoId(null); setShowPrevisaoForm(true); } }} className="btn-primary text-sm py-1.5">
             <Plus size={15} /> Marcar
           </button>
         </div>
@@ -477,9 +496,12 @@ export default function SubempreitadaDetalhe() {
               <input type="time" value={pHoraFim} onChange={(e) => setPHoraFim(e.target.value)} className="input w-full mt-1" />
             </div>
             <input type="text" placeholder="Notas (opcional)" value={pNotas} onChange={(e) => setPNotas(e.target.value)} className="input md:col-span-2" />
-            <button disabled={aGuardarPrevisao} className="btn-primary justify-center disabled:opacity-60">
-              {aGuardarPrevisao ? 'A guardar...' : 'Guardar'}
-            </button>
+            <div className="flex gap-2">
+              <button disabled={aGuardarPrevisao} className="btn-primary flex-1 justify-center disabled:opacity-60">
+                {aGuardarPrevisao ? 'A guardar...' : previsaoEditandoId ? 'Guardar Alterações' : 'Guardar'}
+              </button>
+              <button type="button" onClick={limparFormPrevisao} className="text-sm text-ink-400 hover:text-ink-700 px-2">Cancelar</button>
+            </div>
           </form>
         )}
 
@@ -497,7 +519,10 @@ export default function SubempreitadaDetalhe() {
                   </span>
                   {p.notas && <p className="text-xs text-ink-400 mt-0.5">{p.notas}</p>}
                 </div>
-                <button onClick={() => removerPrevisao(p.id)} className="text-ink-300 hover:text-red-600 shrink-0"><Trash2 size={15} /></button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => abrirEditarPrevisao(p)} className="text-ink-300 hover:text-brand-600"><Pencil size={14} /></button>
+                  <button onClick={() => removerPrevisao(p.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={15} /></button>
+                </div>
               </div>
             ))}
           </div>

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
-import { Plus, HardHat } from 'lucide-react';
+import { Plus, HardHat, Trash2 } from 'lucide-react';
 
 type Cliente = { id: string; nome: string };
 type Subempreitada = {
@@ -56,6 +56,15 @@ export default function SubempreitadasPage() {
   }
 
   useEffect(() => { carregar(); }, []);
+
+  async function removerRegisto(e: React.MouseEvent, registoId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm('Apagar este registo de subempreitada? Todos os dados associados (previsões, horas, trabalhadores, anexos, despesas) serão apagados também.')) return;
+    const { error } = await supabase.from('subempreitadas').delete().eq('id', registoId);
+    if (error) { alert('Erro: ' + error.message); return; }
+    carregar();
+  }
 
   async function criarClienteRapido() {
     if (!novoClienteNome.trim()) return;
@@ -139,14 +148,15 @@ export default function SubempreitadasPage() {
                 <th className="p-4 font-medium">Tipo</th>
                 <th className="p-4 font-medium text-right">Valor</th>
                 <th className="p-4 font-medium">Estado</th>
+                <th className="p-4"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-sand-100">
               {loading ? (
-                <tr><td colSpan={5} className="p-10 text-center text-ink-300 text-sm">A carregar...</td></tr>
+                <tr><td colSpan={6} className="p-10 text-center text-ink-300 text-sm">A carregar...</td></tr>
               ) : registos.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-10 text-center text-ink-400 text-sm">
+                  <td colSpan={6} className="p-10 text-center text-ink-400 text-sm">
                     <HardHat size={28} className="mx-auto mb-2 text-ink-200" />
                     Ainda sem registos.
                   </td>
@@ -164,6 +174,9 @@ export default function SubempreitadasPage() {
                       <span className={`badge ${r.estado === 'pago' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                         {r.estado === 'pago' ? 'Pago' : 'Pendente'}
                       </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      <button onClick={(e) => removerRegisto(e, r.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={15} /></button>
                     </td>
                   </tr>
                 ))

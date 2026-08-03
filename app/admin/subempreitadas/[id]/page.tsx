@@ -107,6 +107,9 @@ export default function SubempreitadaDetalhe() {
   const [editValorUnitario, setEditValorUnitario] = useState('');
   const [editRetencao, setEditRetencao] = useState('0');
 
+  const [editandoTitulo, setEditandoTitulo] = useState(false);
+  const [editDescricao, setEditDescricao] = useState('');
+
   const [previsoes, setPrevisoes] = useState<Previsao[]>([]);
   const [showPrevisaoForm, setShowPrevisaoForm] = useState(false);
   const [pTitulo, setPTitulo] = useState('');
@@ -293,6 +296,20 @@ export default function SubempreitadaDetalhe() {
     carregar();
   }
 
+  function abrirEditarTitulo() {
+    setEditDescricao(sub?.descricao || '');
+    setEditandoTitulo(true);
+  }
+
+  async function guardarTitulo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editDescricao.trim()) return;
+    const { error } = await supabase.from('subempreitadas').update({ descricao: editDescricao.trim() }).eq('id', id);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setEditandoTitulo(false);
+    carregar();
+  }
+
   async function libertarRetencao() {
     if (!confirm('Marcar a retenção de garantia como recebida/libertada?')) return;
     await supabase.from('subempreitadas').update({
@@ -323,7 +340,27 @@ export default function SubempreitadaDetalhe() {
 
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-xl font-heading font-semibold text-ink-800">{sub.descricao}</h2>
+          {editandoTitulo ? (
+            <form onSubmit={guardarTitulo} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={editDescricao}
+                onChange={(e) => setEditDescricao(e.target.value)}
+                className="input text-xl font-heading font-semibold py-1"
+                autoFocus
+                required
+              />
+              <button className="btn-primary text-sm py-1.5">Guardar</button>
+              <button type="button" onClick={() => setEditandoTitulo(false)} className="text-sm text-ink-400 hover:text-ink-700">Cancelar</button>
+            </form>
+          ) : (
+            <h2 className="text-xl font-heading font-semibold text-ink-800 flex items-center gap-2">
+              {sub.descricao}
+              <button onClick={abrirEditarTitulo} className="text-ink-300 hover:text-brand-600" title="Editar título">
+                <Pencil size={14} />
+              </button>
+            </h2>
+          )}
           <p className="text-sm text-ink-400 flex items-center gap-1.5">
             {sub.clientes?.nome || '—'} · {formatMoney(sub.valor_unitario)}{sub.tipo_valor !== 'fixo' ? `/${sub.tipo_valor === 'hora' ? 'h' : 'dia'}` : ''}
             <button onClick={abrirEditarValor} className="text-ink-300 hover:text-brand-600" title="Editar valor cobrado ao empreiteiro/cliente">

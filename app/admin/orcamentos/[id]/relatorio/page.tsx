@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '../../../../../lib/supabase';
 import { formatMoney } from '../../../../../lib/format';
-import { precoPorUnidade, totalLinha, calcularTotais } from '../../../../../lib/orcamento';
 import { Printer } from 'lucide-react';
 
 type Linha = {
@@ -13,8 +12,8 @@ type Linha = {
   capitulo: string;
   unidade: string;
   quantidade: number;
-  rendimento_horas: number;
-  custo_material: number;
+  preco_unitario: number;
+  preco_total: number;
 };
 
 type Foto = { id: string; url: string; legenda: string | null };
@@ -40,7 +39,7 @@ export default function RelatorioOrcamento() {
     async function carregar() {
       const [{ data: orc }, { data: linhasData }, { data: fotosData }] = await Promise.all([
         supabase.from('orcamentos').select('*, clientes(nome, nif, morada)').eq('id', id).single(),
-        supabase.from('orcamento_linhas').select('*').eq('orcamento_id', id).order('criado_em'),
+        supabase.from('orcamento_linhas_cliente').select('*').eq('orcamento_id', id).order('criado_em'),
         supabase.from('orcamento_fotos').select('id, url, legenda').eq('orcamento_id', id).order('criado_em', { ascending: false }),
       ]);
       setOrcamento(orc as any);
@@ -60,8 +59,11 @@ export default function RelatorioOrcamento() {
   if (loading) return <div className="p-8 text-center text-ink-300 text-sm">A carregar...</div>;
   if (!orcamento) return <div className="p-8 text-center text-ink-400 text-sm">Orçamento não encontrado.</div>;
 
-  const taxaHoraria = orcamento.taxa_horaria;
-  const totais = calcularTotais(linhas, orcamento);
+  const subtotal = linhas.reduce((s, l) => s + l.preco_total, 0);
+  const imprevistos = subtotal * ((orcamento.margem_percentagem || 0) / 100);
+  const semIva = subtotal + imprevistos;
+  const iva = semIva * ((orcamento.iva_percentagem || 0) / 100);
+  const totais = { subtotal, imprevistos, semIva, iva, total: semIva + iva };
 
   return (
     <div className="max-w-3xl mx-auto p-8 print:p-0 bg-white">
@@ -92,7 +94,7 @@ export default function RelatorioOrcamento() {
 
       <div className="space-y-6 mb-6">
         {Object.entries(linhasPorCapitulo).map(([cap, itens]) => {
-          const subtotalCap = itens.reduce((s, l) => s + totalLinha(l, taxaHoraria), 0);
+          const subtotalCap = itens.reduce((s, l) => s + l.preco_total, 0);
           return (
             <div key={cap}>
               <div className="bg-ink-800 text-white text-sm font-semibold px-3 py-1.5 rounded-t-lg">{cap}</div>
@@ -112,8 +114,8 @@ export default function RelatorioOrcamento() {
                       <td className="p-2">{l.descricao}</td>
                       <td className="p-2 text-right text-ink-500">{l.unidade}</td>
                       <td className="p-2 text-right text-ink-500">{l.quantidade}</td>
-                      <td className="p-2 text-right text-ink-500">{formatMoney(precoPorUnidade(l, taxaHoraria))}</td>
-                      <td className="p-2 text-right font-medium">{formatMoney(totalLinha(l, taxaHoraria))}</td>
+                      <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario)}</td>
+                      <td className="p-2 text-right font-medium">{formatMoney(l.preco_total)}</td>
                     </tr>
                   ))}
                   <tr className="bg-sand-50 font-medium">

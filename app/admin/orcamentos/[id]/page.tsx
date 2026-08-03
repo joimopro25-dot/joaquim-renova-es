@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import { moPorUnidade, precoPorUnidade, totalLinha, calcularTotais } from '../../../../lib/orcamento';
-import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Loader2, Upload, Printer, ImageOff } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Loader2, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp } from 'lucide-react';
 import ImportarOrcamento from '../ImportarOrcamento';
 
 type Linha = {
@@ -16,6 +16,23 @@ type Linha = {
   quantidade: number;
   rendimento_horas: number;
   custo_material: number;
+  tipo_linha: string;
+  fornecedor_id: string | null;
+  valor_subcontratado: number;
+  margem_subcontratacao_percentagem: number;
+  fornecedores: { nome: string } | null;
+};
+
+type Fornecedor = { id: string; nome: string };
+
+type Candidato = {
+  id: string;
+  orcamento_linha_id: string;
+  fornecedor_id: string | null;
+  fornecedor_nome_livre: string | null;
+  valor: number;
+  notas: string | null;
+  fornecedores: { nome: string } | null;
 };
 
 type MensagemChat = { role: 'user' | 'assistant'; content: string };
@@ -75,6 +92,21 @@ export default function OrcamentoDetalhePage() {
   const [rendimentoHoras, setRendimentoHoras] = useState('0');
   const [custoMaterial, setCustoMaterial] = useState('0');
 
+  const [tipoLinha, setTipoLinha] = useState<'propria' | 'subcontratada'>('propria');
+  const [fornecedorId, setFornecedorId] = useState('');
+  const [valorSubcontratado, setValorSubcontratado] = useState('0');
+  const [margemSubcontratacao, setMargemSubcontratacao] = useState('0');
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
+  const [novoFornecedorNome, setNovoFornecedorNome] = useState('');
+  const [aCriarFornecedor, setACriarFornecedor] = useState(false);
+
+  const [candidatos, setCandidatos] = useState<Record<string, Candidato[]>>({});
+  const [linhaExpandida, setLinhaExpandida] = useState<string | null>(null);
+  const [candFornecedorId, setCandFornecedorId] = useState('');
+  const [candNomeLivre, setCandNomeLivre] = useState('');
+  const [candValor, setCandValor] = useState('');
+  const [candNotas, setCandNotas] = useState('');
+
   const [showImportar, setShowImportar] = useState(false);
   const [showAssistente, setShowAssistente] = useState(false);
   const [mensagensChat, setMensagensChat] = useState<MensagemChat[]>([]);
@@ -91,18 +123,74 @@ export default function OrcamentoDetalhePage() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: orc }, { data: linhasData }, { data: precarioData }, { data: fotosData }] = await Promise.all([
+    const [{ data: orc }, { data: linhasData }, { data: precarioData }, { data: fotosData }, { data: fornecedoresData }] = await Promise.all([
       supabase.from('orcamentos').select('*, clientes(nome)').eq('id', id).single(),
-      supabase.from('orcamento_linhas').select('*').eq('orcamento_id', id).order('criado_em'),
+      supabase.from('orcamento_linhas').select('*, fornecedores(nome)').eq('orcamento_id', id).order('criado_em'),
       supabase.from('tabela_precos').select('*').order('categoria').order('descricao'),
       supabase.from('orcamento_fotos').select('*').eq('orcamento_id', id).order('criado_em', { ascending: false }),
+      supabase.from('fornecedores').select('id, nome').order('nome'),
     ]);
     setOrcamento(orc as any);
-    setLinhas(linhasData || []);
+    const listaLinhas = (linhasData as any) || [];
+    setLinhas(listaLinhas);
     setPrecario(precarioData || []);
     setFotos(fotosData || []);
+    setFornecedores(fornecedoresData || []);
+
+    const idsSubcontratadas = listaLinhas.filter((l: Linha) => l.tipo_linha === 'subcontratada').map((l: Linha) => l.id);
+    if (idsSubcontratadas.length > 0) {
+      const { data: candData } = await supabase
+        .from('orcamento_linha_candidatos')
+        .select('*, fornecedores(nome)')
+        .in('orcamento_linha_id', idsSubcontratadas)
+        .order('criado_em', { ascending: false });
+      const agrupado: Record<string, Candidato[]> = {};
+      for (const c of (candData as any) || []) (agrupado[c.orcamento_linha_id] ||= []).push(c);
+      setCandidatos(agrupado);
+    } else {
+      setCandidatos({});
+    }
     setLoading(false);
   }, [id]);
+
+  async function criarFornecedorRapido() {
+    if (!novoFornecedorNome.trim()) return;
+    setACriarFornecedor(true);
+    const { data, error } = await supabase.from('fornecedores').insert([{ nome: novoFornecedorNome.trim() }]).select().single();
+    setACriarFornecedor(false);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setFornecedores((prev) => [...prev, data].sort((a, b) => a.nome.localeCompare(b.nome)));
+    setFornecedorId(data.id);
+    setNovoFornecedorNome('');
+  }
+
+  async function adicionarCandidato(linhaId: string, e: React.FormEvent) {
+    e.preventDefault();
+    if (!candValor) { alert('Indica o valor do orçamento recebido.'); return; }
+    const { error } = await supabase.from('orcamento_linha_candidatos').insert([{
+      orcamento_linha_id: linhaId,
+      fornecedor_id: candFornecedorId || null,
+      fornecedor_nome_livre: candFornecedorId ? null : (candNomeLivre || null),
+      valor: parseFloat(candValor) || 0,
+      notas: candNotas || null,
+    }]);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setCandFornecedorId(''); setCandNomeLivre(''); setCandValor(''); setCandNotas('');
+    carregar();
+  }
+
+  async function removerCandidato(candidatoId: string) {
+    await supabase.from('orcamento_linha_candidatos').delete().eq('id', candidatoId);
+    carregar();
+  }
+
+  async function usarCandidato(linhaId: string, cand: Candidato) {
+    await supabase.from('orcamento_linhas').update({
+      fornecedor_id: cand.fornecedor_id,
+      valor_subcontratado: cand.valor,
+    }).eq('id', linhaId);
+    carregar();
+  }
 
   async function enviarFoto(e: React.ChangeEvent<HTMLInputElement>) {
     const ficheiro = e.target.files?.[0];
@@ -145,17 +233,23 @@ export default function OrcamentoDetalhePage() {
 
   async function adicionarLinha(e: React.FormEvent) {
     e.preventDefault();
+    if (tipoLinha === 'subcontratada' && !fornecedorId) { alert('Escolhe ou cria o subempreiteiro.'); return; }
     const { error } = await supabase.from('orcamento_linhas').insert([{
       orcamento_id: id,
       capitulo: capitulo || 'Geral',
       descricao,
       unidade: unidade || 'un',
       quantidade: parseFloat(quantidade) || 1,
-      rendimento_horas: parseFloat(rendimentoHoras) || 0,
-      custo_material: parseFloat(custoMaterial) || 0,
+      rendimento_horas: tipoLinha === 'propria' ? (parseFloat(rendimentoHoras) || 0) : 0,
+      custo_material: tipoLinha === 'propria' ? (parseFloat(custoMaterial) || 0) : 0,
+      tipo_linha: tipoLinha,
+      fornecedor_id: tipoLinha === 'subcontratada' ? fornecedorId : null,
+      valor_subcontratado: tipoLinha === 'subcontratada' ? (parseFloat(valorSubcontratado) || 0) : 0,
+      margem_subcontratacao_percentagem: tipoLinha === 'subcontratada' ? (parseFloat(margemSubcontratacao) || 0) : 0,
     }]);
     if (error) { alert('Erro: ' + error.message); return; }
     setDescricao(''); setQuantidade('1'); setRendimentoHoras('0'); setCustoMaterial('0');
+    setFornecedorId(''); setValorSubcontratado('0'); setMargemSubcontratacao('0');
     carregar();
   }
 
@@ -254,15 +348,30 @@ export default function OrcamentoDetalhePage() {
   async function converterEmObra() {
     if (!orcamento) return;
     setConverting(true);
-    const { error: obraError } = await supabase.from('obras').insert([{
+    const { data: novaObra, error: obraError } = await supabase.from('obras').insert([{
       cliente_id: orcamento.cliente_id,
       titulo: orcamento.titulo,
       descricao: orcamento.descricao,
       valor_total: totais.total,
       status: 'orcamento',
       orcamento_id: orcamento.id,
-    }]);
+    }]).select().single();
     if (obraError) { alert('Erro ao criar obra: ' + obraError.message); setConverting(false); return; }
+
+    const linhasSubcontratadas = linhas.filter((l) => l.tipo_linha === 'subcontratada' && l.fornecedor_id);
+    if (linhasSubcontratadas.length > 0) {
+      await supabase.from('despesas').insert(linhasSubcontratadas.map((l) => ({
+        obra_id: novaObra.id,
+        descricao: `Subcontratação: ${l.descricao}`,
+        categoria: 'Subcontratação',
+        valor: l.quantidade * l.valor_subcontratado,
+        fornecedor_id: l.fornecedor_id,
+        data_despesa: new Date().toISOString().slice(0, 10),
+        tipo_imputacao: 'custo',
+        estado_pagamento: 'pendente',
+      })));
+    }
+
     await supabase.from('orcamentos').update({ status: 'convertido' }).eq('id', id);
     setConverting(false);
     router.push('/admin/obras');
@@ -472,25 +581,89 @@ export default function OrcamentoDetalhePage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-sand-100">
-                      {itens.map((l) => (
-                        <tr key={l.id}>
-                          <td className="p-2 text-ink-800">{l.descricao}</td>
-                          <td className="p-2 text-right text-ink-500">{l.unidade}</td>
-                          <td className="p-2 text-right text-ink-500">{l.quantidade}</td>
-                          <td className="p-2 text-right text-ink-500">{l.rendimento_horas}</td>
-                          <td className="p-2 text-right text-ink-500">{formatMoney(moPorUnidade(l, taxaHoraria))}</td>
-                          <td className="p-2 text-right text-ink-500">{formatMoney(l.custo_material)}</td>
-                          <td className="p-2 text-right text-ink-500">{formatMoney(precoPorUnidade(l, taxaHoraria))}</td>
-                          <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(totalLinha(l, taxaHoraria))}</td>
-                          <td className="p-2 text-right">
-                            {editavel && (
-                              <button onClick={() => removerLinha(l.id)} className="text-ink-300 hover:text-red-600">
-                                <Trash2 size={14} />
-                              </button>
+                      {itens.map((l) => {
+                        const sub = l.tipo_linha === 'subcontratada';
+                        const expandida = linhaExpandida === l.id;
+                        const cands = candidatos[l.id] || [];
+                        return (
+                          <React.Fragment key={l.id}>
+                            <tr>
+                              <td className="p-2 text-ink-800">
+                                {l.descricao}
+                                {sub && (
+                                  <button
+                                    onClick={() => setLinhaExpandida(expandida ? null : l.id)}
+                                    className="ml-2 inline-flex items-center gap-1 badge bg-purple-100 text-purple-700 text-[10px] hover:bg-purple-200"
+                                  >
+                                    <HardHat size={10} /> {l.fornecedores?.nome || 'sem subempreiteiro'} {expandida ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                                  </button>
+                                )}
+                              </td>
+                              <td className="p-2 text-right text-ink-500">{l.unidade}</td>
+                              <td className="p-2 text-right text-ink-500">{l.quantidade}</td>
+                              <td className="p-2 text-right text-ink-500">{sub ? '—' : l.rendimento_horas}</td>
+                              <td className="p-2 text-right text-ink-500">{sub ? '—' : formatMoney(moPorUnidade(l, taxaHoraria))}</td>
+                              <td className="p-2 text-right text-ink-500">{sub ? formatMoney(l.valor_subcontratado) + ' (custo)' : formatMoney(l.custo_material)}</td>
+                              <td className="p-2 text-right text-ink-500">{formatMoney(precoPorUnidade(l, taxaHoraria))}</td>
+                              <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(totalLinha(l, taxaHoraria))}</td>
+                              <td className="p-2 text-right">
+                                {editavel && (
+                                  <button onClick={() => removerLinha(l.id)} className="text-ink-300 hover:text-red-600">
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                            {sub && expandida && (
+                              <tr>
+                                <td colSpan={9} className="p-3 bg-purple-50/40">
+                                  <p className="text-xs font-medium text-purple-800 mb-2">
+                                    Margem aplicada: {l.margem_subcontratacao_percentagem}% sobre {formatMoney(l.valor_subcontratado)} = {formatMoney(precoPorUnidade(l, taxaHoraria))}/un
+                                  </p>
+                                  <p className="text-xs font-medium text-ink-600 mb-1.5">Orçamentos recebidos:</p>
+                                  {cands.length === 0 ? (
+                                    <p className="text-xs text-ink-400 mb-2">Ainda sem orçamentos registados.</p>
+                                  ) : (
+                                    <div className="space-y-1 mb-2">
+                                      {cands.map((c) => (
+                                        <div key={c.id} className="flex items-center justify-between gap-2 text-xs bg-white rounded-md p-2 border border-sand-200">
+                                          <span className="flex-1">
+                                            <span className="font-medium text-ink-800">{c.fornecedores?.nome || c.fornecedor_nome_livre || '—'}</span>
+                                            <span className="text-ink-500"> · {formatMoney(c.valor)}</span>
+                                            {c.notas && <span className="text-ink-400"> · {c.notas}</span>}
+                                          </span>
+                                          {editavel && (
+                                            <div className="flex items-center gap-2 shrink-0">
+                                              <button type="button" onClick={() => usarCandidato(l.id, c)} className="text-brand-600 hover:underline">Usar este</button>
+                                              <button type="button" onClick={() => removerCandidato(c.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={12} /></button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {editavel && (
+                                    <form onSubmit={(e) => adicionarCandidato(l.id, e)} className="grid grid-cols-1 md:grid-cols-4 gap-1.5">
+                                      <select value={candFornecedorId} onChange={(e) => setCandFornecedorId(e.target.value)} className="input text-xs py-1">
+                                        <option value="">Sem fornecedor / nome livre</option>
+                                        {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                                      </select>
+                                      {!candFornecedorId && (
+                                        <input type="text" placeholder="Nome (se não estiver na lista)" value={candNomeLivre} onChange={(e) => setCandNomeLivre(e.target.value)} className="input text-xs py-1" />
+                                      )}
+                                      <input type="number" step="0.01" placeholder="Valor (€)" value={candValor} onChange={(e) => setCandValor(e.target.value)} className="input text-xs py-1" required />
+                                      <input type="text" placeholder="Notas (opcional)" value={candNotas} onChange={(e) => setCandNotas(e.target.value)} className="input text-xs py-1" />
+                                      <button className="btn-primary text-xs py-1 justify-center md:col-span-4">
+                                        <Plus size={12} /> Adicionar Orçamento Recebido
+                                      </button>
+                                    </form>
+                                  )}
+                                </td>
+                              </tr>
                             )}
-                          </td>
-                        </tr>
-                      ))}
+                          </React.Fragment>
+                        );
+                      })}
                       <tr className="bg-sand-50 font-medium">
                         <td colSpan={7} className="p-2 text-right text-ink-600">Subtotal {cap}</td>
                         <td className="p-2 text-right text-ink-800">{formatMoney(subtotalCap)}</td>
@@ -506,7 +679,16 @@ export default function OrcamentoDetalhePage() {
 
         {editavel && (
           <form onSubmit={adicionarLinha} className="pt-2 border-t border-sand-100">
-            {precario.length > 0 && (
+            <div className="flex gap-2 mb-2">
+              <button type="button" onClick={() => setTipoLinha('propria')} className={`text-xs px-3 py-1.5 rounded-lg border ${tipoLinha === 'propria' ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-sand-200 text-ink-500'}`}>
+                Mão de Obra Própria
+              </button>
+              <button type="button" onClick={() => setTipoLinha('subcontratada')} className={`text-xs px-3 py-1.5 rounded-lg border flex items-center gap-1 ${tipoLinha === 'subcontratada' ? 'border-purple-400 bg-purple-50 text-purple-700' : 'border-sand-200 text-ink-500'}`}>
+                <HardHat size={12} /> Subcontratada
+              </button>
+            </div>
+
+            {tipoLinha === 'propria' && precario.length > 0 && (
               <div className="mb-2">
                 <select onChange={(e) => { carregarDoPrecario(e.target.value); e.target.value = ''; }} defaultValue="" className="input w-full text-ink-500">
                   <option value="" disabled>Carregar do preçário (opcional)...</option>
@@ -522,8 +704,27 @@ export default function OrcamentoDetalhePage() {
             <input type="text" placeholder="Descrição" value={descricao} onChange={(e) => setDescricao(e.target.value)} className="input md:col-span-2" required />
             <input type="text" placeholder="Un (m², ml, un...)" value={unidade} onChange={(e) => setUnidade(e.target.value)} className="input" />
             <input type="number" step="0.01" placeholder="Qtd" value={quantidade} onChange={(e) => setQuantidade(e.target.value)} className="input" />
-            <input type="number" step="0.01" placeholder="Rendimento (h/un)" value={rendimentoHoras} onChange={(e) => setRendimentoHoras(e.target.value)} className="input md:col-span-2" />
-            <input type="number" step="0.01" placeholder="Custo Material (€/un)" value={custoMaterial} onChange={(e) => setCustoMaterial(e.target.value)} className="input md:col-span-2" />
+
+            {tipoLinha === 'propria' ? (
+              <>
+                <input type="number" step="0.01" placeholder="Rendimento (h/un)" value={rendimentoHoras} onChange={(e) => setRendimentoHoras(e.target.value)} className="input md:col-span-2" />
+                <input type="number" step="0.01" placeholder="Custo Material (€/un)" value={custoMaterial} onChange={(e) => setCustoMaterial(e.target.value)} className="input md:col-span-2" />
+              </>
+            ) : (
+              <>
+                <select value={fornecedorId} onChange={(e) => setFornecedorId(e.target.value)} className="input md:col-span-2">
+                  <option value="">Escolher subempreiteiro...</option>
+                  {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                </select>
+                <div className="flex gap-1 md:col-span-2">
+                  <input type="text" placeholder="Novo subempreiteiro" value={novoFornecedorNome} onChange={(e) => setNovoFornecedorNome(e.target.value)} className="input flex-1" />
+                  <button type="button" onClick={criarFornecedorRapido} disabled={aCriarFornecedor} className="btn-primary px-2.5 disabled:opacity-60"><Plus size={14} /></button>
+                </div>
+                <input type="number" step="0.01" placeholder="Valor do subempreiteiro (€/un)" value={valorSubcontratado} onChange={(e) => setValorSubcontratado(e.target.value)} className="input md:col-span-3" required />
+                <input type="number" step="0.1" placeholder="A tua margem (%)" value={margemSubcontratacao} onChange={(e) => setMargemSubcontratacao(e.target.value)} className="input md:col-span-3" />
+              </>
+            )}
+
             <button className="btn-primary justify-center md:col-span-2">
               <Plus size={16} /> Adicionar Linha
             </button>

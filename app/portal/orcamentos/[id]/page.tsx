@@ -4,7 +4,6 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
-import { moPorUnidade, precoPorUnidade, totalLinha, calcularTotais } from '../../../../lib/orcamento';
 import { ArrowLeft, Check, X } from 'lucide-react';
 
 type Foto = { id: string; url: string; legenda: string | null };
@@ -15,8 +14,8 @@ type Linha = {
   capitulo: string;
   unidade: string;
   quantidade: number;
-  rendimento_horas: number;
-  custo_material: number;
+  preco_unitario: number;
+  preco_total: number;
 };
 
 type Orcamento = {
@@ -48,7 +47,7 @@ export default function PortalOrcamentoDetalhe() {
   async function carregar() {
     const [{ data: orc }, { data: linhasData }, { data: fotosData }] = await Promise.all([
       supabase.from('orcamentos').select('*').eq('id', id).single(),
-      supabase.from('orcamento_linhas').select('*').eq('orcamento_id', id).order('criado_em'),
+      supabase.from('orcamento_linhas_cliente').select('*').eq('orcamento_id', id).order('criado_em'),
       supabase.from('orcamento_fotos').select('id, url, legenda').eq('orcamento_id', id).order('criado_em', { ascending: false }),
     ]);
     setOrcamento(orc as any);
@@ -76,8 +75,11 @@ export default function PortalOrcamentoDetalhe() {
   if (loading) return <div className="p-8 text-center text-ink-300 text-sm">A carregar...</div>;
   if (!orcamento) return <div className="p-8 text-center text-ink-400 text-sm">Não foi possível encontrar este orçamento, ou não tem acesso a ele.</div>;
 
-  const totais = calcularTotais(linhas, orcamento);
-  const taxaHoraria = orcamento.taxa_horaria;
+  const subtotal = linhas.reduce((s, l) => s + l.preco_total, 0);
+  const imprevistos = subtotal * ((orcamento.margem_percentagem || 0) / 100);
+  const semIva = subtotal + imprevistos;
+  const iva = semIva * ((orcamento.iva_percentagem || 0) / 100);
+  const totais = { subtotal, imprevistos, semIva, iva, total: semIva + iva };
   const info = ESTADOS[orcamento.status] || ESTADOS.enviado;
 
   return (
@@ -110,7 +112,7 @@ export default function PortalOrcamentoDetalhe() {
 
       <div className="card p-6 mb-6 space-y-6">
         {Object.entries(linhasPorCapitulo).map(([cap, itens]) => {
-          const subtotalCap = itens.reduce((s, l) => s + totalLinha(l, taxaHoraria), 0);
+          const subtotalCap = itens.reduce((s, l) => s + l.preco_total, 0);
           return (
             <div key={cap} className="overflow-x-auto">
               <div className="bg-ink-800 text-copper-200 text-sm font-semibold px-3 py-1.5 rounded-t-lg">{cap}</div>
@@ -130,8 +132,8 @@ export default function PortalOrcamentoDetalhe() {
                       <td className="p-2 text-ink-800">{l.descricao}</td>
                       <td className="p-2 text-right text-ink-500">{l.unidade}</td>
                       <td className="p-2 text-right text-ink-500">{l.quantidade}</td>
-                      <td className="p-2 text-right text-ink-500">{formatMoney(precoPorUnidade(l, taxaHoraria))}</td>
-                      <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(totalLinha(l, taxaHoraria))}</td>
+                      <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario)}</td>
+                      <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(l.preco_total)}</td>
                     </tr>
                   ))}
                   <tr className="bg-sand-50 font-medium">

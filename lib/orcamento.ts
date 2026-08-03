@@ -2,6 +2,9 @@ export type LinhaCalculo = {
   quantidade: number;
   rendimento_horas: number;
   custo_material: number;
+  tipo_linha?: string; // 'propria' | 'subcontratada'
+  valor_subcontratado?: number;
+  margem_subcontratacao_percentagem?: number;
 };
 
 export type OrcamentoCalculo = {
@@ -15,6 +18,9 @@ export function moPorUnidade(linha: LinhaCalculo, taxaHoraria: number): number {
 }
 
 export function precoPorUnidade(linha: LinhaCalculo, taxaHoraria: number): number {
+  if (linha.tipo_linha === 'subcontratada') {
+    return (linha.valor_subcontratado || 0) * (1 + (linha.margem_subcontratacao_percentagem || 0) / 100);
+  }
   return moPorUnidade(linha, taxaHoraria) + linha.custo_material;
 }
 

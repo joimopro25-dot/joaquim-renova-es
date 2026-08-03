@@ -48,6 +48,10 @@ const CATEGORIAS = [
   { value: 'transporte', label: 'Transporte' },
   { value: 'ordenado', label: 'Ordenado/Pagamento' },
   { value: 'extra', label: 'Extra (não orçamentado)' },
+  { value: 'seguros', label: 'Seguros' },
+  { value: 'seguranca_social', label: 'Segurança Social' },
+  { value: 'contabilidade', label: 'Contabilidade' },
+  { value: 'licencas', label: 'Licenças/Alvará' },
   { value: 'outro', label: 'Outro' },
 ];
 

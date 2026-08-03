@@ -179,6 +179,18 @@ export default function SubempreitadaDetalhe() {
       ? (horaEntrada && horaSaida ? calcularHoras(horaEntrada, horaSaida) : parseFloat(quantidadeManual) || 0)
       : (parseFloat(quantidadeManual) || 1);
 
+    const { data: conflitos } = await supabase
+      .from('obra_tarefas')
+      .select('titulo, obras(titulo)')
+      .eq('bloqueante', true)
+      .neq('estado', 'concluida')
+      .lte('data_inicio', data)
+      .gte('data_fim_prevista', data);
+    if (conflitos && conflitos.length > 0) {
+      const lista = conflitos.map((c: any) => `"${c.titulo}" (${c.obras?.titulo || 'obra'})`).join(', ');
+      if (!confirm(`Atenção: já tens presença marcada nesse dia numa obra tua: ${lista}. Queres registar mesmo assim?`)) return;
+    }
+
     const { error } = await supabase.from('subempreitada_entradas').insert([{
       subempreitada_id: id,
       data,
@@ -424,6 +436,7 @@ export default function SubempreitadaDetalhe() {
           <p className="text-xs text-ink-400 mb-4">
             Usa isto para horas não atribuídas a um trabalhador específico. As horas de cada trabalhador (na secção acima) somam-se automaticamente a este total.
             {totalQuantidadeTrabalhadores > 0 && ` Trabalhadores já contribuem com ${totalQuantidadeTrabalhadores} ${unidade}.`}
+            {' '}Dica: também podes usar isto para marcar um dia futuro (ex: "amanhã") — aparece logo no Calendário.
           </p>
 
           {entradas.length > 0 && (

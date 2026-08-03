@@ -5,15 +5,16 @@ import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 
-type TarefaCalendario = {
+type ItemCalendario = {
   id: string;
+  tipo: 'obra' | 'subempreitada';
   titulo: string;
+  subtitulo: string;
   data_inicio: string;
   data_fim_prevista: string;
-  estado: string;
+  concluida: boolean;
   bloqueante: boolean;
-  obra_id: string;
-  obras: { titulo: string } | null;
+  link: string;
 };
 
 const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -49,17 +50,42 @@ function dataDentro(dia: Date, inicio: string, fim: string) {
 
 export default function CalendarioPage() {
   const [mesAtual, setMesAtual] = useState(() => inicioDoMes(new Date()));
-  const [tarefas, setTarefas] = useState<TarefaCalendario[]>([]);
+  const [itens, setItens] = useState<ItemCalendario[]>([]);
   const [loading, setLoading] = useState(true);
   const [diaSelecionado, setDiaSelecionado] = useState<Date | null>(null);
 
   async function carregar() {
     setLoading(true);
-    const { data } = await supabase
-      .from('obra_tarefas')
-      .select('id, titulo, data_inicio, data_fim_prevista, estado, bloqueante, obra_id, obras(titulo)')
-      .order('data_inicio');
-    setTarefas((data as any) || []);
+    const [{ data: tarefasData }, { data: entradasData }] = await Promise.all([
+      supabase.from('obra_tarefas').select('id, titulo, data_inicio, data_fim_prevista, estado, bloqueante, obra_id, obras(titulo)').order('data_inicio'),
+      supabase.from('subempreitada_entradas').select('id, data, nota, subempreitada_id, subempreitadas(descricao, clientes(nome))').order('data'),
+    ]);
+
+    const dasObras: ItemCalendario[] = ((tarefasData as any) || []).map((t: any) => ({
+      id: `obra-${t.id}`,
+      tipo: 'obra' as const,
+      titulo: t.titulo,
+      subtitulo: t.obras?.titulo || '—',
+      data_inicio: t.data_inicio,
+      data_fim_prevista: t.data_fim_prevista,
+      concluida: t.estado === 'concluida',
+      bloqueante: t.bloqueante,
+      link: `/admin/obras/${t.obra_id}`,
+    }));
+
+    const dasSubs: ItemCalendario[] = ((entradasData as any) || []).map((e: any) => ({
+      id: `sub-${e.id}`,
+      tipo: 'subempreitada' as const,
+      titulo: e.subempreitadas?.descricao || 'Trabalho subcontratado',
+      subtitulo: e.subempreitadas?.clientes?.nome ? `Para: ${e.subempreitadas.clientes.nome}` : (e.nota || ''),
+      data_inicio: e.data,
+      data_fim_prevista: e.data,
+      concluida: false,
+      bloqueante: true,
+      link: `/admin/subempreitadas/${e.subempreitada_id}`,
+    }));
+
+    setItens([...dasObras, ...dasSubs]);
     setLoading(false);
   }
 
@@ -68,17 +94,18 @@ export default function CalendarioPage() {
   const grelha = useMemo(() => gerarGrelha(mesAtual), [mesAtual]);
   const hoje = new Date();
 
-  function tarefasDoDia(dia: Date) {
-    return tarefas.filter((t) => dataDentro(dia, t.data_inicio, t.data_fim_prevista));
+  function itensDoDia(dia: Date) {
+    return itens.filter((t) => dataDentro(dia, t.data_inicio, t.data_fim_prevista));
   }
 
-  function corTarefa(t: TarefaCalendario) {
-    if (t.estado === 'concluida') return 'bg-green-100 text-green-700 border-green-200';
+  function corItem(t: ItemCalendario) {
+    if (t.concluida) return 'bg-green-100 text-green-700 border-green-200';
+    if (t.tipo === 'subempreitada') return 'bg-indigo-50 text-indigo-700 border-indigo-200';
     if (!t.bloqueante) return 'bg-amber-50 text-amber-700 border-amber-200';
     return 'bg-red-50 text-red-700 border-red-200';
   }
 
-  const tarefasSelecionado = diaSelecionado ? tarefasDoDia(diaSelecionado) : [];
+  const itensSelecionado = diaSelecionado ? itensDoDia(diaSelecionado) : [];
 
   return (
     <div className="p-4 md:p-8">
@@ -99,9 +126,10 @@ export default function CalendarioPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-4 text-xs text-ink-500 mb-4">
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-50 border border-red-200 inline-block" /> Presença necessária</span>
+      <div className="flex items-center gap-4 text-xs text-ink-500 mb-4 flex-wrap">
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-50 border border-red-200 inline-block" /> Presença necessária (obra própria)</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-50 border border-amber-200 inline-block" /> À espera (não bloqueia)</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-50 border border-indigo-200 inline-block" /> Trabalho para outro empreiteiro</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-green-100 border border-green-200 inline-block" /> Concluída</span>
       </div>
 
@@ -116,9 +144,9 @@ export default function CalendarioPage() {
             {grelha.map((dia, i) => {
               const doMes = dia.getMonth() === mesAtual.getMonth();
               const eHoje = mesmoDia(dia, hoje);
-              const tarefasDia = tarefasDoDia(dia);
-              const visiveis = tarefasDia.slice(0, 3);
-              const resto = tarefasDia.length - visiveis.length;
+              const itensDia = itensDoDia(dia);
+              const visiveis = itensDia.slice(0, 3);
+              const resto = itensDia.length - visiveis.length;
               return (
                 <button
                   key={i}
@@ -130,8 +158,8 @@ export default function CalendarioPage() {
                   </span>
                   <div className="space-y-1">
                     {visiveis.map((t) => (
-                      <div key={t.id} className={`text-[10px] px-1.5 py-0.5 rounded border truncate ${corTarefa(t)}`}>
-                        {t.obras?.titulo ? `${t.obras.titulo}: ` : ''}{t.titulo}
+                      <div key={t.id} className={`text-[10px] px-1.5 py-0.5 rounded border truncate ${corItem(t)}`}>
+                        {t.tipo === 'obra' && t.subtitulo ? `${t.subtitulo}: ` : ''}{t.titulo}
                       </div>
                     ))}
                     {resto > 0 && <div className="text-[10px] text-ink-400 px-1.5">+{resto} mais</div>}
@@ -147,15 +175,19 @@ export default function CalendarioPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setDiaSelecionado(null)}>
           <div className="card p-6 max-w-md w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-semibold text-ink-800 mb-4">{diaSelecionado.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
-            {tarefasSelecionado.length === 0 ? (
-              <p className="text-sm text-ink-400">Sem tarefas neste dia.</p>
+            {itensSelecionado.length === 0 ? (
+              <p className="text-sm text-ink-400">Sem nada marcado neste dia.</p>
             ) : (
               <div className="space-y-2">
-                {tarefasSelecionado.map((t) => (
-                  <Link key={t.id} href={`/admin/obras/${t.obra_id}`} className={`block p-3 rounded-lg border text-sm hover:opacity-80 ${corTarefa(t)}`}>
+                {itensSelecionado.map((t) => (
+                  <Link key={t.id} href={t.link} className={`block p-3 rounded-lg border text-sm hover:opacity-80 ${corItem(t)}`}>
                     <p className="font-medium">{t.titulo}</p>
-                    <p className="text-xs opacity-80">{t.obras?.titulo || '—'}</p>
-                    <p className="text-xs opacity-70 mt-1">{t.bloqueante ? 'Presença necessária' : 'À espera'} · {new Date(t.data_inicio).toLocaleDateString('pt-PT')} – {new Date(t.data_fim_prevista).toLocaleDateString('pt-PT')}</p>
+                    <p className="text-xs opacity-80">{t.subtitulo}</p>
+                    <p className="text-xs opacity-70 mt-1">
+                      {t.tipo === 'subempreitada' ? 'Trabalho para outro empreiteiro' : t.bloqueante ? 'Presença necessária' : 'À espera'}
+                      {' · '}
+                      {new Date(t.data_inicio).toLocaleDateString('pt-PT')}{t.data_inicio !== t.data_fim_prevista ? ` – ${new Date(t.data_fim_prevista).toLocaleDateString('pt-PT')}` : ''}
+                    </p>
                   </Link>
                 ))}
               </div>

@@ -14,6 +14,7 @@ type Obra = {
   status: string;
   valor_total: number | null;
   progresso_percentagem: number;
+  cidade: string | null;
   clientes: { nome: string } | null;
 };
 
@@ -339,6 +340,13 @@ export default function ObraDetalhePage() {
         <div>
           <h2 className="text-xl font-heading font-semibold text-ink-800">{obra.titulo}</h2>
           <p className="text-sm text-ink-400">{obra.clientes?.nome || '—'}</p>
+          <input
+            type="text"
+            placeholder="Cidade/zona da obra (ex: Matosinhos) — para o tempo no Dashboard"
+            defaultValue={obra.cidade || ''}
+            onBlur={(e) => { if (e.target.value !== (obra.cidade || '')) atualizarCampo('cidade', e.target.value || null); }}
+            className="input text-xs py-1 mt-1.5 w-64"
+          />
         </div>
         <select value={obra.status} onChange={(e) => atualizarCampo('status', e.target.value)} className="input">
           {ESTADOS.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}

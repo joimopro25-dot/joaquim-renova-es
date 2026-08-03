@@ -38,6 +38,7 @@ type Subempreitada = {
   retencao_percentagem: number;
   retencao_liberada: boolean;
   data_liberacao_retencao: string | null;
+  cidade: string | null;
   clientes: { nome: string } | null;
 };
 
@@ -302,6 +303,11 @@ export default function SubempreitadaDetalhe() {
     carregar();
   }
 
+  async function atualizarCidade(cidade: string) {
+    await supabase.from('subempreitadas').update({ cidade: cidade || null }).eq('id', id);
+    carregar();
+  }
+
   function abrirEditarTitulo() {
     setEditDescricao(sub?.descricao || '');
     setEditandoTitulo(true);
@@ -373,6 +379,13 @@ export default function SubempreitadaDetalhe() {
               <Pencil size={13} />
             </button>
           </p>
+          <input
+            type="text"
+            placeholder="Cidade/zona do trabalho (ex: Braga) — para o tempo no Dashboard"
+            defaultValue={sub.cidade || ''}
+            onBlur={(e) => { if (e.target.value !== (sub.cidade || '')) atualizarCidade(e.target.value); }}
+            className="input text-xs py-1 mt-1.5 w-64"
+          />
         </div>
         <span className={`badge ${sub.estado === 'pago' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
           {sub.estado === 'pago' ? 'Pago' : 'Pendente'}

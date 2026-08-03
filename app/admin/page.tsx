@@ -5,7 +5,143 @@ import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { formatMoney } from '../../lib/format';
 import { calcularTotais } from '../../lib/orcamento';
-import { Users, Briefcase, ArrowRight, Receipt, HardHat, FileText, AlertTriangle, Calendar, Inbox, Clock } from 'lucide-react';
+import { previsaoParaCidade, iconeTempo, horaMaisProxima, type PrevisaoDia } from '../../lib/weather';
+import { Users, Briefcase, ArrowRight, Receipt, HardHat, FileText, AlertTriangle, Calendar, Inbox, Clock, CalendarDays } from 'lucide-react';
+
+type ItemDia = {
+  id: string;
+  tipo: 'obra' | 'subempreitada' | 'evento';
+  titulo: string;
+  subtitulo: string;
+  hora: string | null;
+  cidade: string | null;
+  link: string | null;
+};
+
+const TIPOS_EVENTO_LABEL: Record<string, string> = {
+  reuniao: 'Reunião',
+  visita: 'Visita de Levantamento',
+  chamada: 'Chamada/Ligar',
+  envio_orcamento: 'Enviar Orçamento',
+  followup: 'Follow-up',
+  outro: 'Outro',
+};
+
+function paraISO(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function WidgetProximosDias() {
+  const [dias, setDias] = useState<{ data: Date; itens: ItemDia[] }[]>([]);
+  const [previsoes, setPrevisoes] = useState<Record<string, PrevisaoDia | null>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function carregar() {
+      const hoje = new Date(new Date().toDateString());
+      const dataFinal = new Date(hoje);
+      dataFinal.setDate(hoje.getDate() + 3);
+
+      const [{ data: tarefasData }, { data: previsoesData }, { data: eventosData }] = await Promise.all([
+        supabase.from('obra_tarefas').select('id, titulo, data_inicio, data_fim_prevista, estado, bloqueante, obra_id, obras(titulo, cidade)').eq('bloqueante', true).neq('estado', 'concluida'),
+        supabase.from('subempreitada_previsoes').select('id, titulo, data_inicio, data_fim_prevista, hora_inicio, subempreitada_id, subempreitadas(descricao, cidade)'),
+        supabase.from('eventos_calendario').select('id, titulo, tipo, data, hora').eq('concluido', false),
+      ]);
+
+      const porDia: Record<string, ItemDia[]> = {};
+      function adicionar(dataISO: string, item: ItemDia) {
+        (porDia[dataISO] ||= []).push(item);
+      }
+
+      for (let d = new Date(hoje); d <= dataFinal; d.setDate(d.getDate() + 1)) {
+        const iso = paraISO(d);
+        for (const t of (tarefasData as any) || []) {
+          if (iso >= t.data_inicio && iso <= t.data_fim_prevista) {
+            adicionar(iso, { id: `o-${t.id}-${iso}`, tipo: 'obra', titulo: t.titulo, subtitulo: t.obras?.titulo || '—', hora: null, cidade: t.obras?.cidade || null, link: `/admin/obras/${t.obra_id}` });
+          }
+        }
+        for (const p of (previsoesData as any) || []) {
+          if (iso >= p.data_inicio && iso <= p.data_fim_prevista) {
+            adicionar(iso, { id: `s-${p.id}-${iso}`, tipo: 'subempreitada', titulo: p.titulo || p.subempreitadas?.descricao || 'Trabalho subcontratado', subtitulo: 'Para outro empreiteiro', hora: p.hora_inicio, cidade: p.subempreitadas?.cidade || null, link: `/admin/subempreitadas/${p.subempreitada_id}` });
+          }
+        }
+      }
+      for (const e of (eventosData as any) || []) {
+        adicionar(e.data, { id: `e-${e.id}`, tipo: 'evento', titulo: `${TIPOS_EVENTO_LABEL[e.tipo] || 'Evento'}: ${e.titulo}`, subtitulo: 'Lembrete', hora: e.hora, cidade: null, link: null });
+      }
+
+      const listaDias: { data: Date; itens: ItemDia[] }[] = [];
+      for (let d = new Date(hoje); d <= dataFinal; d.setDate(d.getDate() + 1)) {
+        const iso = paraISO(d);
+        listaDias.push({ data: new Date(d), itens: (porDia[iso] || []).sort((a, b) => (a.hora || '').localeCompare(b.hora || '')) });
+      }
+      setDias(listaDias);
+      setLoading(false);
+
+      const cidades = Array.from(new Set(listaDias.flatMap((dd) => dd.itens.filter((it) => it.cidade).map((it) => `${it.cidade}|${paraISO(dd.data)}`))));
+      Promise.all(cidades.map(async (chave) => {
+        const [cidade, iso] = chave.split('|');
+        return [chave, await previsaoParaCidade(cidade, iso)] as const;
+      })).then((resultados) => {
+        setPrevisoes(Object.fromEntries(resultados));
+      });
+    }
+    carregar();
+  }, []);
+
+  if (loading) return <div className="card p-5 mb-6 text-ink-300 text-sm">A carregar próximos dias...</div>;
+
+  const temAlgo = dias.some((d) => d.itens.length > 0);
+  if (!temAlgo) return null;
+
+  return (
+    <div className="card p-5 mb-6">
+      <span className="flex items-center gap-2 text-sm font-medium text-ink-700 mb-4">
+        <CalendarDays size={16} className="text-copper-500" /> Próximos Dias
+      </span>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {dias.map((d) => {
+          const isoData = paraISO(d.data);
+          const hoje = mesmoDiaLocal(d.data, new Date());
+          return (
+            <div key={isoData}>
+              <p className="text-xs font-medium text-ink-500 uppercase tracking-wide mb-2">
+                {hoje ? 'Hoje' : d.data.toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' })}
+              </p>
+              {d.itens.length === 0 ? (
+                <p className="text-xs text-ink-300">Sem nada marcado.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {d.itens.map((it) => {
+                    const previsao = it.cidade ? previsoes[`${it.cidade}|${isoData}`] : null;
+                    const horaAlvo = it.hora ? Number(it.hora.slice(0, 2)) : null;
+                    const horaPrev = previsao ? horaMaisProxima(previsao, horaAlvo) : null;
+                    const cor = it.tipo === 'evento' ? 'bg-teal-50 text-teal-700 border-teal-200' : it.tipo === 'subempreitada' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-red-50 text-red-700 border-red-200';
+                    const conteudo = (
+                      <div className={`text-xs p-2 rounded-lg border ${cor}`}>
+                        <div className="flex items-start justify-between gap-1.5">
+                          <span className="font-medium truncate">{it.hora ? `${it.hora.slice(0, 5)} ` : ''}{it.titulo}</span>
+                          {horaPrev && <span className="shrink-0">{iconeTempo(horaPrev.codigo)} {Math.round(horaPrev.temp)}°</span>}
+                        </div>
+                        <p className="opacity-80 truncate">{it.subtitulo}{it.cidade ? ` · ${it.cidade}` : ''}</p>
+                      </div>
+                    );
+                    return it.link ? <Link key={it.id} href={it.link} className="block hover:opacity-80">{conteudo}</Link> : <div key={it.id}>{conteudo}</div>;
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function mesmoDiaLocal(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
 
 type Obra = {
   id: string;
@@ -203,6 +339,8 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-4 md:p-8">
+      <WidgetProximosDias />
+
       {obrasEmRisco.length > 0 && (
         <div className="card p-4 mb-6 bg-red-50 border-red-200">
           <p className="text-sm font-medium text-red-800 flex items-center gap-2 mb-2">

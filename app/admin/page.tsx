@@ -99,7 +99,7 @@ export default function AdminDashboard() {
         supabase.from('subempreitadas').select('id, estado, tipo_valor, valor_unitario, subempreitada_entradas(quantidade)'),
         supabase.from('despesas').select('obra_id, valor, tipo_imputacao').not('obra_id', 'is', null),
         supabase.from('obra_trabalhadores').select('obra_id, tipo_valor, valor_unitario, obra_trabalhador_entradas(quantidade)').not('obra_id', 'is', null),
-        supabase.from('despesas').select('obra_id, subempreitada_id, valor, tipo_imputacao').eq('tipo_imputacao', 'custo'),
+        supabase.from('despesas').select('obra_id, subempreitada_id, valor, tipo_imputacao, estado_pagamento').eq('tipo_imputacao', 'custo'),
         supabase.from('obra_tarefas').select('id, titulo, obra_id, data_fim_prevista, estado, obras(titulo)').neq('estado', 'concluida'),
         supabase.from('despesas').select('valor').eq('estado_pagamento', 'pendente'),
       ]);
@@ -124,15 +124,13 @@ export default function AdminDashboard() {
       });
       setSegOrcamentos(segOrc);
 
-      // --- Despesas: por destino ---
+      // --- Despesas (custo): pagas vs por pagar ---
       const despesasList = despesasTodas || [];
-      const despObra = despesasList.filter((d: any) => d.obra_id);
-      const despSub = despesasList.filter((d: any) => d.subempreitada_id);
-      const despGeral = despesasList.filter((d: any) => !d.obra_id && !d.subempreitada_id);
+      const despPagas = despesasList.filter((d: any) => d.estado_pagamento === 'pago');
+      const despPorPagar = despesasList.filter((d: any) => d.estado_pagamento !== 'pago');
       setSegDespesas([
-        { label: 'Obras', cor: 'bg-blue-400', count: despObra.length, valor: despObra.reduce((s: number, d: any) => s + (d.valor || 0), 0) },
-        { label: 'Subempreitadas', cor: 'bg-purple-400', count: despSub.length, valor: despSub.reduce((s: number, d: any) => s + (d.valor || 0), 0) },
-        { label: 'Geral / Stock', cor: 'bg-sand-300', count: despGeral.length, valor: despGeral.reduce((s: number, d: any) => s + (d.valor || 0), 0) },
+        { label: 'Pagas', cor: 'bg-green-500', count: despPagas.length, valor: despPagas.reduce((s: number, d: any) => s + (d.valor || 0), 0) },
+        { label: 'Por Pagar', cor: 'bg-amber-400', count: despPorPagar.length, valor: despPorPagar.reduce((s: number, d: any) => s + (d.valor || 0), 0) },
       ]);
 
       // --- Obras: por fase ---

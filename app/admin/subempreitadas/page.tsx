@@ -60,7 +60,7 @@ export default function SubempreitadasPage() {
   async function removerRegisto(e: React.MouseEvent, registoId: string) {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm('Apagar este registo de subempreitada? Todos os dados associados (previsões, horas, trabalhadores, anexos, despesas) serão apagados também.')) return;
+    if (!confirm('Apagar este registo de prestação de serviços? Todos os dados associados (previsões, horas, trabalhadores, anexos, despesas) serão apagados também.')) return;
     const { error } = await supabase.from('subempreitadas').delete().eq('id', registoId);
     if (error) { alert('Erro: ' + error.message); return; }
     carregar();
@@ -110,7 +110,7 @@ export default function SubempreitadasPage() {
 
       {showForm && (
         <div className="card p-6 mb-6">
-          <h2 className="font-semibold mb-4 text-ink-700">Novo Trabalho (Subempreitada)</h2>
+          <h2 className="font-semibold mb-4 text-ink-700">Novo Trabalho (Prestação de Serviços)</h2>
           <form onSubmit={criar} className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="md:col-span-3 flex gap-2">
               <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} className="input flex-1">

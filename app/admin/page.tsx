@@ -397,7 +397,7 @@ export default function AdminDashboard() {
           <>
             <WidgetFunil titulo="Orçamentos" href="/admin/orcamentos" icone={FileText} segmentos={segOrcamentos} />
             <WidgetFunil titulo="Obras" href="/admin/obras" icone={Briefcase} segmentos={segObras} />
-            <WidgetFunil titulo="Subempreitadas" href="/admin/subempreitadas" icone={HardHat} segmentos={segSubs} />
+            <WidgetFunil titulo="Prestação de Serviços" href="/admin/subempreitadas" icone={HardHat} segmentos={segSubs} />
           </>
         )}
       </div>

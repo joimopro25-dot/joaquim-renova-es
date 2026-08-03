@@ -23,7 +23,7 @@ const MENU: MenuItem[] = [
   { path: '/admin/precario', icon: BookMarked, label: 'Preçário' },
   { path: '/admin/obras', icon: Briefcase, label: 'Obras' },
   { path: '/admin/trabalhadores', icon: UsersRound, label: 'Trabalhadores' },
-  { path: '/admin/subempreitadas', icon: HardHat, label: 'Subempreitadas' },
+  { path: '/admin/subempreitadas', icon: HardHat, label: 'Prestação de Serviços' },
   { path: '/admin/despesas', icon: Receipt, label: 'Despesas/Faturas' },
   { path: '/admin/fornecedores', icon: Truck, label: 'Fornecedores' },
   { path: '/admin/stock', icon: Package, label: 'Stock/Ferramentas' },

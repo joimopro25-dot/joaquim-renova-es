@@ -160,7 +160,7 @@ export default function ClienteDetalhe() {
       </div>
 
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-ink-700 mb-4 flex items-center gap-2"><HardHat size={16} /> Subempreitadas</h3>
+        <h3 className="font-semibold text-ink-700 mb-4 flex items-center gap-2"><HardHat size={16} /> Prestação de Serviços</h3>
         {subempreitadas.length === 0 ? (
           <p className="text-sm text-ink-400 text-center py-4">Sem subempreitadas associadas.</p>
         ) : (

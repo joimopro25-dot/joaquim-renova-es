@@ -211,7 +211,7 @@ export default function SubTrabalhadorDetalhe() {
   return (
     <div className="p-4 md:p-8 max-w-4xl">
       <button onClick={() => router.push(`/admin/subempreitadas/${id}`)} className="flex items-center gap-1.5 text-sm text-ink-400 hover:text-ink-700 mb-4">
-        <ArrowLeft size={16} /> Voltar à Subempreitada
+        <ArrowLeft size={16} /> Voltar à Prestação de Serviços
       </button>
 
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">

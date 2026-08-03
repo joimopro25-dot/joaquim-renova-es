@@ -460,7 +460,7 @@ export default function DespesasPage() {
                         </optgroup>
                       )}
                       {subs.length > 0 && (
-                        <optgroup label="Subempreitadas">
+                        <optgroup label="Prestação de Serviços">
                           {subs.map((s) => <option key={s.id} value={`sub:${s.id}`}>{s.descricao}</option>)}
                         </optgroup>
                       )}
@@ -487,7 +487,7 @@ export default function DespesasPage() {
                     </optgroup>
                   )}
                   {subs.length > 0 && (
-                    <optgroup label="Subempreitadas">
+                    <optgroup label="Prestação de Serviços">
                       {subs.map((s) => <option key={s.id} value={`sub:${s.id}`}>{s.descricao}</option>)}
                     </optgroup>
                   )}
@@ -544,7 +544,7 @@ export default function DespesasPage() {
             </>
           )}
           <select value={filtroDestino} onChange={(e) => setFiltroDestino(e.target.value)} className="input">
-            <option value="">Todas as Obras/Subempreitadas</option>
+            <option value="">Todas as Obras/Prestações de Serviços</option>
             <option value={OPCAO_GERAL}>Geral (sem obra)</option>
             {obras.length > 0 && (
               <optgroup label="Obras">
@@ -552,7 +552,7 @@ export default function DespesasPage() {
               </optgroup>
             )}
             {subs.length > 0 && (
-              <optgroup label="Subempreitadas">
+              <optgroup label="Prestação de Serviços">
                 {subs.map((s) => <option key={s.id} value={`sub:${s.id}`}>{s.descricao}</option>)}
               </optgroup>
             )}
@@ -580,7 +580,7 @@ export default function DespesasPage() {
               <tr>
                 <th className="p-4 font-medium">Data</th>
                 <th className="p-4 font-medium">Descrição</th>
-                <th className="p-4 font-medium">Obra/Subempreitada</th>
+                <th className="p-4 font-medium">Obra/Prestação de Serviços</th>
                 <th className="p-4 font-medium">Categoria</th>
                 <th className="p-4 font-medium">Fornecedor</th>
                 <th className="p-4 font-medium">Estado</th>

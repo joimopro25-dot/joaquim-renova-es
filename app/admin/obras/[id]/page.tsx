@@ -47,6 +47,7 @@ type Tarefa = {
   estado: string;
   data_fim_real: string | null;
   notas: string | null;
+  bloqueante: boolean;
 };
 
 function estaAtrasada(t: Tarefa): boolean {
@@ -118,6 +119,7 @@ export default function ObraDetalhePage() {
   const [tDataInicio, setTDataInicio] = useState(() => new Date().toISOString().slice(0, 10));
   const [tDataFim, setTDataFim] = useState(() => new Date().toISOString().slice(0, 10));
   const [tNotas, setTNotas] = useState('');
+  const [tBloqueante, setTBloqueante] = useState(true);
   const [aGuardarTarefa, setAGuardarTarefa] = useState(false);
 
   const carregar = useCallback(async () => {
@@ -247,6 +249,25 @@ export default function ObraDetalhePage() {
   async function adicionarTarefa(e: React.FormEvent) {
     e.preventDefault();
     setAGuardarTarefa(true);
+
+    if (tBloqueante) {
+      const { data: conflitos } = await supabase
+        .from('obra_tarefas')
+        .select('titulo, data_inicio, data_fim_prevista, obras(titulo)')
+        .neq('obra_id', id)
+        .eq('bloqueante', true)
+        .neq('estado', 'concluida')
+        .lte('data_inicio', tDataFim)
+        .gte('data_fim_prevista', tDataInicio);
+      if (conflitos && conflitos.length > 0) {
+        const lista = conflitos.map((c: any) => `"${c.titulo}" (${c.obras?.titulo || 'outra obra'})`).join(', ');
+        if (!confirm(`Atenção: já tens presença marcada nesse período noutra obra: ${lista}. Queres criar mesmo assim?`)) {
+          setAGuardarTarefa(false);
+          return;
+        }
+      }
+    }
+
     const { error } = await supabase.from('obra_tarefas').insert([{
       obra_id: id,
       titulo: tTitulo,
@@ -254,10 +275,11 @@ export default function ObraDetalhePage() {
       data_fim_prevista: tDataFim,
       notas: tNotas || null,
       ordem: tarefas.length,
+      bloqueante: tBloqueante,
     }]);
     setAGuardarTarefa(false);
     if (error) { alert('Erro: ' + error.message); return; }
-    setTTitulo(''); setTDataInicio(new Date().toISOString().slice(0, 10)); setTDataFim(new Date().toISOString().slice(0, 10)); setTNotas('');
+    setTTitulo(''); setTDataInicio(new Date().toISOString().slice(0, 10)); setTDataFim(new Date().toISOString().slice(0, 10)); setTNotas(''); setTBloqueante(true);
     setShowTarefaForm(false);
     carregar();
   }
@@ -267,6 +289,11 @@ export default function ObraDetalhePage() {
       estado: novoEstado,
       data_fim_real: novoEstado === 'concluida' ? new Date().toISOString().slice(0, 10) : null,
     }).eq('id', tarefaId);
+    carregar();
+  }
+
+  async function alternarBloqueante(tarefaId: string, atual: boolean) {
+    await supabase.from('obra_tarefas').update({ bloqueante: !atual }).eq('id', tarefaId);
     carregar();
   }
 
@@ -419,6 +446,10 @@ export default function ObraDetalhePage() {
               <input type="date" value={tDataFim} onChange={(e) => setTDataFim(e.target.value)} className="input w-full mt-1" required />
             </div>
             <input type="text" placeholder="Notas (opcional)" value={tNotas} onChange={(e) => setTNotas(e.target.value)} className="input md:col-span-3" />
+            <label className="flex items-center gap-2 text-xs text-ink-600 md:col-span-4">
+              <input type="checkbox" checked={tBloqueante} onChange={(e) => setTBloqueante(e.target.checked)} />
+              Presença necessária (bloqueia o calendário — desmarca se for só tempo de espera/secagem)
+            </label>
             <button disabled={aGuardarTarefa} className="btn-primary justify-center disabled:opacity-60">
               {aGuardarTarefa ? 'A guardar...' : 'Guardar'}
             </button>
@@ -442,6 +473,15 @@ export default function ObraDetalhePage() {
                     <span className="font-medium text-ink-800">{t.titulo}</span>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-xs text-ink-400">{new Date(t.data_inicio).toLocaleDateString('pt-PT')} – {new Date(t.data_fim_prevista).toLocaleDateString('pt-PT')}</span>
+                      {t.estado !== 'concluida' && (
+                        <button
+                          onClick={() => alternarBloqueante(t.id, t.bloqueante)}
+                          className={`badge ${t.bloqueante ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}
+                          title="Clicar para alternar"
+                        >
+                          {t.bloqueante ? 'Presença necessária' : 'À espera'}
+                        </button>
+                      )}
                       <span className={`badge ${atrasada ? 'bg-red-100 text-red-700' : t.estado === 'concluida' ? 'bg-green-100 text-green-700' : t.estado === 'em_curso' ? 'bg-blue-100 text-blue-700' : 'bg-sand-100 text-ink-600'}`}>
                         {atrasada ? 'Atrasada' : info.label}
                       </span>

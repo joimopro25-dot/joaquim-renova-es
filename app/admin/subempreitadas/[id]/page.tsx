@@ -21,6 +21,8 @@ type Previsao = {
   titulo: string | null;
   data_inicio: string;
   data_fim_prevista: string;
+  hora_inicio: string | null;
+  hora_fim: string | null;
   notas: string | null;
 };
 
@@ -115,6 +117,8 @@ export default function SubempreitadaDetalhe() {
   const [pTitulo, setPTitulo] = useState('');
   const [pDataInicio, setPDataInicio] = useState(() => new Date().toISOString().slice(0, 10));
   const [pDataFim, setPDataFim] = useState(() => new Date().toISOString().slice(0, 10));
+  const [pHoraInicio, setPHoraInicio] = useState('');
+  const [pHoraFim, setPHoraFim] = useState('');
   const [pNotas, setPNotas] = useState('');
   const [aGuardarPrevisao, setAGuardarPrevisao] = useState(false);
 
@@ -243,11 +247,13 @@ export default function SubempreitadaDetalhe() {
       titulo: pTitulo || null,
       data_inicio: pDataInicio,
       data_fim_prevista: pDataFim,
+      hora_inicio: pHoraInicio || null,
+      hora_fim: pHoraFim || null,
       notas: pNotas || null,
     }]);
     setAGuardarPrevisao(false);
     if (error) { alert('Erro: ' + error.message); return; }
-    setPTitulo(''); setPDataInicio(new Date().toISOString().slice(0, 10)); setPDataFim(new Date().toISOString().slice(0, 10)); setPNotas('');
+    setPTitulo(''); setPDataInicio(new Date().toISOString().slice(0, 10)); setPDataFim(new Date().toISOString().slice(0, 10)); setPHoraInicio(''); setPHoraFim(''); setPNotas('');
     setShowPrevisaoForm(false);
     carregar();
   }
@@ -449,7 +455,15 @@ export default function SubempreitadaDetalhe() {
               <label className="text-xs text-ink-400">Fim previsto</label>
               <input type="date" value={pDataFim} onChange={(e) => setPDataFim(e.target.value)} className="input w-full mt-1" required />
             </div>
-            <input type="text" placeholder="Notas (opcional)" value={pNotas} onChange={(e) => setPNotas(e.target.value)} className="input md:col-span-3" />
+            <div>
+              <label className="text-xs text-ink-400">Hora início (opcional)</label>
+              <input type="time" value={pHoraInicio} onChange={(e) => setPHoraInicio(e.target.value)} className="input w-full mt-1" />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Hora fim (opcional)</label>
+              <input type="time" value={pHoraFim} onChange={(e) => setPHoraFim(e.target.value)} className="input w-full mt-1" />
+            </div>
+            <input type="text" placeholder="Notas (opcional)" value={pNotas} onChange={(e) => setPNotas(e.target.value)} className="input md:col-span-2" />
             <button disabled={aGuardarPrevisao} className="btn-primary justify-center disabled:opacity-60">
               {aGuardarPrevisao ? 'A guardar...' : 'Guardar'}
             </button>
@@ -466,6 +480,7 @@ export default function SubempreitadaDetalhe() {
                   <span className="font-medium text-ink-800">{p.titulo || sub.descricao}</span>
                   <span className="text-ink-400 ml-2">
                     {new Date(p.data_inicio).toLocaleDateString('pt-PT')}{p.data_inicio !== p.data_fim_prevista ? ` – ${new Date(p.data_fim_prevista).toLocaleDateString('pt-PT')}` : ''}
+                    {(p.hora_inicio || p.hora_fim) && ` · ${p.hora_inicio?.slice(0, 5) || '?'}–${p.hora_fim?.slice(0, 5) || '?'}`}
                   </span>
                   {p.notas && <p className="text-xs text-ink-400 mt-0.5">{p.notas}</p>}
                 </div>

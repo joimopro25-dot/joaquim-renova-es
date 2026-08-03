@@ -12,6 +12,8 @@ type ItemCalendario = {
   subtitulo: string;
   data_inicio: string;
   data_fim_prevista: string;
+  hora_inicio: string | null;
+  hora_fim: string | null;
   concluida: boolean;
   bloqueante: boolean;
   link: string;
@@ -58,7 +60,7 @@ export default function CalendarioPage() {
     setLoading(true);
     const [{ data: tarefasData }, { data: previsoesData }] = await Promise.all([
       supabase.from('obra_tarefas').select('id, titulo, data_inicio, data_fim_prevista, estado, bloqueante, obra_id, obras(titulo)').order('data_inicio'),
-      supabase.from('subempreitada_previsoes').select('id, titulo, data_inicio, data_fim_prevista, notas, subempreitada_id, subempreitadas(descricao, clientes(nome))').order('data_inicio'),
+      supabase.from('subempreitada_previsoes').select('id, titulo, data_inicio, data_fim_prevista, hora_inicio, hora_fim, notas, subempreitada_id, subempreitadas(descricao, clientes(nome))').order('data_inicio'),
     ]);
 
     const dasObras: ItemCalendario[] = ((tarefasData as any) || []).map((t: any) => ({
@@ -68,6 +70,8 @@ export default function CalendarioPage() {
       subtitulo: t.obras?.titulo || '—',
       data_inicio: t.data_inicio,
       data_fim_prevista: t.data_fim_prevista,
+      hora_inicio: null,
+      hora_fim: null,
       concluida: t.estado === 'concluida',
       bloqueante: t.bloqueante,
       link: `/admin/obras/${t.obra_id}`,
@@ -80,6 +84,8 @@ export default function CalendarioPage() {
       subtitulo: p.subempreitadas?.clientes?.nome ? `Para: ${p.subempreitadas.clientes.nome}` : (p.notas || ''),
       data_inicio: p.data_inicio,
       data_fim_prevista: p.data_fim_prevista,
+      hora_inicio: p.hora_inicio,
+      hora_fim: p.hora_fim,
       concluida: false,
       bloqueante: true,
       link: `/admin/subempreitadas/${p.subempreitada_id}`,
@@ -187,6 +193,7 @@ export default function CalendarioPage() {
                       {t.tipo === 'subempreitada' ? 'Trabalho para outro empreiteiro' : t.bloqueante ? 'Presença necessária' : 'À espera'}
                       {' · '}
                       {new Date(t.data_inicio).toLocaleDateString('pt-PT')}{t.data_inicio !== t.data_fim_prevista ? ` – ${new Date(t.data_fim_prevista).toLocaleDateString('pt-PT')}` : ''}
+                      {(t.hora_inicio || t.hora_fim) && ` · ${t.hora_inicio?.slice(0, 5) || '?'}–${t.hora_fim?.slice(0, 5) || '?'}`}
                     </p>
                   </Link>
                 ))}

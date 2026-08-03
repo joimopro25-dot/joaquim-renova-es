@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
 import { Plus, Receipt, Paperclip, Trash2, Camera, Rows3, X, Copy, Pencil, ChevronRight, Filter, CheckCircle2, Clock } from 'lucide-react';
@@ -46,6 +47,7 @@ const CATEGORIAS = [
   { value: 'subcontratacao', label: 'Subcontratação' },
   { value: 'transporte', label: 'Transporte' },
   { value: 'ordenado', label: 'Ordenado/Pagamento' },
+  { value: 'extra', label: 'Extra (não orçamentado)' },
   { value: 'outro', label: 'Outro' },
 ];
 
@@ -96,6 +98,7 @@ function labelMes(chave: string): string {
 }
 
 export default function DespesasPage() {
+  const searchParams = useSearchParams();
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [obras, setObras] = useState<Obra[]>([]);
   const [subs, setSubs] = useState<Subempreitada[]>([]);
@@ -164,6 +167,16 @@ export default function DespesasPage() {
     setFornecedores(fornecedoresData || []);
     setLoading(false);
   }
+
+  useEffect(() => {
+    const obraId = searchParams.get('obra');
+    if (obraId && searchParams.get('extra')) {
+      setDestino(`obra:${obraId}`);
+      setCategoria('extra');
+      setShowForm(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => { carregar(); }, [filtroDestino, filtroCategoria, filtroTipo, filtroPagamento, filtroPeriodo, filtroInicio, filtroFim]);
 

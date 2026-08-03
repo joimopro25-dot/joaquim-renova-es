@@ -324,6 +324,12 @@ export default function ObraDetalhePage() {
         </div>
       )}
 
+      <div className="flex justify-end mb-3">
+        <Link href={`/admin/despesas?obra=${id}&extra=1`} className="btn-primary bg-amber-600 hover:bg-amber-700 text-sm py-1.5">
+          <Plus size={15} /> Registar Extra Não Orçamentado
+        </Link>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="card p-5">
           <p className="text-ink-400 text-sm mb-1">Orçamentado</p>

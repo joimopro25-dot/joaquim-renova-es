@@ -248,6 +248,7 @@ export default function ObraDetalhePage() {
 
   async function adicionarTarefa(e: React.FormEvent) {
     e.preventDefault();
+    if (tDataFim < tDataInicio) { alert('A data de fim previsto não pode ser antes da data de início.'); return; }
     setAGuardarTarefa(true);
 
     if (tBloqueante) {

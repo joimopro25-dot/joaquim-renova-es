@@ -217,6 +217,7 @@ export default function SubempreitadaDetalhe() {
 
   async function adicionarPrevisao(e: React.FormEvent) {
     e.preventDefault();
+    if (pDataFim < pDataInicio) { alert('A data de fim não pode ser antes da data de início.'); return; }
     setAGuardarPrevisao(true);
 
     const { data: conflitos } = await supabase

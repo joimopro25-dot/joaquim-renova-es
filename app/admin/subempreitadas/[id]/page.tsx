@@ -6,6 +6,7 @@ import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import Link from 'next/link';
 import { ArrowLeft, Plus, Trash2, CheckCircle2, RotateCcw, Printer, Paperclip, Upload, UserPlus, HardHat, Pencil, ShieldCheck, CalendarDays } from 'lucide-react';
+import { previsaoParaCidade, resumoDia, type PrevisaoDia } from '../../../../lib/weather';
 
 type Entrada = {
   id: string;
@@ -123,6 +124,7 @@ export default function SubempreitadaDetalhe() {
   const [pNotas, setPNotas] = useState('');
   const [aGuardarPrevisao, setAGuardarPrevisao] = useState(false);
   const [previsaoEditandoId, setPrevisaoEditandoId] = useState<string | null>(null);
+  const [tempoPorData, setTempoPorData] = useState<Record<string, PrevisaoDia | null>>({});
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -199,6 +201,21 @@ export default function SubempreitadaDetalhe() {
   }
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  useEffect(() => {
+    if (!sub?.cidade || previsoes.length === 0) return;
+    const datas = Array.from(new Set(previsoes.map((p) => p.data_inicio)));
+    const emFalta = datas.filter((d) => !(d in tempoPorData));
+    if (emFalta.length === 0) return;
+    Promise.all(emFalta.map(async (d) => [d, await previsaoParaCidade(sub.cidade as string, d)] as const)).then((resultados) => {
+      setTempoPorData((prev) => {
+        const next = { ...prev };
+        for (const [d, p] of resultados) next[d] = p;
+        return next;
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sub?.cidade, previsoes]);
 
   async function adicionarEntrada(e: React.FormEvent) {
     e.preventDefault();
@@ -509,7 +526,10 @@ export default function SubempreitadaDetalhe() {
           <p className="text-sm text-ink-400 text-center py-4">Ainda sem dias marcados.</p>
         ) : (
           <div className="space-y-2">
-            {previsoes.map((p) => (
+            {previsoes.map((p) => {
+              const tempo = tempoPorData[p.data_inicio];
+              const horaAlvo = p.hora_inicio ? Number(p.hora_inicio.slice(0, 2)) : null;
+              return (
               <div key={p.id} className="flex items-center justify-between gap-2 p-3 border border-sand-200 rounded-lg text-sm">
                 <div>
                   <span className="font-medium text-ink-800">{p.titulo || sub.descricao}</span>
@@ -518,13 +538,19 @@ export default function SubempreitadaDetalhe() {
                     {(p.hora_inicio || p.hora_fim) && ` · ${p.hora_inicio?.slice(0, 5) || '?'}–${p.hora_fim?.slice(0, 5) || '?'}`}
                   </span>
                   {p.notas && <p className="text-xs text-ink-400 mt-0.5">{p.notas}</p>}
+                  {sub.cidade && (
+                    <p className="text-xs text-ink-500 mt-0.5">
+                      {tempo ? resumoDia(tempo, horaAlvo) : 'A obter previsão do tempo...'}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button onClick={() => abrirEditarPrevisao(p)} className="text-ink-300 hover:text-brand-600"><Pencil size={14} /></button>
                   <button onClick={() => removerPrevisao(p.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={15} /></button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

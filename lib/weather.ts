@@ -70,3 +70,22 @@ export function horaMaisProxima(previsao: PrevisaoDia, horaAlvo: number | null):
   if (horaAlvo === null) return previsao.horas[Math.min(12, previsao.horas.length - 1)];
   return previsao.horas.reduce((melhor, h) => (Math.abs(h.hora - horaAlvo) < Math.abs(melhor.hora - horaAlvo) ? h : melhor), previsao.horas[0]);
 }
+
+export function descricaoTempo(codigo: number): string {
+  if (codigo === 0) return 'Céu limpo';
+  if ([1, 2].includes(codigo)) return 'Poucas nuvens';
+  if (codigo === 3) return 'Nublado';
+  if ([45, 48].includes(codigo)) return 'Nevoeiro';
+  if ([51, 53, 55, 56, 57].includes(codigo)) return 'Chuvisco';
+  if ([61, 63, 65, 80, 81, 82, 66, 67].includes(codigo)) return 'Chuva';
+  if ([71, 73, 75, 77, 85, 86].includes(codigo)) return 'Neve';
+  if ([95, 96, 99].includes(codigo)) return 'Trovoada';
+  return 'Tempo variável';
+}
+
+export function resumoDia(previsao: PrevisaoDia, horaAlvo: number | null = null): string {
+  const hora = horaMaisProxima(previsao, horaAlvo);
+  const codigo = hora ? hora.codigo : 0;
+  const quente = previsao.tempMax >= 27 ? ' · calor' : previsao.tempMax <= 8 ? ' · frio' : '';
+  return `${iconeTempo(codigo)} ${descricaoTempo(codigo)}, ${Math.round(previsao.tempMin)}°–${Math.round(previsao.tempMax)}°C${quente}`;
+}

@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
+import { calcularTotaisSeguro } from '../../../../lib/orcamento';
 import { ArrowLeft, Check, X } from 'lucide-react';
 
 type Foto = { id: string; url: string; legenda: string | null };
@@ -14,7 +15,8 @@ type Linha = {
   capitulo: string;
   unidade: string;
   quantidade: number;
-  preco_unitario: number;
+  tipo_linha: string;
+  preco_unitario_final: number;
   preco_total: number;
 };
 
@@ -23,9 +25,10 @@ type Orcamento = {
   titulo: string;
   descricao: string | null;
   status: string;
-  taxa_horaria: number;
   margem_percentagem: number;
-  iva_percentagem: number;
+  iva_material_percentagem: number;
+  iva_mao_obra_percentagem: number;
+  iva_subcontratado_percentagem: number;
 };
 
 const ESTADOS: Record<string, { label: string; color: string }> = {
@@ -34,6 +37,12 @@ const ESTADOS: Record<string, { label: string; color: string }> = {
   rejeitado: { label: 'Rejeitado', color: 'bg-red-100 text-red-700' },
   convertido: { label: 'Convertido em Obra', color: 'bg-purple-100 text-purple-700' },
 };
+
+const SECCOES: { tipo: string; label: string }[] = [
+  { tipo: 'material', label: 'Material' },
+  { tipo: 'mao_obra', label: 'Mão de Obra' },
+  { tipo: 'subcontratada', label: 'Especialidades Subcontratadas' },
+];
 
 export default function PortalOrcamentoDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -46,7 +55,7 @@ export default function PortalOrcamentoDetalhe() {
 
   async function carregar() {
     const [{ data: orc }, { data: linhasData }, { data: fotosData }] = await Promise.all([
-      supabase.from('orcamentos').select('*').eq('id', id).single(),
+      supabase.from('orcamentos').select('id, titulo, descricao, status, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem').eq('id', id).single(),
       supabase.from('orcamento_linhas_cliente').select('*').eq('orcamento_id', id).order('criado_em'),
       supabase.from('orcamento_fotos').select('id, url, legenda').eq('orcamento_id', id).order('criado_em', { ascending: false }),
     ]);
@@ -66,20 +75,16 @@ export default function PortalOrcamentoDetalhe() {
     carregar();
   }
 
-  const linhasPorCapitulo = useMemo(() => {
+  const linhasPorSeccao = useMemo(() => {
     const grupos: Record<string, Linha[]> = {};
-    for (const l of linhas) (grupos[l.capitulo] ||= []).push(l);
+    for (const l of linhas) (grupos[l.tipo_linha] ||= []).push(l);
     return grupos;
   }, [linhas]);
 
   if (loading) return <div className="p-8 text-center text-ink-300 text-sm">A carregar...</div>;
   if (!orcamento) return <div className="p-8 text-center text-ink-400 text-sm">Não foi possível encontrar este orçamento, ou não tem acesso a ele.</div>;
 
-  const subtotal = linhas.reduce((s, l) => s + l.preco_total, 0);
-  const imprevistos = subtotal * ((orcamento.margem_percentagem || 0) / 100);
-  const semIva = subtotal + imprevistos;
-  const iva = semIva * ((orcamento.iva_percentagem || 0) / 100);
-  const totais = { subtotal, imprevistos, semIva, iva, total: semIva + iva };
+  const totais = calcularTotaisSeguro(linhas, orcamento);
   const info = ESTADOS[orcamento.status] || ESTADOS.enviado;
 
   return (
@@ -111,11 +116,13 @@ export default function PortalOrcamentoDetalhe() {
       )}
 
       <div className="card p-6 mb-6 space-y-6">
-        {Object.entries(linhasPorCapitulo).map(([cap, itens]) => {
-          const subtotalCap = itens.reduce((s, l) => s + l.preco_total, 0);
+        {SECCOES.map(({ tipo, label }) => {
+          const itens = linhasPorSeccao[tipo] || [];
+          if (itens.length === 0) return null;
+          const subtotalSec = itens.reduce((s, l) => s + l.preco_total, 0);
           return (
-            <div key={cap} className="overflow-x-auto">
-              <div className="bg-ink-800 text-copper-200 text-sm font-semibold px-3 py-1.5 rounded-t-lg">{cap}</div>
+            <div key={tipo} className="overflow-x-auto">
+              <div className="bg-ink-800 text-copper-200 text-sm font-semibold px-3 py-1.5 rounded-t-lg">{label}</div>
               <table className="w-full text-left text-sm border border-t-0 border-sand-200 rounded-b-lg overflow-hidden">
                 <thead className="text-ink-400 text-xs uppercase bg-sand-50">
                   <tr>
@@ -132,13 +139,13 @@ export default function PortalOrcamentoDetalhe() {
                       <td className="p-2 text-ink-800">{l.descricao}</td>
                       <td className="p-2 text-right text-ink-500">{l.unidade}</td>
                       <td className="p-2 text-right text-ink-500">{l.quantidade}</td>
-                      <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario)}</td>
+                      <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario_final)}</td>
                       <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(l.preco_total)}</td>
                     </tr>
                   ))}
                   <tr className="bg-sand-50 font-medium">
-                    <td colSpan={4} className="p-2 text-right text-ink-600">Subtotal {cap}</td>
-                    <td className="p-2 text-right text-ink-800">{formatMoney(subtotalCap)}</td>
+                    <td colSpan={4} className="p-2 text-right text-ink-600">Subtotal {label}</td>
+                    <td className="p-2 text-right text-ink-800">{formatMoney(subtotalSec)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -165,8 +172,7 @@ export default function PortalOrcamentoDetalhe() {
         <div className="space-y-2 text-sm max-w-sm ml-auto">
           <div className="flex justify-between"><span className="text-ink-500">Total dos Trabalhos</span><span className="text-ink-800">{formatMoney(totais.subtotal)}</span></div>
           <div className="flex justify-between"><span className="text-ink-500">Imprevistos ({orcamento.margem_percentagem}%)</span><span className="text-ink-800">{formatMoney(totais.imprevistos)}</span></div>
-          <div className="flex justify-between"><span className="text-ink-500">Total sem IVA</span><span className="text-ink-800">{formatMoney(totais.semIva)}</span></div>
-          <div className="flex justify-between"><span className="text-ink-500">IVA ({orcamento.iva_percentagem}%)</span><span className="text-ink-800">{formatMoney(totais.iva)}</span></div>
+          <div className="flex justify-between"><span className="text-ink-500">IVA</span><span className="text-ink-800">{formatMoney(totais.iva)}</span></div>
           <div className="flex justify-between pt-2 border-t border-sand-100 font-semibold text-base">
             <span className="text-ink-800">Total com IVA</span>
             <span className="text-brand-600">{formatMoney(totais.total)}</span>

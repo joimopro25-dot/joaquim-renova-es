@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '../../../../../lib/supabase';
 import { formatMoney } from '../../../../../lib/format';
+import { calcularTotaisSeguro } from '../../../../../lib/orcamento';
 import { Printer } from 'lucide-react';
 
 type Linha = {
@@ -12,7 +13,8 @@ type Linha = {
   capitulo: string;
   unidade: string;
   quantidade: number;
-  preco_unitario: number;
+  tipo_linha: string;
+  preco_unitario_final: number;
   preco_total: number;
 };
 
@@ -21,12 +23,19 @@ type Foto = { id: string; url: string; legenda: string | null };
 type Orcamento = {
   titulo: string;
   descricao: string | null;
-  taxa_horaria: number;
   margem_percentagem: number;
-  iva_percentagem: number;
+  iva_material_percentagem: number;
+  iva_mao_obra_percentagem: number;
+  iva_subcontratado_percentagem: number;
   criado_em: string;
   clientes: { nome: string; nif: string | null; morada: string | null } | null;
 };
+
+const SECCOES: { tipo: string; label: string }[] = [
+  { tipo: 'material', label: 'Material' },
+  { tipo: 'mao_obra', label: 'Mão de Obra' },
+  { tipo: 'subcontratada', label: 'Especialidades Subcontratadas' },
+];
 
 export default function RelatorioOrcamento() {
   const { id } = useParams<{ id: string }>();
@@ -38,7 +47,7 @@ export default function RelatorioOrcamento() {
   useEffect(() => {
     async function carregar() {
       const [{ data: orc }, { data: linhasData }, { data: fotosData }] = await Promise.all([
-        supabase.from('orcamentos').select('*, clientes(nome, nif, morada)').eq('id', id).single(),
+        supabase.from('orcamentos').select('titulo, descricao, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem, criado_em, clientes(nome, nif, morada)').eq('id', id).single(),
         supabase.from('orcamento_linhas_cliente').select('*').eq('orcamento_id', id).order('criado_em'),
         supabase.from('orcamento_fotos').select('id, url, legenda').eq('orcamento_id', id).order('criado_em', { ascending: false }),
       ]);
@@ -50,20 +59,16 @@ export default function RelatorioOrcamento() {
     carregar();
   }, [id]);
 
-  const linhasPorCapitulo = useMemo(() => {
+  const linhasPorSeccao = useMemo(() => {
     const grupos: Record<string, Linha[]> = {};
-    for (const l of linhas) (grupos[l.capitulo] ||= []).push(l);
+    for (const l of linhas) (grupos[l.tipo_linha] ||= []).push(l);
     return grupos;
   }, [linhas]);
 
   if (loading) return <div className="p-8 text-center text-ink-300 text-sm">A carregar...</div>;
   if (!orcamento) return <div className="p-8 text-center text-ink-400 text-sm">Orçamento não encontrado.</div>;
 
-  const subtotal = linhas.reduce((s, l) => s + l.preco_total, 0);
-  const imprevistos = subtotal * ((orcamento.margem_percentagem || 0) / 100);
-  const semIva = subtotal + imprevistos;
-  const iva = semIva * ((orcamento.iva_percentagem || 0) / 100);
-  const totais = { subtotal, imprevistos, semIva, iva, total: semIva + iva };
+  const totais = calcularTotaisSeguro(linhas, orcamento);
 
   return (
     <div className="max-w-3xl mx-auto p-8 print:p-0 bg-white">
@@ -93,11 +98,13 @@ export default function RelatorioOrcamento() {
       {orcamento.descricao && <p className="text-sm text-ink-500 mb-4">{orcamento.descricao}</p>}
 
       <div className="space-y-6 mb-6">
-        {Object.entries(linhasPorCapitulo).map(([cap, itens]) => {
-          const subtotalCap = itens.reduce((s, l) => s + l.preco_total, 0);
+        {SECCOES.map(({ tipo, label }) => {
+          const itens = linhasPorSeccao[tipo] || [];
+          if (itens.length === 0) return null;
+          const subtotalSec = itens.reduce((s, l) => s + l.preco_total, 0);
           return (
-            <div key={cap}>
-              <div className="bg-ink-800 text-white text-sm font-semibold px-3 py-1.5 rounded-t-lg">{cap}</div>
+            <div key={tipo}>
+              <div className="bg-ink-800 text-white text-sm font-semibold px-3 py-1.5 rounded-t-lg">{label}</div>
               <table className="w-full text-left text-sm border border-t-0 border-sand-200 rounded-b-lg overflow-hidden">
                 <thead className="bg-sand-50 text-ink-500">
                   <tr>
@@ -114,13 +121,13 @@ export default function RelatorioOrcamento() {
                       <td className="p-2">{l.descricao}</td>
                       <td className="p-2 text-right text-ink-500">{l.unidade}</td>
                       <td className="p-2 text-right text-ink-500">{l.quantidade}</td>
-                      <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario)}</td>
+                      <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario_final)}</td>
                       <td className="p-2 text-right font-medium">{formatMoney(l.preco_total)}</td>
                     </tr>
                   ))}
                   <tr className="bg-sand-50 font-medium">
-                    <td colSpan={4} className="p-2 text-right text-ink-600">Subtotal {cap}</td>
-                    <td className="p-2 text-right">{formatMoney(subtotalCap)}</td>
+                    <td colSpan={4} className="p-2 text-right text-ink-600">Subtotal {label}</td>
+                    <td className="p-2 text-right">{formatMoney(subtotalSec)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -133,8 +140,7 @@ export default function RelatorioOrcamento() {
         <div className="w-64 text-sm space-y-1">
           <div className="flex justify-between"><span className="text-ink-500">Total dos Trabalhos</span><span>{formatMoney(totais.subtotal)}</span></div>
           <div className="flex justify-between"><span className="text-ink-500">Imprevistos ({orcamento.margem_percentagem}%)</span><span>{formatMoney(totais.imprevistos)}</span></div>
-          <div className="flex justify-between"><span className="text-ink-500">Total sem IVA</span><span>{formatMoney(totais.semIva)}</span></div>
-          <div className="flex justify-between"><span className="text-ink-500">IVA ({orcamento.iva_percentagem}%)</span><span>{formatMoney(totais.iva)}</span></div>
+          <div className="flex justify-between"><span className="text-ink-500">IVA</span><span>{formatMoney(totais.iva)}</span></div>
           <div className="flex justify-between font-semibold text-base pt-1 border-t border-ink-800">
             <span>Total com IVA</span>
             <span>{formatMoney(totais.total)}</span>

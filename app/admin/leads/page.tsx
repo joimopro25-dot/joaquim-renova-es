@@ -85,8 +85,8 @@ export default function LeadsPage() {
           descricao: intervencao,
           unidade: 'un',
           quantidade: z.area ? parseFloat(z.area) : 1,
-          rendimento_horas: 0,
-          custo_material: 0,
+          tipo_linha: 'mao_obra',
+          preco_unitario: 0,
         }]);
       }
     }

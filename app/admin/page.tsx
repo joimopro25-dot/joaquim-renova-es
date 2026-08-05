@@ -231,7 +231,7 @@ export default function AdminDashboard() {
         supabase.from('clientes').select('*', { count: 'exact', head: true }),
         supabase.from('leads').select('*', { count: 'exact', head: true }),
         supabase.from('obras').select('id, titulo, status, valor_total, clientes(nome)').order('criado_em', { ascending: false }),
-        supabase.from('orcamentos').select('id, status, taxa_horaria, margem_percentagem, iva_percentagem, orcamento_linhas(quantidade, rendimento_horas, custo_material)'),
+        supabase.from('orcamentos').select('id, status, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem, orcamento_linhas(quantidade, tipo_linha, preco_unitario, desconto1_percentagem, desconto2_percentagem, valor_subcontratado, margem_subcontratacao_percentagem)'),
         supabase.from('subempreitadas').select('id, estado, tipo_valor, valor_unitario, subempreitada_entradas(quantidade)'),
         supabase.from('despesas').select('obra_id, valor, tipo_imputacao').not('obra_id', 'is', null),
         supabase.from('obra_trabalhadores').select('obra_id, tipo_valor, valor_unitario, obra_trabalhador_entradas(quantidade)').not('obra_id', 'is', null),

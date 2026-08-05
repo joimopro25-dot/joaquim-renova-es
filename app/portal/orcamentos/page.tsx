@@ -3,17 +3,17 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
-import { calcularTotais } from '../../../lib/orcamento';
+import { calcularTotaisSeguro, type LinhaSegura } from '../../../lib/orcamento';
 import { FileText, ArrowRight } from 'lucide-react';
 
 type Orcamento = {
   id: string;
   titulo: string;
   status: string;
-  taxa_horaria: number;
   margem_percentagem: number;
-  iva_percentagem: number;
-  orcamento_linhas: { quantidade: number; rendimento_horas: number; custo_material: number }[];
+  iva_material_percentagem: number;
+  iva_mao_obra_percentagem: number;
+  iva_subcontratado_percentagem: number;
 };
 
 const ESTADOS: Record<string, { label: string; color: string }> = {
@@ -25,6 +25,7 @@ const ESTADOS: Record<string, { label: string; color: string }> = {
 
 export default function PortalOrcamentosPage() {
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
+  const [linhasPorOrcamento, setLinhasPorOrcamento] = useState<Record<string, LinhaSegura[]>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,10 +37,21 @@ export default function PortalOrcamentosPage() {
 
       const { data } = await supabase
         .from('orcamentos')
-        .select('*, orcamento_linhas(quantidade, rendimento_horas, custo_material)')
+        .select('id, titulo, status, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem')
         .eq('cliente_id', perfil.cliente_id)
         .order('criado_em', { ascending: false });
-      setOrcamentos((data as any) || []);
+      const lista = (data as any) || [];
+      setOrcamentos(lista);
+
+      if (lista.length > 0) {
+        const { data: linhasData } = await supabase
+          .from('orcamento_linhas_cliente')
+          .select('orcamento_id, tipo_linha, preco_total')
+          .in('orcamento_id', lista.map((o: Orcamento) => o.id));
+        const agrupado: Record<string, LinhaSegura[]> = {};
+        for (const l of (linhasData as any) || []) (agrupado[l.orcamento_id] ||= []).push(l);
+        setLinhasPorOrcamento(agrupado);
+      }
       setLoading(false);
     }
     carregar();
@@ -58,7 +70,7 @@ export default function PortalOrcamentosPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {orcamentos.map((o) => {
             const info = ESTADOS[o.status] || ESTADOS.enviado;
-            const totais = calcularTotais(o.orcamento_linhas, o);
+            const totais = calcularTotaisSeguro(linhasPorOrcamento[o.id] || [], o);
             return (
               <Link key={o.id} href={`/portal/orcamentos/${o.id}`} className="card p-6 hover:border-brand-200 transition-colors block">
                 <div className="flex items-start justify-between mb-3">

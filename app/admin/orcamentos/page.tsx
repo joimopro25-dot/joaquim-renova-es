@@ -14,10 +14,11 @@ type Orcamento = {
   titulo: string;
   status: string;
   clientes: { nome: string } | null;
-  orcamento_linhas: { quantidade: number; rendimento_horas: number; custo_material: number }[];
-  taxa_horaria: number;
+  orcamento_linhas: { quantidade: number; tipo_linha: string; preco_unitario: number; desconto1_percentagem: number; desconto2_percentagem: number; valor_subcontratado: number; margem_subcontratacao_percentagem: number }[];
   margem_percentagem: number;
-  iva_percentagem: number;
+  iva_material_percentagem: number;
+  iva_mao_obra_percentagem: number;
+  iva_subcontratado_percentagem: number;
 };
 
 const ESTADOS: Record<string, { label: string; color: string }> = {
@@ -43,7 +44,7 @@ export default function OrcamentosPage() {
     const [{ data: orcData }, { data: clientesData }] = await Promise.all([
       supabase
         .from('orcamentos')
-        .select('*, clientes(nome), orcamento_linhas(quantidade, rendimento_horas, custo_material)')
+        .select('*, clientes(nome), orcamento_linhas(quantidade, tipo_linha, preco_unitario, desconto1_percentagem, desconto2_percentagem, valor_subcontratado, margem_subcontratacao_percentagem)')
         .order('criado_em', { ascending: false }),
       supabase.from('clientes').select('id, nome').order('nome'),
     ]);

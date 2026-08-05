@@ -117,8 +117,8 @@ export default function ImportarOrcamento({ clientes, onSaved, onClose, orcament
           descricao: l.descricao,
           unidade: l.unidade || 'un',
           quantidade: l.quantidade || 1,
-          rendimento_horas: 0,
-          custo_material: l.custo_material || 0,
+          tipo_linha: 'material',
+          preco_unitario: l.custo_material || 0,
         }))
       );
       if (linhasError) { setErro((orcamentoExistenteId ? '' : 'Orçamento criado, mas ') + 'falhou ao adicionar linhas: ' + linhasError.message); setSaving(false); return; }

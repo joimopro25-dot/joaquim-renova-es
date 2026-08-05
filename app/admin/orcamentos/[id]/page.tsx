@@ -607,13 +607,31 @@ export default function OrcamentoDetalhePage() {
         )}
         {editavel && (
           <form onSubmit={(e) => adicionarLinhaSimples('material', e)} className="grid grid-cols-1 md:grid-cols-6 gap-2 pt-2 border-t border-sand-100">
-            <input type="text" placeholder="Descrição" value={formMaterial.descricao} onChange={(e) => setFormMaterial({ ...formMaterial, descricao: e.target.value })} className="input md:col-span-2" required />
-            <input type="text" placeholder="Un" value={formMaterial.unidade} onChange={(e) => setFormMaterial({ ...formMaterial, unidade: e.target.value })} className="input" />
-            <input type="number" step="0.01" placeholder="Preço Unitário (€)" value={formMaterial.precoUnitario} onChange={(e) => setFormMaterial({ ...formMaterial, precoUnitario: e.target.value })} className="input" required />
-            <input type="number" step="0.01" placeholder="Qtd" value={formMaterial.quantidade} onChange={(e) => setFormMaterial({ ...formMaterial, quantidade: e.target.value })} className="input" />
-            <input type="number" step="0.1" placeholder="Desc.1 %" value={formMaterial.desconto1} onChange={(e) => setFormMaterial({ ...formMaterial, desconto1: e.target.value })} className="input" />
-            <input type="number" step="0.1" placeholder="Desc.2 %" value={formMaterial.desconto2} onChange={(e) => setFormMaterial({ ...formMaterial, desconto2: e.target.value })} className="input md:col-span-2" />
-            <button className="btn-primary justify-center md:col-span-4">
+            <div className="md:col-span-2">
+              <label className="text-xs text-ink-400">Descrição</label>
+              <input type="text" placeholder="ex: Tijoleira 60x60" value={formMaterial.descricao} onChange={(e) => setFormMaterial({ ...formMaterial, descricao: e.target.value })} className="input w-full mt-1" required />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Unidade</label>
+              <input type="text" placeholder="m², un..." value={formMaterial.unidade} onChange={(e) => setFormMaterial({ ...formMaterial, unidade: e.target.value })} className="input w-full mt-1" />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Preço Unitário (€)</label>
+              <input type="number" step="0.01" placeholder="0,00" value={formMaterial.precoUnitario} onChange={(e) => setFormMaterial({ ...formMaterial, precoUnitario: e.target.value })} className="input w-full mt-1" required />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Quantidade</label>
+              <input type="number" step="0.01" placeholder="1" value={formMaterial.quantidade} onChange={(e) => setFormMaterial({ ...formMaterial, quantidade: e.target.value })} className="input w-full mt-1" />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Desconto 1 (%)</label>
+              <input type="number" step="0.1" placeholder="0" value={formMaterial.desconto1} onChange={(e) => setFormMaterial({ ...formMaterial, desconto1: e.target.value })} className="input w-full mt-1" />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Desconto 2 (%)</label>
+              <input type="number" step="0.1" placeholder="0" value={formMaterial.desconto2} onChange={(e) => setFormMaterial({ ...formMaterial, desconto2: e.target.value })} className="input w-full mt-1" />
+            </div>
+            <button className="btn-primary justify-center md:col-span-6 mt-1">
               <Plus size={16} /> Adicionar Material
             </button>
           </form>
@@ -662,13 +680,31 @@ export default function OrcamentoDetalhePage() {
         )}
         {editavel && (
           <form onSubmit={(e) => adicionarLinhaSimples('mao_obra', e)} className="grid grid-cols-1 md:grid-cols-6 gap-2 pt-2 border-t border-sand-100">
-            <input type="text" placeholder="Descrição (ex: Assentar tijoleira)" value={formMaoObra.descricao} onChange={(e) => setFormMaoObra({ ...formMaoObra, descricao: e.target.value })} className="input md:col-span-2" required />
-            <input type="text" placeholder="Un (h, vg, m²...)" value={formMaoObra.unidade} onChange={(e) => setFormMaoObra({ ...formMaoObra, unidade: e.target.value })} className="input" />
-            <input type="number" step="0.01" placeholder="Preço Unitário (€)" value={formMaoObra.precoUnitario} onChange={(e) => setFormMaoObra({ ...formMaoObra, precoUnitario: e.target.value })} className="input" required />
-            <input type="number" step="0.01" placeholder="Qtd" value={formMaoObra.quantidade} onChange={(e) => setFormMaoObra({ ...formMaoObra, quantidade: e.target.value })} className="input" />
-            <input type="number" step="0.1" placeholder="Desc.1 %" value={formMaoObra.desconto1} onChange={(e) => setFormMaoObra({ ...formMaoObra, desconto1: e.target.value })} className="input" />
-            <input type="number" step="0.1" placeholder="Desc.2 %" value={formMaoObra.desconto2} onChange={(e) => setFormMaoObra({ ...formMaoObra, desconto2: e.target.value })} className="input md:col-span-2" />
-            <button className="btn-primary justify-center md:col-span-4">
+            <div className="md:col-span-2">
+              <label className="text-xs text-ink-400">Descrição</label>
+              <input type="text" placeholder="ex: Assentar tijoleira" value={formMaoObra.descricao} onChange={(e) => setFormMaoObra({ ...formMaoObra, descricao: e.target.value })} className="input w-full mt-1" required />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Unidade</label>
+              <input type="text" placeholder="h, vg, m²..." value={formMaoObra.unidade} onChange={(e) => setFormMaoObra({ ...formMaoObra, unidade: e.target.value })} className="input w-full mt-1" />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Preço Unitário (€)</label>
+              <input type="number" step="0.01" placeholder="0,00" value={formMaoObra.precoUnitario} onChange={(e) => setFormMaoObra({ ...formMaoObra, precoUnitario: e.target.value })} className="input w-full mt-1" required />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Quantidade</label>
+              <input type="number" step="0.01" placeholder="1" value={formMaoObra.quantidade} onChange={(e) => setFormMaoObra({ ...formMaoObra, quantidade: e.target.value })} className="input w-full mt-1" />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Desconto 1 (%)</label>
+              <input type="number" step="0.1" placeholder="0" value={formMaoObra.desconto1} onChange={(e) => setFormMaoObra({ ...formMaoObra, desconto1: e.target.value })} className="input w-full mt-1" />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Desconto 2 (%)</label>
+              <input type="number" step="0.1" placeholder="0" value={formMaoObra.desconto2} onChange={(e) => setFormMaoObra({ ...formMaoObra, desconto2: e.target.value })} className="input w-full mt-1" />
+            </div>
+            <button className="btn-primary justify-center md:col-span-6 mt-1">
               <Plus size={16} /> Adicionar Mão de Obra
             </button>
           </form>
@@ -774,20 +810,41 @@ export default function OrcamentoDetalhePage() {
         )}
         {editavel && (
           <form onSubmit={adicionarLinhaSubcontratada} className="grid grid-cols-1 md:grid-cols-6 gap-2 pt-2 border-t border-sand-100">
-            <input type="text" placeholder="Descrição (ex: Pladur sala)" value={descSub} onChange={(e) => setDescSub(e.target.value)} className="input md:col-span-2" required />
-            <select value={fornecedorId} onChange={(e) => setFornecedorId(e.target.value)} className="input md:col-span-2">
-              <option value="">Escolher subempreiteiro...</option>
-              {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-            </select>
-            <div className="flex gap-1 md:col-span-2">
-              <input type="text" placeholder="Novo subempreiteiro" value={novoFornecedorNome} onChange={(e) => setNovoFornecedorNome(e.target.value)} className="input flex-1" />
-              <button type="button" onClick={criarFornecedorRapido} disabled={aCriarFornecedor} className="btn-primary px-2.5 disabled:opacity-60"><Plus size={14} /></button>
+            <div className="md:col-span-2">
+              <label className="text-xs text-ink-400">Descrição</label>
+              <input type="text" placeholder="ex: Pladur sala" value={descSub} onChange={(e) => setDescSub(e.target.value)} className="input w-full mt-1" required />
             </div>
-            <input type="text" placeholder="Un" value={unidadeSub} onChange={(e) => setUnidadeSub(e.target.value)} className="input" />
-            <input type="number" step="0.01" placeholder="Qtd" value={qtdSub} onChange={(e) => setQtdSub(e.target.value)} className="input" />
-            <input type="number" step="0.01" placeholder="Valor do subempreiteiro (€/un)" value={valorSubcontratado} onChange={(e) => setValorSubcontratado(e.target.value)} className="input md:col-span-2" required />
-            <input type="number" step="0.1" placeholder="A tua margem (%)" value={margemSubcontratacao} onChange={(e) => setMargemSubcontratacao(e.target.value)} className="input md:col-span-2" />
-            <button className="btn-primary justify-center md:col-span-2">
+            <div className="md:col-span-2">
+              <label className="text-xs text-ink-400">Subempreiteiro</label>
+              <select value={fornecedorId} onChange={(e) => setFornecedorId(e.target.value)} className="input w-full mt-1">
+                <option value="">Escolher subempreiteiro...</option>
+                {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs text-ink-400">Ou criar novo subempreiteiro</label>
+              <div className="flex gap-1 mt-1">
+                <input type="text" placeholder="Nome" value={novoFornecedorNome} onChange={(e) => setNovoFornecedorNome(e.target.value)} className="input flex-1" />
+                <button type="button" onClick={criarFornecedorRapido} disabled={aCriarFornecedor} className="btn-primary px-2.5 disabled:opacity-60"><Plus size={14} /></button>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Unidade</label>
+              <input type="text" placeholder="un, vg..." value={unidadeSub} onChange={(e) => setUnidadeSub(e.target.value)} className="input w-full mt-1" />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Quantidade</label>
+              <input type="number" step="0.01" placeholder="1" value={qtdSub} onChange={(e) => setQtdSub(e.target.value)} className="input w-full mt-1" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs text-ink-400">Valor do subempreiteiro (€/un)</label>
+              <input type="number" step="0.01" placeholder="0,00" value={valorSubcontratado} onChange={(e) => setValorSubcontratado(e.target.value)} className="input w-full mt-1" required />
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs text-ink-400">A tua margem (%)</label>
+              <input type="number" step="0.1" placeholder="0" value={margemSubcontratacao} onChange={(e) => setMargemSubcontratacao(e.target.value)} className="input w-full mt-1" />
+            </div>
+            <button className="btn-primary justify-center md:col-span-6 mt-1">
               <Plus size={16} /> Adicionar
             </button>
           </form>

@@ -15,6 +15,9 @@ type Obra = {
   valor_total: number | null;
   progresso_percentagem: number;
   cidade: string | null;
+  valor_material_orcamentado: number;
+  valor_mao_obra_orcamentado: number;
+  valor_subcontratado_orcamentado: number;
   clientes: { nome: string } | null;
 };
 
@@ -92,6 +95,8 @@ export default function ObraDetalhePage() {
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [totalDespesas, setTotalDespesas] = useState(0);
   const [totalDespesasCliente, setTotalDespesasCliente] = useState(0);
+  const [totalMaterialReal, setTotalMaterialReal] = useState(0);
+  const [totalSubcontratadoReal, setTotalSubcontratadoReal] = useState(0);
   const [trabalhadoresDisponiveis, setTrabalhadoresDisponiveis] = useState<Trabalhador[]>([]);
   const [obraTrabalhadores, setObraTrabalhadores] = useState<ObraTrabalhador[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,7 +133,7 @@ export default function ObraDetalhePage() {
     const [{ data: obraData }, { data: fotosData }, { data: despesasData }, { data: trabData }, { data: obraTrabData }, { data: garantiasData }, { data: tarefasData }] = await Promise.all([
       supabase.from('obras').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('fotos_obra').select('*').eq('obra_id', id).order('criado_em', { ascending: false }),
-      supabase.from('despesas').select('valor, tipo_imputacao').eq('obra_id', id),
+      supabase.from('despesas').select('valor, tipo_imputacao, categoria').eq('obra_id', id),
       supabase.from('trabalhadores').select('id, nome, tipo_valor_padrao, valor_padrao').eq('ativo', true).order('nome'),
       supabase.from('obra_trabalhadores').select('*, trabalhadores(nome), obra_trabalhador_entradas(quantidade)').eq('obra_id', id),
       supabase.from('garantias').select('*').eq('obra_id', id).order('criado_em', { ascending: false }),
@@ -138,6 +143,8 @@ export default function ObraDetalhePage() {
     setFotos(fotosData || []);
     setTotalDespesas((despesasData || []).filter((d: any) => d.tipo_imputacao === 'custo').reduce((s, d: any) => s + (d.valor || 0), 0));
     setTotalDespesasCliente((despesasData || []).filter((d: any) => d.tipo_imputacao === 'cliente').reduce((s, d: any) => s + (d.valor || 0), 0));
+    setTotalMaterialReal((despesasData || []).filter((d: any) => d.tipo_imputacao === 'custo' && d.categoria === 'material').reduce((s, d: any) => s + (d.valor || 0), 0));
+    setTotalSubcontratadoReal((despesasData || []).filter((d: any) => d.tipo_imputacao === 'custo' && d.categoria === 'subcontratacao').reduce((s, d: any) => s + (d.valor || 0), 0));
     setTrabalhadoresDisponiveis(trabData || []);
     setObraTrabalhadores((obraTrabData as any) || []);
     setGarantias(garantiasData || []);
@@ -396,6 +403,42 @@ export default function ObraDetalhePage() {
           <p className={`text-xl font-heading font-semibold ${margem >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatMoney(margem)}</p>
         </div>
       </div>
+
+      {(obra.valor_material_orcamentado > 0 || obra.valor_mao_obra_orcamentado > 0 || obra.valor_subcontratado_orcamentado > 0) && (
+        <div className="card p-6 mb-6">
+          <h3 className="font-semibold text-ink-700 mb-4">Orçamentado vs Real</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-ink-400 text-xs uppercase">
+                <tr>
+                  <th className="pb-2 font-medium">Categoria</th>
+                  <th className="pb-2 font-medium text-right">Orçamentado</th>
+                  <th className="pb-2 font-medium text-right">Real</th>
+                  <th className="pb-2 font-medium text-right">Diferença</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-sand-100">
+                {[
+                  { label: 'Material', orc: obra.valor_material_orcamentado, real: totalMaterialReal },
+                  { label: 'Mão de Obra', orc: obra.valor_mao_obra_orcamentado, real: totalMaoDeObra },
+                  { label: 'Subcontratado', orc: obra.valor_subcontratado_orcamentado, real: totalSubcontratadoReal },
+                ].map((linha) => {
+                  const diferenca = linha.orc - linha.real;
+                  return (
+                    <tr key={linha.label}>
+                      <td className="py-2 text-ink-800">{linha.label}</td>
+                      <td className="py-2 text-right text-ink-500">{formatMoney(linha.orc)}</td>
+                      <td className="py-2 text-right text-ink-500">{formatMoney(linha.real)}</td>
+                      <td className={`py-2 text-right font-medium ${diferenca >= 0 ? 'text-green-600' : 'text-red-600'}`}>{diferenca >= 0 ? '+' : ''}{formatMoney(diferenca)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-ink-400 mt-3">Diferença positiva = gastaste menos do que orçamentaste (bom). Negativa = já ultrapassaste o previsto nessa categoria.</p>
+        </div>
+      )}
 
       <div className="card p-6 mb-6">
         <div className="flex items-center justify-between mb-4">

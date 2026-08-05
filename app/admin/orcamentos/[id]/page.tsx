@@ -357,6 +357,9 @@ export default function OrcamentoDetalhePage() {
       valor_total: totais.total,
       status: 'orcamento',
       orcamento_id: orcamento.id,
+      valor_material_orcamentado: totais.material.subtotal,
+      valor_mao_obra_orcamentado: totais.maoObra.subtotal,
+      valor_subcontratado_orcamentado: totais.subcontratado.subtotal,
     }]).select().single();
     if (obraError) { alert('Erro ao criar obra: ' + obraError.message); setConverting(false); return; }
 
@@ -365,7 +368,7 @@ export default function OrcamentoDetalhePage() {
       await supabase.from('despesas').insert(linhasSubcontratadas.map((l) => ({
         obra_id: novaObra.id,
         descricao: `Subcontratação: ${l.descricao}`,
-        categoria: 'Subcontratação',
+        categoria: 'subcontratacao',
         valor: l.quantidade * l.valor_subcontratado,
         fornecedor_id: l.fornecedor_id,
         data_despesa: new Date().toISOString().slice(0, 10),

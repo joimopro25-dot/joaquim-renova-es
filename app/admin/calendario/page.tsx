@@ -89,9 +89,10 @@ export default function CalendarioPage() {
 
   async function carregar() {
     setLoading(true);
-    const [{ data: tarefasData }, { data: previsoesData }, { data: eventosData }, { data: clientesData }] = await Promise.all([
+    const [{ data: tarefasData }, { data: previsoesData }, { data: entradasData }, { data: eventosData }, { data: clientesData }] = await Promise.all([
       supabase.from('obra_tarefas').select('id, titulo, data_inicio, data_fim_prevista, estado, bloqueante, obra_id, obras(titulo, cidade)').order('data_inicio'),
       supabase.from('subempreitada_previsoes').select('id, titulo, data_inicio, data_fim_prevista, hora_inicio, hora_fim, notas, subempreitada_id, subempreitadas(descricao, cidade, clientes(nome))').order('data_inicio'),
+      supabase.from('subempreitada_entradas').select('id, data, hora_entrada, hora_saida, quantidade, nota, subempreitada_id, subempreitadas(descricao, cidade, clientes(nome), tipo_valor)').order('data'),
       supabase.from('eventos_calendario').select('id, titulo, tipo, data, hora, notas, concluido, clientes(nome)').order('data'),
       supabase.from('clientes').select('id, nome').order('nome'),
     ]);
@@ -126,6 +127,21 @@ export default function CalendarioPage() {
       link: `/admin/subempreitadas/${p.subempreitada_id}`,
     }));
 
+    const dasEntradas: ItemCalendario[] = ((entradasData as any) || []).map((e: any) => ({
+      id: `entrada-${e.id}`,
+      tipo: 'subempreitada' as const,
+      titulo: e.subempreitadas?.descricao || 'Trabalho subcontratado',
+      subtitulo: `Já trabalhado${e.subempreitadas?.clientes?.nome ? ` · Para: ${e.subempreitadas.clientes.nome}` : ''}${e.nota ? ` · ${e.nota}` : ''}`,
+      data_inicio: e.data,
+      data_fim_prevista: e.data,
+      hora_inicio: e.hora_entrada,
+      hora_fim: e.hora_saida,
+      cidade: e.subempreitadas?.cidade || null,
+      concluida: true,
+      bloqueante: true,
+      link: `/admin/subempreitadas/${e.subempreitada_id}`,
+    }));
+
     const dosEventos: ItemCalendario[] = ((eventosData as any) || []).map((e: any) => ({
       id: `evt-${e.id}`,
       tipo: 'evento' as const,
@@ -142,7 +158,7 @@ export default function CalendarioPage() {
       eventoId: e.id,
     }));
 
-    setItens([...dasObras, ...dasSubs, ...dosEventos]);
+    setItens([...dasObras, ...dasSubs, ...dasEntradas, ...dosEventos]);
     setClientes(clientesData || []);
     setLoading(false);
   }
@@ -278,7 +294,7 @@ export default function CalendarioPage() {
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-50 border border-amber-200 inline-block" /> À espera (não bloqueia)</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-50 border border-indigo-200 inline-block" /> Trabalho para outro empreiteiro</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-teal-50 border border-teal-200 inline-block" /> Evento/Lembrete</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-green-100 border border-green-200 inline-block" /> Concluída</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-green-100 border border-green-200 inline-block" /> Concluída / Já trabalhado</span>
       </div>
 
       {loading ? (
@@ -341,7 +357,7 @@ export default function CalendarioPage() {
                       </div>
                       <p className="text-xs opacity-80">{t.subtitulo}</p>
                       <p className="text-xs opacity-70 mt-1">
-                        {t.tipo === 'evento' ? 'Lembrete' : t.tipo === 'subempreitada' ? 'Trabalho para outro empreiteiro' : t.bloqueante ? 'Presença necessária' : 'À espera'}
+                        {t.tipo === 'evento' ? 'Lembrete' : t.tipo === 'subempreitada' ? (t.concluida ? 'Já trabalhado (para outro empreiteiro)' : 'Previsão — trabalho para outro empreiteiro') : t.bloqueante ? 'Presença necessária' : 'À espera'}
                         {' · '}
                         {new Date(t.data_inicio).toLocaleDateString('pt-PT')}{t.data_inicio !== t.data_fim_prevista ? ` – ${new Date(t.data_fim_prevista).toLocaleDateString('pt-PT')}` : ''}
                         {(t.hora_inicio || t.hora_fim) && ` · ${t.hora_inicio?.slice(0, 5) || '?'}${t.hora_fim ? `–${t.hora_fim.slice(0, 5)}` : ''}`}

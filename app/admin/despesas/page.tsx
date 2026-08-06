@@ -39,7 +39,15 @@ type DespesaItem = {
   iva_percentagem: number;
 };
 
-type LinhaSplit = { destino: string; valor: string };
+type LinhaItem = { descricao: string; quantidade: string; precoUnitario: string; desconto: string; iva: string; destino: string };
+
+function subtotalLinhaItem(l: LinhaItem): number {
+  const qtd = parseFloat(l.quantidade) || 0;
+  const preco = parseFloat(l.precoUnitario) || 0;
+  const desc = parseFloat(l.desconto) || 0;
+  const iva = parseFloat(l.iva) || 0;
+  return qtd * preco * (1 - desc / 100) * (1 + iva / 100);
+}
 
 const TIPOS_IMPUTACAO = [
   { value: 'custo', label: 'Custo da empresa (desconta a margem)' },
@@ -136,7 +144,10 @@ export default function DespesasPage() {
   const [estadoPagamento, setEstadoPagamento] = useState('pago');
   const [dataPagamento, setDataPagamento] = useState(() => new Date().toISOString().slice(0, 10));
 
-  const [linhas, setLinhas] = useState<LinhaSplit[]>([{ destino: '', valor: '' }, { destino: OPCAO_GERAL, valor: '' }]);
+  const [linhas, setLinhas] = useState<LinhaItem[]>([
+    { descricao: '', quantidade: '1', precoUnitario: '', desconto: '0', iva: '23', destino: '' },
+    { descricao: '', quantidade: '1', precoUnitario: '', desconto: '0', iva: '23', destino: OPCAO_GERAL },
+  ]);
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [despesaExpandida, setDespesaExpandida] = useState<string | null>(null);
@@ -218,7 +229,10 @@ export default function DespesasPage() {
     setDestino(''); setDescricao(''); setCategoria('material'); setValor(''); setFornecedorId(''); setNovoFornecedorNome('');
     setDataDespesa(new Date().toISOString().slice(0, 10)); setFicheiro(null); setTipoImputacao('custo');
     setEstadoPagamento('pago'); setDataPagamento(new Date().toISOString().slice(0, 10));
-    setLinhas([{ destino: '', valor: '' }, { destino: OPCAO_GERAL, valor: '' }]);
+    setLinhas([
+      { descricao: '', quantidade: '1', precoUnitario: '', desconto: '0', iva: '23', destino: '' },
+      { descricao: '', quantidade: '1', precoUnitario: '', desconto: '0', iva: '23', destino: OPCAO_GERAL },
+    ]);
     setDividir(false);
     setEditandoId(null);
     setShowForm(false);
@@ -240,12 +254,12 @@ export default function DespesasPage() {
     setShowForm(true);
   }
 
-  function atualizarLinha(idx: number, campo: keyof LinhaSplit, val: string) {
+  function atualizarLinha(idx: number, campo: keyof LinhaItem, val: string) {
     setLinhas((prev) => prev.map((l, i) => (i === idx ? { ...l, [campo]: val } : l)));
   }
 
   function adicionarLinha() {
-    setLinhas((prev) => [...prev, { destino: '', valor: '' }]);
+    setLinhas((prev) => [...prev, { descricao: '', quantidade: '1', precoUnitario: '', desconto: '0', iva: '23', destino: '' }]);
   }
 
   function removerLinha(idx: number) {
@@ -284,26 +298,41 @@ export default function DespesasPage() {
         const { error } = await supabase.from('despesas').update(update).eq('id', editandoId);
         if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
       } else if (dividir) {
-        const validas = linhas.filter((l) => l.destino && parseFloat(l.valor) > 0);
-        if (validas.length === 0) { alert('Adiciona pelo menos uma linha com destino e valor.'); setUploading(false); return; }
+        const validas = linhas.filter((l) => l.destino && l.descricao.trim() && (parseFloat(l.precoUnitario) || 0) > 0);
+        if (validas.length === 0) { alert('Adiciona pelo menos um artigo com descrição, preço e destino.'); setUploading(false); return; }
 
         const comprovativoUrl = await enviarComprovativo('geral');
+        const destinosUsados = Array.from(new Set(validas.map((l) => l.destino)));
 
-        const { error } = await supabase.from('despesas').insert(
-          validas.map((l) => ({
-            ...parseDestino(l.destino),
+        for (const dest of destinosUsados) {
+          const itensGrupo = validas.filter((l) => l.destino === dest);
+          const valorGrupo = itensGrupo.reduce((s, l) => s + subtotalLinhaItem(l), 0);
+          const { data: despesaGrupo, error: erroGrupo } = await supabase.from('despesas').insert([{
+            ...parseDestino(dest),
             descricao,
             categoria,
-            valor: parseFloat(l.valor) || 0,
+            valor: valorGrupo,
             fornecedor_id: fornecedorId || null,
             data_despesa: dataDespesa,
             comprovativo_url: comprovativoUrl,
             tipo_imputacao: tipoImputacao,
             estado_pagamento: estadoPagamento,
             data_pagamento: estadoPagamento === 'pago' ? dataPagamento : null,
-          }))
-        );
-        if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
+          }]).select().single();
+          if (erroGrupo) { alert('Erro: ' + erroGrupo.message); setUploading(false); return; }
+
+          const { error: erroItens } = await supabase.from('despesa_itens').insert(
+            itensGrupo.map((l) => ({
+              despesa_id: despesaGrupo.id,
+              descricao: l.descricao,
+              quantidade: parseFloat(l.quantidade) || 1,
+              preco_unitario: parseFloat(l.precoUnitario) || 0,
+              desconto_percentagem: parseFloat(l.desconto) || 0,
+              iva_percentagem: parseFloat(l.iva) || 0,
+            }))
+          );
+          if (erroItens) { alert('Erro ao gravar artigos: ' + erroItens.message); setUploading(false); return; }
+        }
       } else {
         if (!destino) { alert('Escolhe uma obra, subempreitada ou "Despesa Geral".'); setUploading(false); return; }
         const comprovativoUrl = await enviarComprovativo(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1]);
@@ -378,7 +407,7 @@ export default function DespesasPage() {
 
   const totalGeral = despesas.reduce((s, d) => s + d.valor, 0);
   const totalPorPagar = despesas.filter((d) => d.estado_pagamento === 'pendente').reduce((s, d) => s + d.valor, 0);
-  const somaLinhas = linhas.reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
+  const somaLinhas = linhas.reduce((s, l) => s + subtotalLinhaItem(l), 0);
 
   function destinoLabel(d: Despesa) {
     if (d.subempreitada_id) return d.subempreitadas?.descricao || '—';
@@ -406,6 +435,7 @@ export default function DespesasPage() {
       {showScan && (
         <ScanFatura
           obras={obras}
+          subs={subs}
           onClose={() => setShowScan(false)}
           onSaved={() => { setShowScan(false); carregar(); }}
         />
@@ -459,30 +489,53 @@ export default function DespesasPage() {
 
             {dividir ? (
               <div className="space-y-2 pt-2 border-t border-sand-100">
-                <p className="text-xs text-ink-400">Divide o valor total desta fatura/pagamento por várias obras, subempreitadas e/ou "Stock/Geral".</p>
-                {linhas.map((l, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <select value={l.destino} onChange={(e) => atualizarLinha(idx, 'destino', e.target.value)} className="input flex-1">
-                      <option value="">Selecionar destino</option>
-                      <option value={OPCAO_GERAL}>— Stock / Despesa Geral (sem obra) —</option>
-                      {obras.length > 0 && (
-                        <optgroup label="Obras">
-                          {obras.map((o) => <option key={o.id} value={`obra:${o.id}`}>{o.titulo}</option>)}
-                        </optgroup>
-                      )}
-                      {subs.length > 0 && (
-                        <optgroup label="Prestação de Serviços">
-                          {subs.map((s) => <option key={s.id} value={`sub:${s.id}`}>{s.descricao}</option>)}
-                        </optgroup>
-                      )}
-                    </select>
-                    <input type="number" step="0.01" placeholder="Valor (€)" value={l.valor} onChange={(e) => atualizarLinha(idx, 'valor', e.target.value)} className="input w-32" />
-                    <button type="button" onClick={() => removerLinha(idx)} className="text-ink-300 hover:text-red-600 shrink-0"><X size={16} /></button>
-                  </div>
-                ))}
+                <p className="text-xs text-ink-400">Regista cada artigo desta fatura/compra, e escolhe a que obra, prestação de serviços ou stock/geral pertence — podes comprar para vários destinos na mesma fatura.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-ink-400 uppercase">
+                      <tr>
+                        <th className="pb-1 font-medium">Artigo</th>
+                        <th className="pb-1 font-medium w-16">Qtd</th>
+                        <th className="pb-1 font-medium w-20">P. Unit.</th>
+                        <th className="pb-1 font-medium w-16">Desc %</th>
+                        <th className="pb-1 font-medium w-16">IVA %</th>
+                        <th className="pb-1 font-medium w-44">Destino</th>
+                        <th className="pb-1"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-sand-100">
+                      {linhas.map((l, idx) => (
+                        <tr key={idx}>
+                          <td className="py-1 pr-1"><input type="text" placeholder="Descrição do artigo" value={l.descricao} onChange={(e) => atualizarLinha(idx, 'descricao', e.target.value)} className="input py-1 w-full" /></td>
+                          <td className="py-1 pr-1"><input type="number" step="0.01" value={l.quantidade} onChange={(e) => atualizarLinha(idx, 'quantidade', e.target.value)} className="input py-1 w-full" /></td>
+                          <td className="py-1 pr-1"><input type="number" step="0.01" placeholder="0,00" value={l.precoUnitario} onChange={(e) => atualizarLinha(idx, 'precoUnitario', e.target.value)} className="input py-1 w-full" /></td>
+                          <td className="py-1 pr-1"><input type="number" step="0.01" value={l.desconto} onChange={(e) => atualizarLinha(idx, 'desconto', e.target.value)} className="input py-1 w-full" /></td>
+                          <td className="py-1 pr-1"><input type="number" step="0.01" value={l.iva} onChange={(e) => atualizarLinha(idx, 'iva', e.target.value)} className="input py-1 w-full" /></td>
+                          <td className="py-1 pr-1">
+                            <select value={l.destino} onChange={(e) => atualizarLinha(idx, 'destino', e.target.value)} className="input py-1 w-full">
+                              <option value="">Selecionar destino</option>
+                              <option value={OPCAO_GERAL}>— Stock / Geral —</option>
+                              {obras.length > 0 && (
+                                <optgroup label="Obras">
+                                  {obras.map((o) => <option key={o.id} value={`obra:${o.id}`}>{o.titulo}</option>)}
+                                </optgroup>
+                              )}
+                              {subs.length > 0 && (
+                                <optgroup label="Prestação de Serviços">
+                                  {subs.map((s) => <option key={s.id} value={`sub:${s.id}`}>{s.descricao}</option>)}
+                                </optgroup>
+                              )}
+                            </select>
+                          </td>
+                          <td className="py-1"><button type="button" onClick={() => removerLinha(idx)} className="text-ink-300 hover:text-red-600 shrink-0"><X size={16} /></button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 <div className="flex items-center justify-between pt-1">
                   <button type="button" onClick={adicionarLinha} className="text-sm text-brand-600 hover:text-brand-700 flex items-center gap-1">
-                    <Plus size={14} /> Adicionar linha
+                    <Plus size={14} /> Adicionar artigo
                   </button>
                   <span className="text-sm text-ink-500">Soma: {formatMoney(somaLinhas)}</span>
                 </div>

@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import Link from 'next/link';
-import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle, ShieldCheck, Plus, Calendar, Check } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle, ShieldCheck, Plus, Calendar, Check, Pencil } from 'lucide-react';
 
 type Obra = {
   id: string;
@@ -52,10 +52,21 @@ type Tarefa = {
   data_fim_real: string | null;
   notas: string | null;
   bloqueante: boolean;
+  hora_inicio: string | null;
+  hora_fim: string | null;
 };
 
 function estaAtrasada(t: Tarefa): boolean {
   return t.estado !== 'concluida' && new Date(t.data_fim_prevista) < new Date(new Date().toDateString());
+}
+
+function duracaoHoras(t: Tarefa): number | null {
+  if (!t.hora_inicio || !t.hora_fim) return null;
+  const [ih, im] = t.hora_inicio.split(':').map(Number);
+  const [fh, fm] = t.hora_fim.split(':').map(Number);
+  let minutos = (fh * 60 + fm) - (ih * 60 + im);
+  if (minutos < 0) minutos += 24 * 60;
+  return Math.round((minutos / 60) * 100) / 100;
 }
 
 const ESTADOS_TAREFA: Record<string, { label: string; cor: string }> = {
@@ -124,8 +135,11 @@ export default function ObraDetalhePage() {
   const [tTitulo, setTTitulo] = useState('');
   const [tDataInicio, setTDataInicio] = useState(() => new Date().toISOString().slice(0, 10));
   const [tDataFim, setTDataFim] = useState(() => new Date().toISOString().slice(0, 10));
+  const [tHoraInicio, setTHoraInicio] = useState('');
+  const [tHoraFim, setTHoraFim] = useState('');
   const [tNotas, setTNotas] = useState('');
   const [tBloqueante, setTBloqueante] = useState(true);
+  const [tarefaEditandoId, setTarefaEditandoId] = useState<string | null>(null);
   const [aGuardarTarefa, setAGuardarTarefa] = useState(false);
 
   const carregar = useCallback(async () => {
@@ -254,6 +268,25 @@ export default function ObraDetalhePage() {
     carregar();
   }
 
+  function limparFormTarefa() {
+    setTTitulo(''); setTDataInicio(new Date().toISOString().slice(0, 10)); setTDataFim(new Date().toISOString().slice(0, 10));
+    setTHoraInicio(''); setTHoraFim(''); setTNotas(''); setTBloqueante(true);
+    setTarefaEditandoId(null);
+    setShowTarefaForm(false);
+  }
+
+  function abrirEditarTarefa(t: Tarefa) {
+    setTTitulo(t.titulo);
+    setTDataInicio(t.data_inicio);
+    setTDataFim(t.data_fim_prevista);
+    setTHoraInicio(t.hora_inicio ? t.hora_inicio.slice(0, 5) : '');
+    setTHoraFim(t.hora_fim ? t.hora_fim.slice(0, 5) : '');
+    setTNotas(t.notas || '');
+    setTBloqueante(t.bloqueante);
+    setTarefaEditandoId(t.id);
+    setShowTarefaForm(true);
+  }
+
   async function adicionarTarefa(e: React.FormEvent) {
     e.preventDefault();
     if (tDataFim < tDataInicio) { alert('A data de fim previsto não pode ser antes da data de início.'); return; }
@@ -286,19 +319,21 @@ export default function ObraDetalhePage() {
       }
     }
 
-    const { error } = await supabase.from('obra_tarefas').insert([{
-      obra_id: id,
+    const dados = {
       titulo: tTitulo,
       data_inicio: tDataInicio,
       data_fim_prevista: tDataFim,
+      hora_inicio: tHoraInicio || null,
+      hora_fim: tHoraFim || null,
       notas: tNotas || null,
-      ordem: tarefas.length,
       bloqueante: tBloqueante,
-    }]);
+    };
+    const { error } = tarefaEditandoId
+      ? await supabase.from('obra_tarefas').update(dados).eq('id', tarefaEditandoId)
+      : await supabase.from('obra_tarefas').insert([{ obra_id: id, ordem: tarefas.length, ...dados }]);
     setAGuardarTarefa(false);
     if (error) { alert('Erro: ' + error.message); return; }
-    setTTitulo(''); setTDataInicio(new Date().toISOString().slice(0, 10)); setTDataFim(new Date().toISOString().slice(0, 10)); setTNotas(''); setTBloqueante(true);
-    setShowTarefaForm(false);
+    limparFormTarefa();
     carregar();
   }
 
@@ -490,7 +525,7 @@ export default function ObraDetalhePage() {
       <div className="card p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-ink-700 flex items-center gap-2"><Calendar size={16} /> Cronograma (visível ao cliente)</h3>
-          <button onClick={() => setShowTarefaForm((v) => !v)} className="btn-primary text-sm py-1.5">
+          <button onClick={() => { if (showTarefaForm) { limparFormTarefa(); } else { setTarefaEditandoId(null); setShowTarefaForm(true); } }} className="btn-primary text-sm py-1.5">
             <Plus size={15} /> Adicionar Tarefa
           </button>
         </div>
@@ -506,14 +541,25 @@ export default function ObraDetalhePage() {
               <label className="text-xs text-ink-400">Fim previsto</label>
               <input type="date" value={tDataFim} onChange={(e) => setTDataFim(e.target.value)} className="input w-full mt-1" required />
             </div>
-            <input type="text" placeholder="Notas (opcional)" value={tNotas} onChange={(e) => setTNotas(e.target.value)} className="input md:col-span-3" />
+            <div>
+              <label className="text-xs text-ink-400">Hora início (real, opcional)</label>
+              <input type="time" value={tHoraInicio} onChange={(e) => setTHoraInicio(e.target.value)} className="input w-full mt-1" />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Hora fim (real, opcional)</label>
+              <input type="time" value={tHoraFim} onChange={(e) => setTHoraFim(e.target.value)} className="input w-full mt-1" />
+            </div>
+            <input type="text" placeholder="Notas (opcional)" value={tNotas} onChange={(e) => setTNotas(e.target.value)} className="input md:col-span-2" />
             <label className="flex items-center gap-2 text-xs text-ink-600 md:col-span-4">
               <input type="checkbox" checked={tBloqueante} onChange={(e) => setTBloqueante(e.target.checked)} />
               Presença necessária (bloqueia o calendário — desmarca se for só tempo de espera/secagem)
             </label>
-            <button disabled={aGuardarTarefa} className="btn-primary justify-center disabled:opacity-60">
-              {aGuardarTarefa ? 'A guardar...' : 'Guardar'}
-            </button>
+            <div className="flex gap-2 md:col-span-4">
+              <button disabled={aGuardarTarefa} className="btn-primary flex-1 justify-center disabled:opacity-60">
+                {aGuardarTarefa ? 'A guardar...' : tarefaEditandoId ? 'Guardar Alterações' : 'Guardar'}
+              </button>
+              <button type="button" onClick={limparFormTarefa} className="text-sm text-ink-400 hover:text-ink-700 px-2">Cancelar</button>
+            </div>
           </form>
         )}
 
@@ -551,9 +597,16 @@ export default function ObraDetalhePage() {
                           <Check size={15} />
                         </button>
                       )}
+                      <button onClick={() => abrirEditarTarefa(t)} className="text-ink-300 hover:text-brand-600"><Pencil size={13} /></button>
                       <button onClick={() => removerTarefa(t.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={14} /></button>
                     </div>
                   </div>
+                  {(t.hora_inicio || t.hora_fim) && (
+                    <p className="text-xs text-ink-400 mb-1">
+                      {t.hora_inicio?.slice(0, 5) || '?'}–{t.hora_fim?.slice(0, 5) || '?'}
+                      {duracaoHoras(t) !== null && ` · ${duracaoHoras(t)}h`}
+                    </p>
+                  )}
                   <div className="w-full bg-sand-100 rounded-full h-2.5 relative overflow-hidden">
                     <div
                       className={`absolute h-full rounded-full ${atrasada ? 'bg-red-500' : info.cor}`}

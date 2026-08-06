@@ -21,6 +21,13 @@ type Entrada = {
   nota: string | null;
 };
 
+type DespesaResumo = {
+  id: string;
+  descricao: string;
+  valor: number;
+  data_despesa: string;
+};
+
 type Subempreitada = {
   descricao: string;
   tipo_valor: string;
@@ -37,18 +44,21 @@ export default function RelatorioSubempreitada() {
   const [sub, setSub] = useState<Subempreitada | null>(null);
   const [entradas, setEntradas] = useState<Entrada[]>([]);
   const [anexos, setAnexos] = useState<Anexo[]>([]);
+  const [despesasCliente, setDespesasCliente] = useState<DespesaResumo[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function carregar() {
-      const [{ data: subData }, { data: entradasData }, { data: anexosData }] = await Promise.all([
+      const [{ data: subData }, { data: entradasData }, { data: anexosData }, { data: despesasData }] = await Promise.all([
         supabase.from('subempreitadas').select('*, clientes(nome, nif)').eq('id', id).single(),
         supabase.from('subempreitada_entradas').select('*').eq('subempreitada_id', id).order('data'),
         supabase.from('subempreitada_anexos').select('*').eq('subempreitada_id', id).order('criado_em'),
+        supabase.from('despesas').select('id, descricao, valor, data_despesa').eq('subempreitada_id', id).eq('tipo_imputacao', 'cliente').order('data_despesa'),
       ]);
       setSub(subData as any);
       setEntradas(entradasData || []);
       setAnexos(anexosData || []);
+      setDespesasCliente(despesasData || []);
       setLoading(false);
     }
     carregar();
@@ -58,7 +68,9 @@ export default function RelatorioSubempreitada() {
   if (!sub) return <div className="p-8 text-center text-ink-400 text-sm">Registo não encontrado.</div>;
 
   const totalQuantidade = entradas.reduce((s, en) => s + en.quantidade, 0);
-  const total = sub.tipo_valor === 'fixo' ? sub.valor_unitario : totalQuantidade * sub.valor_unitario;
+  const totalTrabalho = sub.tipo_valor === 'fixo' ? sub.valor_unitario : totalQuantidade * sub.valor_unitario;
+  const totalDespesasCliente = despesasCliente.reduce((s, d) => s + (d.valor || 0), 0);
+  const total = totalTrabalho + totalDespesasCliente;
   const unidade = sub.tipo_valor === 'dia' ? 'dia(s)' : 'horas';
 
   return (
@@ -111,6 +123,30 @@ export default function RelatorioSubempreitada() {
         </table>
       )}
 
+      {despesasCliente.length > 0 && (
+        <>
+          <h2 className="font-semibold text-ink-800 mb-2 mt-6">Despesas a Cobrar</h2>
+          <table className="w-full text-left text-sm mb-4 border border-sand-200">
+            <thead className="bg-sand-50 text-ink-500">
+              <tr>
+                <th className="p-2 border-b border-sand-200">Data</th>
+                <th className="p-2 border-b border-sand-200">Descrição</th>
+                <th className="p-2 border-b border-sand-200 text-right">Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {despesasCliente.map((d) => (
+                <tr key={d.id} className="border-b border-sand-100">
+                  <td className="p-2">{new Date(d.data_despesa).toLocaleDateString('pt-PT')}</td>
+                  <td className="p-2">{d.descricao}</td>
+                  <td className="p-2 text-right">{formatMoney(d.valor)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
       <div className="flex justify-end mb-8">
         <div className="w-64 text-sm space-y-1">
           {sub.tipo_valor !== 'fixo' && (
@@ -123,6 +159,16 @@ export default function RelatorioSubempreitada() {
             <div className="flex justify-between">
               <span className="text-ink-500">Valor por {sub.tipo_valor === 'hora' ? 'hora' : 'dia'}</span>
               <span>{formatMoney(sub.valor_unitario)}</span>
+            </div>
+          )}
+          <div className="flex justify-between">
+            <span className="text-ink-500">Trabalho</span>
+            <span>{formatMoney(totalTrabalho)}</span>
+          </div>
+          {totalDespesasCliente > 0 && (
+            <div className="flex justify-between">
+              <span className="text-ink-500">Despesas a Cobrar</span>
+              <span>{formatMoney(totalDespesasCliente)}</span>
             </div>
           )}
           <div className="flex justify-between font-semibold text-base pt-1 border-t border-ink-800">

@@ -17,6 +17,14 @@ type Entrada = {
   nota: string | null;
 };
 
+type DespesaResumo = {
+  id: string;
+  descricao: string;
+  categoria: string;
+  valor: number;
+  data_despesa: string;
+};
+
 type Previsao = {
   id: string;
   titulo: string | null;
@@ -91,6 +99,8 @@ export default function SubempreitadaDetalhe() {
   const [subTrabalhadores, setSubTrabalhadores] = useState<SubTrabalhador[]>([]);
   const [totalDespesas, setTotalDespesas] = useState(0);
   const [totalDespesasCliente, setTotalDespesasCliente] = useState(0);
+  const [despesasCusto, setDespesasCusto] = useState<DespesaResumo[]>([]);
+  const [despesasCliente, setDespesasCliente] = useState<DespesaResumo[]>([]);
   const [showTrabalhadorForm, setShowTrabalhadorForm] = useState(false);
   const [trabalhadorId, setTrabalhadorId] = useState('');
   const [tipoValorTrab, setTipoValorTrab] = useState('dia');
@@ -134,7 +144,7 @@ export default function SubempreitadaDetalhe() {
       supabase.from('subempreitada_anexos').select('*').eq('subempreitada_id', id).order('criado_em'),
       supabase.from('trabalhadores').select('id, nome, tipo_valor_padrao, valor_padrao').eq('ativo', true).order('nome'),
       supabase.from('obra_trabalhadores').select('*, trabalhadores(nome), obra_trabalhador_entradas(quantidade)').eq('subempreitada_id', id),
-      supabase.from('despesas').select('valor, tipo_imputacao').eq('subempreitada_id', id),
+      supabase.from('despesas').select('id, descricao, categoria, valor, data_despesa, tipo_imputacao').eq('subempreitada_id', id).order('data_despesa'),
       supabase.from('subempreitada_previsoes').select('*').eq('subempreitada_id', id).order('data_inicio'),
     ]);
     setSub(subData as any);
@@ -143,8 +153,12 @@ export default function SubempreitadaDetalhe() {
     setPrevisoes(previsoesData || []);
     setTrabalhadoresDisponiveis(trabData || []);
     setSubTrabalhadores((subTrabData as any) || []);
-    setTotalDespesas((despesasData || []).filter((d: any) => d.tipo_imputacao === 'custo').reduce((s, d: any) => s + (d.valor || 0), 0));
-    setTotalDespesasCliente((despesasData || []).filter((d: any) => d.tipo_imputacao === 'cliente').reduce((s, d: any) => s + (d.valor || 0), 0));
+    const despesasCustoLista = (despesasData || []).filter((d: any) => d.tipo_imputacao === 'custo');
+    const despesasClienteLista = (despesasData || []).filter((d: any) => d.tipo_imputacao === 'cliente');
+    setDespesasCusto(despesasCustoLista);
+    setDespesasCliente(despesasClienteLista);
+    setTotalDespesas(despesasCustoLista.reduce((s: number, d: any) => s + (d.valor || 0), 0));
+    setTotalDespesasCliente(despesasClienteLista.reduce((s: number, d: any) => s + (d.valor || 0), 0));
     setLoading(false);
   }, [id]);
 
@@ -694,6 +708,68 @@ export default function SubempreitadaDetalhe() {
               <Plus size={16} /> Adicionar
             </button>
           </form>
+        </div>
+      )}
+
+      {despesasCliente.length > 0 && (
+        <div className="card p-6 mb-6">
+          <h3 className="font-semibold text-ink-700 mb-1">Despesas a Cobrar a {sub.clientes?.nome || 'este empreiteiro/cliente'}</h3>
+          <p className="text-xs text-ink-400 mb-4">Estas despesas foram marcadas como "a cobrar ao cliente" e somam-se ao valor a receber.</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-ink-400 text-xs uppercase">
+                <tr>
+                  <th className="pb-2 font-medium">Data</th>
+                  <th className="pb-2 font-medium">Descrição</th>
+                  <th className="pb-2 font-medium text-right">Valor</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-sand-100">
+                {despesasCliente.map((d) => (
+                  <tr key={d.id}>
+                    <td className="py-2 text-ink-500">{new Date(d.data_despesa).toLocaleDateString('pt-PT')}</td>
+                    <td className="py-2 text-ink-800">{d.descricao}</td>
+                    <td className="py-2 text-right text-ink-800">{formatMoney(d.valor)}</td>
+                  </tr>
+                ))}
+                <tr className="font-medium">
+                  <td colSpan={2} className="py-2 text-right text-ink-600">Total</td>
+                  <td className="py-2 text-right text-ink-800">{formatMoney(totalDespesasCliente)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {despesasCusto.length > 0 && (
+        <div className="card p-6 mb-6">
+          <h3 className="font-semibold text-ink-700 mb-1">Despesas (custo, não cobradas)</h3>
+          <p className="text-xs text-ink-400 mb-4">Custos teus associados a este trabalho — não entram na conta a receber.</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-ink-400 text-xs uppercase">
+                <tr>
+                  <th className="pb-2 font-medium">Data</th>
+                  <th className="pb-2 font-medium">Descrição</th>
+                  <th className="pb-2 font-medium text-right">Valor</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-sand-100">
+                {despesasCusto.map((d) => (
+                  <tr key={d.id}>
+                    <td className="py-2 text-ink-500">{new Date(d.data_despesa).toLocaleDateString('pt-PT')}</td>
+                    <td className="py-2 text-ink-800">{d.descricao}</td>
+                    <td className="py-2 text-right text-ink-800">{formatMoney(d.valor)}</td>
+                  </tr>
+                ))}
+                <tr className="font-medium">
+                  <td colSpan={2} className="py-2 text-right text-ink-600">Total</td>
+                  <td className="py-2 text-right text-ink-800">{formatMoney(totalDespesas)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

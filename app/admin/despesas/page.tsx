@@ -27,6 +27,16 @@ type Despesa = {
   obras: { titulo: string } | null;
   subempreitadas: { descricao: string } | null;
   fornecedores: { nome: string } | null;
+  despesa_itens: DespesaItem[];
+};
+
+type DespesaItem = {
+  id: string;
+  descricao: string;
+  quantidade: number;
+  preco_unitario: number;
+  desconto_percentagem: number;
+  iva_percentagem: number;
 };
 
 type LinhaSplit = { destino: string; valor: string };
@@ -129,6 +139,7 @@ export default function DespesasPage() {
   const [linhas, setLinhas] = useState<LinhaSplit[]>([{ destino: '', valor: '' }, { destino: OPCAO_GERAL, valor: '' }]);
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [despesaExpandida, setDespesaExpandida] = useState<string | null>(null);
 
   const [duplicando, setDuplicando] = useState<Despesa | null>(null);
   const [dataDuplicar, setDataDuplicar] = useState(() => new Date().toISOString().slice(0, 10));
@@ -145,7 +156,7 @@ export default function DespesasPage() {
 
   async function carregar() {
     setLoading(true);
-    let query = supabase.from('despesas').select('*, obras(titulo), subempreitadas(descricao), fornecedores(nome)').order('data_despesa', { ascending: false });
+    let query = supabase.from('despesas').select('*, obras(titulo), subempreitadas(descricao), fornecedores(nome), despesa_itens(id, descricao, quantidade, preco_unitario, desconto_percentagem, iva_percentagem)').order('data_despesa', { ascending: false });
 
     if (filtroDestino === OPCAO_GERAL) query = query.is('obra_id', null).is('subempreitada_id', null);
     else if (filtroDestino.startsWith('obra:')) query = query.eq('obra_id', filtroDestino.split(':')[1]);
@@ -616,11 +627,21 @@ export default function DespesasPage() {
                           </button>
                         </td>
                       </tr>
-                      {!colapsado && itens.map((d) => (
-                        <tr key={d.id} className="hover:bg-sand-50 transition-colors">
+                      {!colapsado && itens.map((d) => {
+                        const temItens = d.despesa_itens && d.despesa_itens.length > 0;
+                        const expandida = despesaExpandida === d.id;
+                        return (
+                        <React.Fragment key={d.id}>
+                        <tr className="hover:bg-sand-50 transition-colors">
                           <td className="p-4 text-ink-500 whitespace-nowrap">{new Date(d.data_despesa).toLocaleDateString('pt-PT')}</td>
                           <td className="p-4 text-ink-800 font-medium">
-                            {d.comprovativo_url ? (
+                            {temItens ? (
+                              <button onClick={() => setDespesaExpandida(expandida ? null : d.id)} className="flex items-center gap-1.5 hover:text-brand-600">
+                                <ChevronRight size={13} className={`transition-transform text-ink-400 ${expandida ? 'rotate-90' : ''}`} />
+                                {d.descricao}
+                                <span className="badge bg-purple-100 text-purple-700 text-[10px]">{d.despesa_itens.length} artigo{d.despesa_itens.length !== 1 ? 's' : ''}</span>
+                              </button>
+                            ) : d.comprovativo_url ? (
                               <a href={d.comprovativo_url} target="_blank" rel="noreferrer" className="hover:text-brand-600 flex items-center gap-1.5">
                                 <Paperclip size={13} className="text-ink-300" /> {d.descricao}
                               </a>
@@ -643,6 +664,11 @@ export default function DespesasPage() {
                           </td>
                           <td className="p-4 text-right text-ink-800 font-medium">{formatMoney(d.valor)}</td>
                           <td className="p-4 text-right whitespace-nowrap">
+                            {d.comprovativo_url && (
+                              <a href={d.comprovativo_url} target="_blank" rel="noreferrer" className="text-ink-300 hover:text-brand-600 mr-2 inline-block" title="Ver comprovativo">
+                                <Paperclip size={15} />
+                              </a>
+                            )}
                             <button onClick={() => abrirEditar(d)} className="text-ink-300 hover:text-brand-600 mr-2" title="Editar">
                               <Pencil size={15} />
                             </button>
@@ -654,7 +680,43 @@ export default function DespesasPage() {
                             </button>
                           </td>
                         </tr>
-                      ))}
+                        {temItens && expandida && (
+                          <tr>
+                            <td colSpan={8} className="p-0">
+                              <div className="bg-sand-50/70 px-4 py-3">
+                                <table className="w-full text-left text-xs">
+                                  <thead className="text-ink-400 uppercase">
+                                    <tr>
+                                      <th className="pb-1.5 font-medium">Artigo</th>
+                                      <th className="pb-1.5 font-medium text-right">Qtd</th>
+                                      <th className="pb-1.5 font-medium text-right">P. Unit.</th>
+                                      <th className="pb-1.5 font-medium text-right">Desc.</th>
+                                      <th className="pb-1.5 font-medium text-right">IVA</th>
+                                      <th className="pb-1.5 font-medium text-right">Total</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-sand-200">
+                                    {d.despesa_itens.map((it) => (
+                                      <tr key={it.id}>
+                                        <td className="py-1.5 text-ink-700">{it.descricao}</td>
+                                        <td className="py-1.5 text-right text-ink-500">{it.quantidade}</td>
+                                        <td className="py-1.5 text-right text-ink-500">{formatMoney(it.preco_unitario)}</td>
+                                        <td className="py-1.5 text-right text-ink-500">{it.desconto_percentagem}%</td>
+                                        <td className="py-1.5 text-right text-ink-500">{it.iva_percentagem}%</td>
+                                        <td className="py-1.5 text-right text-ink-700 font-medium">
+                                          {formatMoney(it.quantidade * it.preco_unitario * (1 - it.desconto_percentagem / 100) * (1 + it.iva_percentagem / 100))}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
+                        );
+                      })}
                     </React.Fragment>
                   );
                 })

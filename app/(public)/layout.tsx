@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 
 const SITE_URL = 'https://projetarconforto.pt';
-const TITLE = 'Projetar Conforto | Renovações de Casas, Pladur, Capoto, Casas de Banho e Cozinhas';
+const TITLE = 'Projetar Conforto | Renovações de Casas em Vila Nova de Famalicão e Região';
 const DESCRIPTION =
-  'Empresa de renovações de casas em Portugal. Especialistas em pladur, capoto (isolamento térmico), remodelação de casas de banho, cozinhas, quartos e jardins. Peça já o seu orçamento sem compromisso.';
+  'Empresa de renovações de casas em Vila Nova de Famalicão, Braga, Guimarães, Barcelos e Santo Tirso. Especialistas em pladur, capoto (isolamento térmico), remodelação de casas de banho, cozinhas, quartos e jardins. Peça já o seu orçamento sem compromisso.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -51,10 +51,19 @@ const jsonLd = {
   image: `${SITE_URL}/og-image.png`,
   telephone: '+351911918796',
   email: 'geral@projetarconforto.pt',
-  areaServed: 'PT',
+  areaServed: [
+    { '@type': 'City', name: 'Vila Nova de Famalicão' },
+    { '@type': 'City', name: 'Braga' },
+    { '@type': 'City', name: 'Guimarães' },
+    { '@type': 'City', name: 'Barcelos' },
+    { '@type': 'City', name: 'Santo Tirso' },
+    { '@type': 'City', name: 'Vila do Conde' },
+    { '@type': 'City', name: 'Trofa' },
+  ],
   priceRange: '€€',
   address: {
     '@type': 'PostalAddress',
+    addressLocality: 'Vila Nova de Famalicão',
     addressCountry: 'PT',
   },
   makesOffer: [

@@ -11,6 +11,7 @@ type Lead = {
   nome: string;
   email: string | null;
   telefone: string | null;
+  localidade: string | null;
   tipo_obra: string | null;
   mensagem: string | null;
   estado: string;
@@ -133,6 +134,7 @@ export default function LeadsPage() {
                       </select>
                     </div>
                     <p className="text-sm text-ink-400">{l.email || '—'} {l.telefone && `· ${l.telefone}`}</p>
+                    {l.localidade && <p className="text-xs text-ink-500 mt-0.5">📍 {l.localidade}</p>}
                     {l.tipo_obra && <p className="text-xs text-ink-400 mt-0.5">{l.tipo_obra}</p>}
                   </div>
                   <div className="flex items-center gap-3 shrink-0">

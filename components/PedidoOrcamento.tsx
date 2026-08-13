@@ -19,6 +19,7 @@ export default function PedidoOrcamento() {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
+  const [localidade, setLocalidade] = useState('');
   const [mensagem, setMensagem] = useState('');
   const [aceitouPrivacidade, setAceitouPrivacidade] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -65,7 +66,7 @@ export default function PedidoOrcamento() {
 
     const tipoObra = instancias.map((i) => i.label).join(', ');
 
-    const { error } = await supabase.from('leads').insert([{ nome, email, telefone, tipo_obra: tipoObra, mensagem, zonas }]);
+    const { error } = await supabase.from('leads').insert([{ nome, email, telefone, localidade, tipo_obra: tipoObra, mensagem, zonas }]);
     setEnviando(false);
     if (error) { setErro('Não foi possível enviar. Tente novamente ou contacte-nos diretamente.'); return; }
     setEnviado(true);
@@ -192,6 +193,7 @@ export default function PedidoOrcamento() {
               <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="input w-full" required />
               <input type="tel" placeholder="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} className="input w-full" />
             </div>
+            <input type="text" placeholder="Localidade / Concelho (ex: Vila Nova de Famalicão)" value={localidade} onChange={(e) => setLocalidade(e.target.value)} className="input w-full" required />
             <textarea placeholder="Algo mais que queira acrescentar? (opcional)" value={mensagem} onChange={(e) => setMensagem(e.target.value)} className="input w-full" rows={3} />
             <label className="flex items-start gap-2 text-xs text-ink-500">
               <input type="checkbox" checked={aceitouPrivacidade} onChange={(e) => setAceitouPrivacidade(e.target.checked)} className="mt-0.5" required />

@@ -74,8 +74,11 @@ export default function HomePage() {
         <h1 className="text-4xl md:text-5xl font-heading font-semibold text-ink-800 mb-4">
           {settings?.hero_titulo || 'Renovações com transparência, do orçamento à entrega.'}
         </h1>
-        <p className="text-lg text-ink-500 mb-8">
+        <p className="text-lg text-ink-500 mb-3">
           {settings?.hero_subtitulo || 'Acompanhe o progresso da sua obra em tempo real.'}
+        </p>
+        <p className="text-sm text-ink-400 mb-8">
+          Servimos Vila Nova de Famalicão e concelhos vizinhos — Braga, Guimarães, Barcelos, Santo Tirso, Vila do Conde e Trofa.
         </p>
         <a href="#contacto" className="btn-primary inline-flex text-base px-6 py-3">
           Pedir Orçamento

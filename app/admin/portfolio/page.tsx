@@ -64,6 +64,11 @@ export default function PortfolioPage() {
     carregar();
   }
 
+  async function guardarEdicao(id: string, campo: 'titulo' | 'descricao' | 'categoria', valor: string) {
+    await supabase.from('projetos').update({ [campo]: valor || null }).eq('id', id);
+    carregar();
+  }
+
   async function enviarFotos(projetoId: string, tipo: string, ficheiros: FileList | null) {
     if (!ficheiros || ficheiros.length === 0) return;
     setUploading(true);
@@ -131,7 +136,7 @@ export default function PortfolioPage() {
                 <div className="p-4 flex items-center justify-between gap-3 cursor-pointer" onClick={() => setAberto(aExpandido ? null : p.id)}>
                   <div>
                     <p className="font-medium text-ink-800">{p.titulo}</p>
-                    <p className="text-xs text-ink-400">{CATEGORIAS.find((c) => c.value === p.categoria)?.label} · {fotosProjeto.length} foto{fotosProjeto.length !== 1 ? 's' : ''}</p>
+                    <p className="text-xs text-ink-400">{CATEGORIAS.find((c) => c.value === p.categoria)?.label} · {fotosProjeto.length} foto{fotosProjeto.length !== 1 ? 's' : ''}{p.descricao && ` · ${p.descricao}`}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <label className="flex items-center gap-1.5 text-xs text-ink-500 cursor-pointer" onClick={(e) => e.stopPropagation()}>
@@ -142,7 +147,37 @@ export default function PortfolioPage() {
                 </div>
 
                 {aExpandido && (
-                  <div className="p-4 border-t border-sand-100 bg-sand-50">
+                  <div className="p-4 border-t border-sand-100 bg-sand-50" onClick={(e) => e.stopPropagation()}>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                      <div>
+                        <label className="text-xs text-ink-500 block mb-1">Título</label>
+                        <input
+                          type="text"
+                          defaultValue={p.titulo}
+                          onBlur={(e) => { if (e.target.value !== p.titulo) guardarEdicao(p.id, 'titulo', e.target.value); }}
+                          className="input w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-ink-500 block mb-1">Categoria</label>
+                        <select
+                          defaultValue={p.categoria}
+                          onChange={(e) => guardarEdicao(p.id, 'categoria', e.target.value)}
+                          className="input w-full"
+                        >
+                          {CATEGORIAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-ink-500 block mb-1">Descrição</label>
+                        <input
+                          type="text"
+                          defaultValue={p.descricao || ''}
+                          onBlur={(e) => { if (e.target.value !== (p.descricao || '')) guardarEdicao(p.id, 'descricao', e.target.value); }}
+                          className="input w-full"
+                        />
+                      </div>
+                    </div>
                     <div className="flex flex-wrap gap-2 mb-4">
                       {['antes', 'depois', 'geral'].map((tipo) => (
                         <label key={tipo} className="btn-primary text-xs px-3 py-1.5 cursor-pointer">

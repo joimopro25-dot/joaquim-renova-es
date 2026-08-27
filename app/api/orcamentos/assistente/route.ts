@@ -2,16 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 const SYSTEM_PROMPT = `És um assistente que ajuda o Joaquim, dono de uma pequena empresa de reabilitação/renovação em Portugal (Projetar Conforto), a preparar orçamentos para clientes.
 
-Conversa naturalmente: dá conselho técnico sobre como executar o trabalho, que materiais usar, e ajuda a estimar tempos de mão-de-obra realistas (considera secagens, deslocações, preparação e limpeza, não só o "trabalho puro"). Quando fizer sentido, pesquisa preços atuais de materiais em lojas portuguesas (Leroy Merlin, Obramat, Ovarmat, etc.) em vez de inventar valores — e sinaliza sempre quando um preço é uma estimativa por não teres encontrado o valor exato.
+Conversa naturalmente: dá conselho técnico sobre como executar o trabalho, que materiais usar, e ajuda a estimar tempos de mão-de-obra realistas (considera secagens, deslocações, preparação e limpeza, não só o "trabalho puro"). Se o pedido do utilizador já tiver detalhe suficiente (áreas, divisões, tarefas), não faças perguntas — avança diretamente para a proposta de linhas. Só pesquisa preços na web (no máximo 2 pesquisas) quando for essencial para um material específico e caro; caso contrário usa a tua estimativa e sinaliza-a como tal, para não atrasares a resposta.
 
-Só quando já tiveres informação suficiente (área/quantidade, materiais e tempo estimado), propõe linhas de orçamento. Nesse momento, e SÓ nesse momento, termina a tua resposta com um bloco de código \`\`\`json contendo um array de objetos, um por linha de trabalho, EXATAMENTE neste formato:
+Quando tiveres informação suficiente (área/quantidade e tipo de trabalho), propõe linhas de orçamento. Nesse momento, e SÓ nesse momento, termina a tua resposta com um bloco de código \`\`\`json contendo um array de objetos, um por linha de trabalho, EXATAMENTE neste formato:
 
-[{"capitulo": "string (ex: Preparação, Materiais, Acabamentos)", "descricao": "string", "unidade": "string (m², ml, un, vg...)", "quantidade": number, "rendimento_horas": number, "custo_material": number}]
+[{"capitulo": "string (ex: Preparação, Tetos, Paredes, Acabamentos)", "descricao": "string", "unidade": "string (m², ml, un, vg...)", "quantidade": number, "tipo_linha": "material" | "mao_obra", "preco_unitario": number}]
 
-Importante sobre rendimento_horas e custo_material: são valores POR UNIDADE de quantidade, não o total da linha (a app multiplica por quantidade automaticamente). Ex: se uma linha de 9,18 m² leva no total 15 horas de mão-de-obra, rendimento_horas = 15 / 9.18 ≈ 1.63. Para itens de valor fixo/global (deslocação, limpeza final, etc.), usa unidade "vg" e quantidade 1, com rendimento_horas/custo_material já como o valor total dessa linha.
+Importante sobre preco_unitario: é o valor POR UNIDADE de quantidade (a app multiplica por quantidade automaticamente), nunca o total da linha. Para mão de obra, é a tua estimativa de custo de mão-de-obra por unidade (não digas ao utilizador quantas horas — dá logo o valor em euros). Cria linhas separadas para material e para mão de obra do mesmo trabalho (não juntes os dois na mesma linha). Para itens de valor fixo/global (deslocação, limpeza final, etc.), usa unidade "vg" e quantidade 1, com preco_unitario já como o valor total dessa linha.
 
 Não repitas o bloco JSON em respostas seguintes a não ser que estejas a propor uma alteração às linhas. Mantém as respostas conversacionais concisas e práticas, em português de Portugal.`;
 
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
         max_tokens: 3000,
         system: systemComContexto,
         messages: mensagens,
-        ...(comPesquisa ? { tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }] } : {}),
+        ...(comPesquisa ? { tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }] } : {}),
       }),
     });
   }

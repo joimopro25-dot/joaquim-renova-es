@@ -41,8 +41,8 @@ type LinhaProposta = {
   descricao: string;
   unidade: string;
   quantidade: number;
-  rendimento_horas: number;
-  custo_material: number;
+  tipo_linha: 'material' | 'mao_obra';
+  preco_unitario: number;
 };
 
 type Foto = { id: string; url: string; legenda: string | null };
@@ -281,22 +281,32 @@ export default function OrcamentoDetalhePage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { setErroChat('Sessão expirada, atualiza a página.'); setAPensar(false); return; }
 
-    const contexto = `Orçamento "${orcamento.titulo}" para o cliente ${orcamento.clientes?.nome || '—'}. Taxa horária de mão-de-obra de referência: ${orcamento.taxa_horaria} €/h.`;
+    const contexto = `Orçamento "${orcamento.titulo}" para o cliente ${orcamento.clientes?.nome || '—'}.`;
 
-    const resp = await fetch('/api/orcamentos/assistente', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ mensagens: novasMensagens, contexto }),
-    });
-    const json = await resp.json();
-    setAPensar(false);
-    if (!resp.ok) { setErroChat(json.error || 'Erro ao falar com o assistente.'); return; }
+    try {
+      const resp = await fetch('/api/orcamentos/assistente', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ mensagens: novasMensagens, contexto }),
+      });
+      let json: any;
+      try {
+        json = await resp.json();
+      } catch {
+        throw new Error(`Resposta inesperada do servidor (${resp.status}). Pode ter demorado demasiado tempo — tenta uma descrição mais curta.`);
+      }
+      if (!resp.ok) throw new Error(json.error || 'Erro ao falar com o assistente.');
 
-    setMensagensChat((prev) => [...prev, { role: 'assistant', content: json.resposta }]);
-    const propostas = extrairLinhasPropostas(json.resposta);
-    if (propostas && propostas.length > 0) {
-      setLinhasPropostas(propostas);
-      setLinhasSelecionadas(new Set(propostas.map((_, i) => i)));
+      setMensagensChat((prev) => [...prev, { role: 'assistant', content: json.resposta }]);
+      const propostas = extrairLinhasPropostas(json.resposta);
+      if (propostas && propostas.length > 0) {
+        setLinhasPropostas(propostas);
+        setLinhasSelecionadas(new Set(propostas.map((_, i) => i)));
+      }
+    } catch (err: any) {
+      setErroChat(err.message || 'Erro ao falar com o assistente.');
+    } finally {
+      setAPensar(false);
     }
   }
 
@@ -313,18 +323,15 @@ export default function OrcamentoDetalhePage() {
     setAAdicionarPropostas(true);
     const selecionadas = linhasPropostas.filter((_, i) => linhasSelecionadas.has(i));
     const { error } = await supabase.from('orcamento_linhas').insert(
-      selecionadas.map((l) => {
-        const precoUnitario = (l.rendimento_horas || 0) * orcamento.taxa_horaria + (l.custo_material || 0);
-        return {
-          orcamento_id: id,
-          capitulo: l.capitulo || 'Geral',
-          descricao: l.descricao,
-          unidade: l.unidade || 'un',
-          quantidade: l.quantidade || 1,
-          tipo_linha: (l.rendimento_horas || 0) > 0 ? 'mao_obra' : 'material',
-          preco_unitario: precoUnitario,
-        };
-      })
+      selecionadas.map((l) => ({
+        orcamento_id: id,
+        capitulo: l.capitulo || 'Geral',
+        descricao: l.descricao,
+        unidade: l.unidade || 'un',
+        quantidade: l.quantidade || 1,
+        tipo_linha: l.tipo_linha === 'material' ? 'material' : 'mao_obra',
+        preco_unitario: l.preco_unitario || 0,
+      }))
     );
     setAAdicionarPropostas(false);
     if (error) { alert('Erro: ' + error.message); return; }
@@ -483,7 +490,7 @@ export default function OrcamentoDetalhePage() {
                         <input type="checkbox" checked={linhasSelecionadas.has(i)} onChange={() => alternarSelecao(i)} className="mt-1" />
                         <span className="flex-1">
                           <span className="text-ink-800 font-medium">{l.descricao}</span>
-                          <span className="text-ink-400"> · {l.quantidade} {l.unidade} · {l.rendimento_horas}h/un · {formatMoney(l.custo_material)}/un mat.</span>
+                          <span className="text-ink-400"> · {l.tipo_linha === 'material' ? 'Material' : 'Mão de Obra'} · {l.quantidade} {l.unidade} × {formatMoney(l.preco_unitario)}</span>
                         </span>
                       </label>
                     ))}

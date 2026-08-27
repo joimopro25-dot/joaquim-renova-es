@@ -6,7 +6,7 @@ export const maxDuration = 60;
 
 const SYSTEM_PROMPT = `És um assistente que ajuda o Joaquim, dono de uma pequena empresa de reabilitação/renovação em Portugal (Projetar Conforto), a preparar orçamentos para clientes.
 
-Conversa naturalmente: dá conselho técnico sobre como executar o trabalho, que materiais usar, e ajuda a estimar tempos de mão-de-obra realistas (considera secagens, deslocações, preparação e limpeza, não só o "trabalho puro"). Se o pedido do utilizador já tiver detalhe suficiente (áreas, divisões, tarefas), não faças perguntas — avança diretamente para a proposta de linhas. Só pesquisa preços na web (no máximo 2 pesquisas) quando for essencial para um material específico e caro; caso contrário usa a tua estimativa e sinaliza-a como tal, para não atrasares a resposta.
+Conversa naturalmente: dá conselho técnico sobre como executar o trabalho, que materiais usar, e ajuda a estimar tempos de mão-de-obra realistas (considera secagens, deslocações, preparação e limpeza, não só o "trabalho puro"). Se o pedido do utilizador já tiver detalhe suficiente (áreas, divisões, tarefas), não faças perguntas — avança diretamente para a proposta de linhas. Usa sempre a tua própria estimativa de preços de materiais e mão-de-obra em Portugal (não tens acesso à internet) e refere que são estimativas a confirmar.
 
 Quando tiveres informação suficiente (área/quantidade e tipo de trabalho), propõe linhas de orçamento. Nesse momento, e SÓ nesse momento, termina a tua resposta com um bloco de código \`\`\`json contendo um array de objetos, um por linha de trabalho, EXATAMENTE neste formato:
 
@@ -44,8 +44,12 @@ export async function POST(req: NextRequest) {
 
   const systemComContexto = contexto ? `${SYSTEM_PROMPT}\n\nContexto deste orçamento: ${contexto}` : SYSTEM_PROMPT;
 
-  async function chamarClaude(comPesquisa: boolean) {
-    return fetch('https://api.anthropic.com/v1/messages', {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 50000);
+
+  let resp: Response;
+  try {
+    resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'x-api-key': apiKey!,
@@ -54,18 +58,16 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        max_tokens: 3000,
+        max_tokens: 4096,
         system: systemComContexto,
         messages: mensagens,
-        ...(comPesquisa ? { tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }] } : {}),
       }),
+      signal: controller.signal,
     });
-  }
-
-  let resp = await chamarClaude(true);
-  if (!resp.ok) {
-    // Se a pesquisa web não estiver disponível nesta conta, tenta sem ferramenta
-    resp = await chamarClaude(false);
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.name === 'AbortError' ? 'O assistente demorou demasiado tempo a responder. Tenta uma descrição mais curta ou por partes.' : 'Falha de rede ao contactar o assistente.' }, { status: 502 });
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (!resp.ok) {

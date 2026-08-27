@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import { precoUnitarioFinal, totalLinha, calcularTotais } from '../../../../lib/orcamento';
-import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Loader2, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp, Package, Wrench } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Loader2, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp, Package, Wrench, Pencil } from 'lucide-react';
 import ImportarOrcamento from '../ImportarOrcamento';
 
 type Linha = {
@@ -83,6 +83,9 @@ export default function OrcamentoDetalhePage() {
 
   const [formMaterial, setFormMaterial] = useState(novaLinhaVazia());
   const [formMaoObra, setFormMaoObra] = useState(novaLinhaVazia());
+
+  const [linhaEditandoId, setLinhaEditandoId] = useState<string | null>(null);
+  const [formEdicao, setFormEdicao] = useState(novaLinhaVazia());
 
   const [fornecedorId, setFornecedorId] = useState('');
   const [descSub, setDescSub] = useState('');
@@ -344,6 +347,32 @@ export default function OrcamentoDetalhePage() {
     carregar();
   }
 
+  function iniciarEdicaoLinha(l: Linha) {
+    setLinhaEditandoId(l.id);
+    setFormEdicao({
+      descricao: l.descricao,
+      unidade: l.unidade,
+      quantidade: String(l.quantidade),
+      precoUnitario: String(l.preco_unitario),
+      desconto1: String(l.desconto1_percentagem),
+      desconto2: String(l.desconto2_percentagem),
+    });
+  }
+
+  async function guardarEdicaoLinha(linhaId: string) {
+    const { error } = await supabase.from('orcamento_linhas').update({
+      descricao: formEdicao.descricao,
+      unidade: formEdicao.unidade || 'un',
+      quantidade: parseFloat(formEdicao.quantidade) || 0,
+      preco_unitario: parseFloat(formEdicao.precoUnitario) || 0,
+      desconto1_percentagem: parseFloat(formEdicao.desconto1) || 0,
+      desconto2_percentagem: parseFloat(formEdicao.desconto2) || 0,
+    }).eq('id', linhaId);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setLinhaEditandoId(null);
+    carregar();
+  }
+
   async function mudarEstado(novoEstado: string) {
     await supabase.from('orcamentos').update({ status: novoEstado }).eq('id', id);
     carregar();
@@ -590,7 +619,22 @@ export default function OrcamentoDetalhePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-sand-100">
-                {linhasMaterial.map((l) => (
+                {linhasMaterial.map((l) => l.id === linhaEditandoId ? (
+                  <tr key={l.id} className="bg-brand-50/40">
+                    <td className="p-2">
+                      <input type="text" value={formEdicao.descricao} onChange={(e) => setFormEdicao({ ...formEdicao, descricao: e.target.value })} className="input w-full" />
+                    </td>
+                    <td className="p-2"><input type="number" step="0.01" value={formEdicao.precoUnitario} onChange={(e) => setFormEdicao({ ...formEdicao, precoUnitario: e.target.value })} className="input w-full text-right" /></td>
+                    <td className="p-2"><input type="number" step="0.01" value={formEdicao.quantidade} onChange={(e) => setFormEdicao({ ...formEdicao, quantidade: e.target.value })} className="input w-full text-right" /></td>
+                    <td className="p-2"><input type="number" step="0.1" value={formEdicao.desconto1} onChange={(e) => setFormEdicao({ ...formEdicao, desconto1: e.target.value })} className="input w-full text-right" /></td>
+                    <td className="p-2"><input type="number" step="0.1" value={formEdicao.desconto2} onChange={(e) => setFormEdicao({ ...formEdicao, desconto2: e.target.value })} className="input w-full text-right" /></td>
+                    <td className="p-2 text-right text-ink-400 text-xs">—</td>
+                    <td className="p-2 text-right whitespace-nowrap">
+                      <button onClick={() => guardarEdicaoLinha(l.id)} className="text-green-600 hover:text-green-700 mr-2"><Check size={16} /></button>
+                      <button onClick={() => setLinhaEditandoId(null)} className="text-ink-300 hover:text-ink-600"><X size={16} /></button>
+                    </td>
+                  </tr>
+                ) : (
                   <tr key={l.id}>
                     <td className="p-2 text-ink-800">{l.descricao} <span className="text-ink-400">({l.unidade})</span></td>
                     <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario)}</td>
@@ -598,8 +642,13 @@ export default function OrcamentoDetalhePage() {
                     <td className="p-2 text-right text-ink-500">{l.desconto1_percentagem}%</td>
                     <td className="p-2 text-right text-ink-500">{l.desconto2_percentagem}%</td>
                     <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(totalLinha(l as any))}</td>
-                    <td className="p-2 text-right">
-                      {editavel && <button onClick={() => removerLinha(l.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={14} /></button>}
+                    <td className="p-2 text-right whitespace-nowrap">
+                      {editavel && (
+                        <>
+                          <button onClick={() => iniciarEdicaoLinha(l)} className="text-ink-300 hover:text-brand-600 mr-2"><Pencil size={14} /></button>
+                          <button onClick={() => removerLinha(l.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={14} /></button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -663,7 +712,22 @@ export default function OrcamentoDetalhePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-sand-100">
-                {linhasMaoObra.map((l) => (
+                {linhasMaoObra.map((l) => l.id === linhaEditandoId ? (
+                  <tr key={l.id} className="bg-brand-50/40">
+                    <td className="p-2">
+                      <input type="text" value={formEdicao.descricao} onChange={(e) => setFormEdicao({ ...formEdicao, descricao: e.target.value })} className="input w-full" />
+                    </td>
+                    <td className="p-2"><input type="number" step="0.01" value={formEdicao.precoUnitario} onChange={(e) => setFormEdicao({ ...formEdicao, precoUnitario: e.target.value })} className="input w-full text-right" /></td>
+                    <td className="p-2"><input type="number" step="0.01" value={formEdicao.quantidade} onChange={(e) => setFormEdicao({ ...formEdicao, quantidade: e.target.value })} className="input w-full text-right" /></td>
+                    <td className="p-2"><input type="number" step="0.1" value={formEdicao.desconto1} onChange={(e) => setFormEdicao({ ...formEdicao, desconto1: e.target.value })} className="input w-full text-right" /></td>
+                    <td className="p-2"><input type="number" step="0.1" value={formEdicao.desconto2} onChange={(e) => setFormEdicao({ ...formEdicao, desconto2: e.target.value })} className="input w-full text-right" /></td>
+                    <td className="p-2 text-right text-ink-400 text-xs">—</td>
+                    <td className="p-2 text-right whitespace-nowrap">
+                      <button onClick={() => guardarEdicaoLinha(l.id)} className="text-green-600 hover:text-green-700 mr-2"><Check size={16} /></button>
+                      <button onClick={() => setLinhaEditandoId(null)} className="text-ink-300 hover:text-ink-600"><X size={16} /></button>
+                    </td>
+                  </tr>
+                ) : (
                   <tr key={l.id}>
                     <td className="p-2 text-ink-800">{l.descricao} <span className="text-ink-400">({l.unidade})</span></td>
                     <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario)}</td>
@@ -671,8 +735,13 @@ export default function OrcamentoDetalhePage() {
                     <td className="p-2 text-right text-ink-500">{l.desconto1_percentagem}%</td>
                     <td className="p-2 text-right text-ink-500">{l.desconto2_percentagem}%</td>
                     <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(totalLinha(l as any))}</td>
-                    <td className="p-2 text-right">
-                      {editavel && <button onClick={() => removerLinha(l.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={14} /></button>}
+                    <td className="p-2 text-right whitespace-nowrap">
+                      {editavel && (
+                        <>
+                          <button onClick={() => iniciarEdicaoLinha(l)} className="text-ink-300 hover:text-brand-600 mr-2"><Pencil size={14} /></button>
+                          <button onClick={() => removerLinha(l.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={14} /></button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}

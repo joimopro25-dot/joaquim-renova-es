@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import Link from 'next/link';
-import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle, ShieldCheck, Plus, Calendar, Check, Pencil } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle, ShieldCheck, Plus, Calendar, Check, Pencil, Stethoscope } from 'lucide-react';
+import ConsultoriaChat from '../../../../components/ConsultoriaChat';
 
 type Obra = {
   id: string;
@@ -18,6 +19,8 @@ type Obra = {
   valor_material_orcamentado: number;
   valor_mao_obra_orcamentado: number;
   valor_subcontratado_orcamentado: number;
+  orcamento_id: string | null;
+  cliente_id: string;
   clientes: { nome: string } | null;
 };
 
@@ -141,6 +144,7 @@ export default function ObraDetalhePage() {
   const [tBloqueante, setTBloqueante] = useState(true);
   const [tarefaEditandoId, setTarefaEditandoId] = useState<string | null>(null);
   const [aGuardarTarefa, setAGuardarTarefa] = useState(false);
+  const [consultoriaId, setConsultoriaId] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -154,6 +158,12 @@ export default function ObraDetalhePage() {
       supabase.from('obra_tarefas').select('*').eq('obra_id', id).order('data_inicio'),
     ]);
     setObra(obraData as any);
+    if ((obraData as any)?.orcamento_id) {
+      const { data: orcData } = await supabase.from('orcamentos').select('consultoria_id').eq('id', (obraData as any).orcamento_id).maybeSingle();
+      setConsultoriaId(orcData?.consultoria_id || null);
+    } else {
+      setConsultoriaId(null);
+    }
     setFotos(fotosData || []);
     setTotalDespesas((despesasData || []).filter((d: any) => d.tipo_imputacao === 'custo').reduce((s, d: any) => s + (d.valor || 0), 0));
     setTotalDespesasCliente((despesasData || []).filter((d: any) => d.tipo_imputacao === 'cliente').reduce((s, d: any) => s + (d.valor || 0), 0));
@@ -438,6 +448,19 @@ export default function ObraDetalhePage() {
           <p className={`text-xl font-heading font-semibold ${margem >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatMoney(margem)}</p>
         </div>
       </div>
+
+      {consultoriaId && (
+        <div className="card p-6 mb-6">
+          <h3 className="font-semibold text-ink-700 mb-3 flex items-center gap-2"><Stethoscope size={16} /> Consultoria Técnica</h3>
+          <p className="text-xs text-ink-400 mb-3">Histórico da consultoria e do orçamento que deram origem a esta obra — fotos e discussão técnica desde o início.</p>
+          <ConsultoriaChat
+            consultoriaId={consultoriaId}
+            clienteId={obra.cliente_id}
+            tituloDefault={obra.titulo}
+            permitirOrcamento={false}
+          />
+        </div>
+      )}
 
       {(obra.valor_material_orcamentado > 0 || obra.valor_mao_obra_orcamentado > 0 || obra.valor_subcontratado_orcamentado > 0) && (
         <div className="card p-6 mb-6">

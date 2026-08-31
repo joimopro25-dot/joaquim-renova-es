@@ -5,8 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import { precoUnitarioFinal, totalLinha, calcularTotais } from '../../../../lib/orcamento';
-import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Loader2, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp, Package, Wrench, Pencil } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp, Package, Wrench, Pencil } from 'lucide-react';
 import ImportarOrcamento from '../ImportarOrcamento';
+import ConsultoriaChat from '../../../../components/ConsultoriaChat';
 
 type Linha = {
   id: string;
@@ -35,7 +36,6 @@ type Candidato = {
   fornecedores: { nome: string } | null;
 };
 
-type MensagemChat = { role: 'user' | 'assistant'; content: string };
 type LinhaProposta = {
   capitulo: string;
   descricao: string;
@@ -58,6 +58,7 @@ type Orcamento = {
   iva_mao_obra_percentagem: number;
   iva_subcontratado_percentagem: number;
   cliente_id: string;
+  consultoria_id: string | null;
   clientes: { nome: string } | null;
 };
 
@@ -106,10 +107,6 @@ export default function OrcamentoDetalhePage() {
 
   const [showImportar, setShowImportar] = useState(false);
   const [showAssistente, setShowAssistente] = useState(false);
-  const [mensagensChat, setMensagensChat] = useState<MensagemChat[]>([]);
-  const [inputChat, setInputChat] = useState('');
-  const [aPensar, setAPensar] = useState(false);
-  const [erroChat, setErroChat] = useState('');
   const [linhasPropostas, setLinhasPropostas] = useState<LinhaProposta[] | null>(null);
   const [linhasSelecionadas, setLinhasSelecionadas] = useState<Set<number>>(new Set());
   const [aAdicionarPropostas, setAAdicionarPropostas] = useState(false);
@@ -255,70 +252,22 @@ export default function OrcamentoDetalhePage() {
     carregar();
   }
 
-  function extrairLinhasPropostas(texto: string): LinhaProposta[] | null {
-    const match = texto.match(/```json\s*([\s\S]*?)```/i);
-    if (!match) return null;
-    try {
-      const dados = JSON.parse(match[1].trim());
-      if (Array.isArray(dados)) return dados;
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  function textoSemJson(texto: string): string {
-    return texto.replace(/```json\s*[\s\S]*?```/i, '').trim();
-  }
-
-  async function enviarMensagemChat(e: React.FormEvent) {
-    e.preventDefault();
-    if (!inputChat.trim() || !orcamento) return;
-    setErroChat('');
-    const novasMensagens: MensagemChat[] = [...mensagensChat, { role: 'user', content: inputChat }];
-    setMensagensChat(novasMensagens);
-    setInputChat('');
-    setAPensar(true);
-    setLinhasPropostas(null);
-
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { setErroChat('Sessão expirada, atualiza a página.'); setAPensar(false); return; }
-
-    const contexto = `Orçamento "${orcamento.titulo}" para o cliente ${orcamento.clientes?.nome || '—'}.`;
-
-    try {
-      const resp = await fetch('/api/orcamentos/assistente', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ mensagens: novasMensagens, contexto }),
-      });
-      let json: any;
-      try {
-        json = await resp.json();
-      } catch {
-        throw new Error(`Resposta inesperada do servidor (${resp.status}). Pode ter demorado demasiado tempo — tenta uma descrição mais curta.`);
-      }
-      if (!resp.ok) throw new Error(json.error || 'Erro ao falar com o assistente.');
-
-      setMensagensChat((prev) => [...prev, { role: 'assistant', content: json.resposta }]);
-      const propostas = extrairLinhasPropostas(json.resposta);
-      if (propostas && propostas.length > 0) {
-        setLinhasPropostas(propostas);
-        setLinhasSelecionadas(new Set(propostas.map((_, i) => i)));
-      }
-    } catch (err: any) {
-      setErroChat(err.message || 'Erro ao falar com o assistente.');
-    } finally {
-      setAPensar(false);
-    }
-  }
-
   function alternarSelecao(idx: number) {
     setLinhasSelecionadas((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) next.delete(idx); else next.add(idx);
       return next;
     });
+  }
+
+  function handleLinhasPropostas(propostas: LinhaProposta[]) {
+    setLinhasPropostas(propostas);
+    setLinhasSelecionadas(new Set(propostas.map((_, i) => i)));
+  }
+
+  async function handleConsultoriaCriada(consultoriaId: string) {
+    setOrcamento((prev) => (prev ? { ...prev, consultoria_id: consultoriaId } : prev));
+    await supabase.from('orcamentos').update({ consultoria_id: consultoriaId }).eq('id', id);
   }
 
   async function adicionarLinhasPropostas() {
@@ -481,37 +430,28 @@ export default function OrcamentoDetalhePage() {
       {editavel && (
         <div className="card p-6 mb-6">
           <button onClick={() => setShowAssistente((v) => !v)} className="flex items-center gap-2 font-semibold text-ink-700 w-full">
-            <Sparkles size={16} className="text-brand-500" /> Assistente de Orçamentação
+            <Sparkles size={16} className="text-brand-500" /> Consultoria Técnica / Assistente de Orçamentação
             <span className="text-xs font-normal text-ink-400 ml-auto">{showAssistente ? 'fechar' : 'abrir'}</span>
           </button>
 
           {showAssistente && (
             <div className="mt-4">
               <p className="text-xs text-ink-400 mb-3">
-                Descreve o trabalho (ex: "reparar fachada com 9m², descolamento de reboco") e conversa com o assistente sobre técnica, materiais e preços. Quando houver informação suficiente, ele propõe linhas para adicionares ao orçamento.
+                Descreve o trabalho e/ou envia fotos do local. Conversa com o assistente sobre técnica, materiais e preços — quando confirmares, ele propõe linhas para adicionares ao orçamento. Esta conversa fica sempre gravada.
               </p>
 
-              {mensagensChat.length > 0 && (
-                <div className="space-y-3 mb-3 max-h-[420px] overflow-y-auto pr-1">
-                  {mensagensChat.map((m, i) => (
-                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${m.role === 'user' ? 'bg-brand-500 text-white' : 'bg-sand-50 text-ink-800 border border-sand-200'}`}>
-                        {m.role === 'assistant' ? textoSemJson(m.content) : m.content}
-                      </div>
-                    </div>
-                  ))}
-                  {aPensar && (
-                    <div className="flex justify-start">
-                      <div className="bg-sand-50 border border-sand-200 rounded-lg px-3 py-2 text-sm text-ink-400 flex items-center gap-2">
-                        <Loader2 size={14} className="animate-spin" /> A pensar...
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              <ConsultoriaChat
+                consultoriaId={orcamento.consultoria_id}
+                clienteId={orcamento.cliente_id}
+                tituloDefault={orcamento.titulo}
+                permitirOrcamento={true}
+                contexto={`Orçamento "${orcamento.titulo}" para o cliente ${orcamento.clientes?.nome || '—'}.`}
+                onConsultoriaCriada={handleConsultoriaCriada}
+                onLinhasPropostas={handleLinhasPropostas}
+              />
 
               {linhasPropostas && linhasPropostas.length > 0 && (
-                <div className="border border-brand-200 bg-brand-50/40 rounded-lg p-3 mb-3">
+                <div className="border border-brand-200 bg-brand-50/40 rounded-lg p-3 mt-3">
                   <p className="text-xs font-medium text-brand-700 mb-2">Linhas propostas — escolhe as que queres adicionar:</p>
                   <div className="space-y-1.5 mb-3">
                     {linhasPropostas.map((l, i) => (
@@ -529,22 +469,6 @@ export default function OrcamentoDetalhePage() {
                   </button>
                 </div>
               )}
-
-              {erroChat && <p className="text-sm text-red-600 mb-2">{erroChat}</p>}
-
-              <form onSubmit={enviarMensagemChat} className="flex gap-2">
-                <textarea
-                  value={inputChat}
-                  onChange={(e) => setInputChat(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensagemChat(e); } }}
-                  placeholder="Escreve aqui..."
-                  className="input flex-1 min-h-[44px]"
-                  disabled={aPensar}
-                />
-                <button disabled={aPensar || !inputChat.trim()} className="btn-primary disabled:opacity-60">
-                  <Send size={16} />
-                </button>
-              </form>
             </div>
           )}
         </div>

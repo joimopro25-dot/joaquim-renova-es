@@ -7,7 +7,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
 import InstallAppButton from '../../components/InstallAppButton';
 import {
-  LayoutDashboard, Users, Briefcase, Receipt, Package, FileText, Inbox, Globe as GlobeIcon, Images, BookMarked, HardHat, UsersRound, Mail, BellRing, Truck, Sparkles, CalendarDays,
+  LayoutDashboard, Users, Briefcase, Receipt, Package, FileText, Inbox, Globe as GlobeIcon, Images, BookMarked, HardHat, UsersRound, Mail, BellRing, Truck, Sparkles, CalendarDays, Stethoscope,
   Menu, X, ChevronLeft, ChevronRight, Globe, LogOut,
 } from 'lucide-react';
 
@@ -19,6 +19,7 @@ const MENU: MenuItem[] = [
   { path: '/admin/email', icon: Mail, label: 'Email' },
   { path: '/admin/leads', icon: Inbox, label: 'Leads' },
   { path: '/admin/clientes', icon: Users, label: 'Clientes' },
+  { path: '/admin/consultorias', icon: Stethoscope, label: 'Consultoria' },
   { path: '/admin/orcamentos', icon: FileText, label: 'Orçamentos' },
   { path: '/admin/precario', icon: BookMarked, label: 'Preçário' },
   { path: '/admin/obras', icon: Briefcase, label: 'Obras' },

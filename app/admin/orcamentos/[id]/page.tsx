@@ -5,9 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import { precoUnitarioFinal, totalLinha, calcularTotais } from '../../../../lib/orcamento';
-import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp, Package, Wrench, Pencil } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp, Package, Wrench, Pencil, LayoutPanelTop } from 'lucide-react';
 import ImportarOrcamento from '../ImportarOrcamento';
 import ConsultoriaChat from '../../../../components/ConsultoriaChat';
+import PladurWizard from '../../../../components/PladurWizard';
 
 type Linha = {
   id: string;
@@ -107,6 +108,8 @@ export default function OrcamentoDetalhePage() {
 
   const [showImportar, setShowImportar] = useState(false);
   const [showAssistente, setShowAssistente] = useState(false);
+  const [showPladur, setShowPladur] = useState(false);
+  const [aGuardarPladur, setAGuardarPladur] = useState(false);
   const [linhasPropostas, setLinhasPropostas] = useState<LinhaProposta[] | null>(null);
   const [linhasSelecionadas, setLinhasSelecionadas] = useState<Set<number>>(new Set());
   const [aAdicionarPropostas, setAAdicionarPropostas] = useState(false);
@@ -423,6 +426,52 @@ export default function OrcamentoDetalhePage() {
             <button onClick={converterEmObra} disabled={converting} className="btn-primary bg-purple-600 hover:bg-purple-700 disabled:opacity-60">
               <ArrowRightCircle size={16} /> {converting ? 'A converter...' : 'Converter em Obra'}
             </button>
+          )}
+        </div>
+      )}
+
+      {editavel && (
+        <div className="card p-6 mb-6">
+          <button onClick={() => setShowPladur((v) => !v)} className="flex items-center gap-2 font-semibold text-ink-700 w-full">
+            <LayoutPanelTop size={16} className="text-brand-500" /> Planeador de Pladur
+            <span className="text-xs font-normal text-ink-400 ml-auto">{showPladur ? 'fechar' : 'abrir'}</span>
+          </button>
+
+          {showPladur && (
+            <div className="mt-4">
+              <p className="text-xs text-ink-400 mb-3">
+                Configura a divisão (medidas, teto, paredes, acabamentos) e obtém logo as linhas de material e mão de obra calculadas, prontas a adicionar a este orçamento.
+              </p>
+              <PladurWizard
+                aGuardar={aGuardarPladur}
+                onFinalizar={async (resultado) => {
+                  setAGuardarPladur(true);
+                  const linhasMateriais = resultado.materiais.map((l) => ({
+                    orcamento_id: id,
+                    capitulo: 'Pladur',
+                    descricao: l.descricao,
+                    unidade: l.unidade,
+                    quantidade: l.quantidade,
+                    tipo_linha: 'material',
+                    preco_unitario: l.precoUnitario,
+                  }));
+                  const linhasMaoObra = resultado.maoDeObra.map((l) => ({
+                    orcamento_id: id,
+                    capitulo: 'Pladur',
+                    descricao: l.descricao,
+                    unidade: l.unidade,
+                    quantidade: l.quantidade,
+                    tipo_linha: 'mao_obra',
+                    preco_unitario: l.precoUnitario,
+                  }));
+                  const { error } = await supabase.from('orcamento_linhas').insert([...linhasMateriais, ...linhasMaoObra]);
+                  setAGuardarPladur(false);
+                  if (error) { alert('Erro: ' + error.message); return; }
+                  setShowPladur(false);
+                  carregar();
+                }}
+              />
+            </div>
           )}
         </div>
       )}

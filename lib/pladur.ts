@@ -1,15 +1,19 @@
 // Motor de cálculo do Planeador de Pladur.
-// Fórmulas conforme especificação técnica (materiais + mão de obra por m²).
+// Fórmulas conforme especificação técnica + práticas confirmadas nos manuais
+// técnicos Pladur/Gyptec (espaçamento de perfis, suspensão de teto, etc.).
 
 export type TipoTeto = 'nenhum' | 'simples' | 'sanca_simples' | 'sanca_led' | 'rebaixo_central';
 export type TipoSanca = 'simples' | 'goteira' | 'invertida';
 export type Cobertura = 'toda' | 'uma' | 'duas';
+export type RemateTeto = 'justificado' | 'sombra';
 export type TipoTrabalhoParede = 'revestimento' | 'tabique' | 'divisoria';
 export type TipoPlaca = 'normal' | 'hidrofuga' | 'cortafogo';
 export type SistemaFixacao = 'montante' | 'omega';
 export type TipoIsolamento = 'nenhum' | 'la_rocha' | 'la_mineral' | 'bolha';
+export type EstruturaParede = 'simples' | 'dupla';
 export type TipoPintura = 'nao' | '1demao' | '2demaos';
-export type TipoLed = 'nao' | 'fita' | 'spots';
+export type QualidadeTinta = 'normal' | 'normal_alta' | 'extrema';
+export type TipoLed = 'nao' | 'fita' | 'fita_zigbee';
 
 export type EspacoConfig = {
   nome: string;
@@ -20,10 +24,12 @@ export type EspacoConfig = {
 
 export type TetoConfig = {
   tipo: TipoTeto;
+  remate?: RemateTeto;
   tipoSanca?: TipoSanca;
   larguraSancaCm?: number;
   alturaSancaCm?: number;
   cobertura?: Cobertura;
+  focosLed?: number;
 };
 
 export type ParedeConfig = {
@@ -32,13 +38,20 @@ export type ParedeConfig = {
   tipoTrabalho: TipoTrabalhoParede;
   tipoPlaca: TipoPlaca;
   sistemaFixacao: SistemaFixacao;
+  estrutura: EstruturaParede;
   tipoIsolamento: TipoIsolamento;
+  temTv: boolean;
 };
 
 export type AcabamentosConfig = {
   pintura: TipoPintura;
+  qualidadeTinta: QualidadeTinta;
   led: TipoLed;
   metrosLed?: number;
+  rodape: boolean;
+  pontosLuz: number;
+  interruptores: number;
+  tomadas: number;
 };
 
 export type PrecoItem = { chave: string; descricao: string; unidade: string; preco: number };
@@ -66,6 +79,9 @@ export type ResultadoPladur = {
 };
 
 const IVA_PERCENTAGEM = 0.23;
+// Um suspensor (varão roscado + peça niveladora) por cada ~1.2 m² de teto —
+// aproximação razoável para uma modulação de 600mm nos dois sentidos.
+const M2_POR_SUSPENSOR = 1.2;
 
 function arred(n: number, casas = 2) {
   const f = Math.pow(10, casas);
@@ -95,6 +111,20 @@ function addLinha(mapa: Map<string, LinhaCalculada>, precos: TabelaPrecos, chave
   });
 }
 
+function addMaoDeObra(linhas: LinhaCalculada[], precos: TabelaPrecos, chave: string, quantidade: number, sufixo = '') {
+  if (quantidade <= 0) return;
+  const p = precos[chave];
+  if (!p) return;
+  linhas.push({
+    chave: chave + sufixo,
+    descricao: p.descricao,
+    unidade: p.unidade,
+    quantidade: arred(quantidade, 2),
+    precoUnitario: p.preco,
+    valor: arred(quantidade * p.preco, 2),
+  });
+}
+
 export function calcularOrcamentoPladur(
   espaco: EspacoConfig,
   teto: TetoConfig,
@@ -106,6 +136,7 @@ export function calcularOrcamentoPladur(
   const maoDeObraLinhas: LinhaCalculada[] = [];
 
   const m2Teto = teto.tipo !== 'nenhum' ? arred(espaco.comprimento * espaco.largura, 2) : 0;
+  const perimetroSala = (espaco.comprimento + espaco.largura) * 2;
 
   if (teto.tipo !== 'nenhum') {
     // Modulação da estrutura: 600mm em condições normais (400mm em zonas
@@ -125,6 +156,16 @@ export function calcularOrcamentoPladur(
     addLinha(materiaisMapa, precos, 'massa_juntas', Math.ceil(massaJuntas / 25));
     addLinha(materiaisMapa, precos, 'fita_papel', Math.ceil(fitaPapel / 75));
 
+    // Suspensão do teto: varão roscado + suspensor nivelador — sempre
+    // necessário num teto contínuo (não é opcional).
+    const suspensores = Math.ceil(m2Teto / M2_POR_SUSPENSOR);
+    addLinha(materiaisMapa, precos, 'varao_roscado', suspensores);
+
+    // Remate perimetral: justificado (perfil angular normal) ou com junta
+    // de sombra (Perfil Pladur Sombra).
+    const chaveRemate = teto.remate === 'sombra' ? 'perfil_sombra' : 'perfil_angular';
+    addLinha(materiaisMapa, precos, chaveRemate, Math.ceil(perimetroSala / 3));
+
     if (teto.tipo === 'sanca_simples' || teto.tipo === 'sanca_led') {
       const perimetro = perimetroSanca(espaco, teto.cobertura);
       const alturaSancaM = (teto.alturaSancaCm || 20) / 100;
@@ -134,22 +175,20 @@ export function calcularOrcamentoPladur(
       addLinha(materiaisMapa, precos, 'perfil_primario', Math.ceil(perfisSanca / 3));
     }
 
+    // Focos LED embutidos no teto (contam à parte da fita LED).
+    if (teto.focosLed && teto.focosLed > 0) {
+      addLinha(materiaisMapa, precos, 'foco_led', teto.focosLed);
+      addMaoDeObra(maoDeObraLinhas, precos, 'foco_led_instalacao', teto.focosLed);
+    }
+
     if (teto.tipo === 'sanca_led' && acabamentos.metrosLed) {
       addLinha(materiaisMapa, precos, 'fita_led', acabamentos.metrosLed);
+      addLinha(materiaisMapa, precos, 'transformador_led', 1);
+      if (acabamentos.led === 'fita_zigbee') addLinha(materiaisMapa, precos, 'modulo_zigbee', 1);
     }
 
     const chaveMaoObraTeto = teto.tipo === 'sanca_led' ? 'teto_sanca_led' : teto.tipo === 'sanca_simples' ? 'teto_sanca_simples' : 'teto_simples';
-    const precoMaoObra = precos[chaveMaoObraTeto];
-    if (precoMaoObra) {
-      maoDeObraLinhas.push({
-        chave: chaveMaoObraTeto,
-        descricao: precoMaoObra.descricao,
-        unidade: 'm²',
-        quantidade: m2Teto,
-        precoUnitario: precoMaoObra.preco,
-        valor: arred(m2Teto * precoMaoObra.preco, 2),
-      });
-    }
+    addMaoDeObra(maoDeObraLinhas, precos, chaveMaoObraTeto, m2Teto);
   }
 
   let m2Paredes = 0;
@@ -157,7 +196,8 @@ export function calcularOrcamentoPladur(
   for (const parede of paredes) {
     const m2 = arred(parede.larguraM * espaco.peDireito, 2);
     m2Paredes += m2;
-    const placas = (m2 * 1.10) / 3.0;
+    const fatorPlacas = parede.estrutura === 'dupla' ? 2 : 1;
+    const placas = ((m2 * 1.10) / 3.0) * fatorPlacas;
 
     const chavePlaca = parede.tipoPlaca === 'hidrofuga' ? 'placa_hidrofuga' : parede.tipoPlaca === 'cortafogo' ? 'placa_cortafogo' : 'placa_normal';
     addLinha(materiaisMapa, precos, chavePlaca, Math.ceil(placas));
@@ -173,6 +213,9 @@ export function calcularOrcamentoPladur(
       const calhas = (parede.larguraM * 2) + (espaco.peDireito * 2);
       addLinha(materiaisMapa, precos, 'montante', Math.ceil(montantes / 3));
       addLinha(materiaisMapa, precos, 'calha_guia', Math.ceil(calhas / 3));
+      // Banda acústica sob as calhas guia, para desacoplar a estrutura do
+      // pavimento/teto (boa prática em qualquer tabique/divisória nova).
+      addLinha(materiaisMapa, precos, 'banda_acustica', Math.ceil(calhas));
     }
 
     if (parede.tipoIsolamento !== 'nenhum') {
@@ -181,12 +224,18 @@ export function calcularOrcamentoPladur(
       m2ComIsolamento += m2;
     }
 
+    if (parede.temTv) {
+      addLinha(materiaisMapa, precos, 'reforco_tv', 1);
+      addMaoDeObra(maoDeObraLinhas, precos, 'reforco_tv_instalacao', 1, `_${parede.id}`);
+    }
+
     const chaveMaoObraParede = parede.tipoTrabalho === 'revestimento' ? 'revestimento_parede' : 'tabique_divisoria';
+    const sufixoEstrutura = parede.estrutura === 'dupla' ? ' (estrutura dupla)' : '';
     const precoParede = precos[chaveMaoObraParede];
     if (precoParede) {
       maoDeObraLinhas.push({
         chave: `${chaveMaoObraParede}_${parede.id}`,
-        descricao: `${precoParede.descricao} (${parede.larguraM}m)`,
+        descricao: `${precoParede.descricao} (${parede.larguraM}m)${sufixoEstrutura}`,
         unidade: 'm²',
         quantidade: m2,
         precoUnitario: precoParede.preco,
@@ -196,38 +245,36 @@ export function calcularOrcamentoPladur(
   }
 
   if (m2ComIsolamento > 0) {
-    const precoIsolamento = precos['isolamento_acustico'];
-    if (precoIsolamento) {
-      maoDeObraLinhas.push({
-        chave: 'isolamento_acustico',
-        descricao: precoIsolamento.descricao,
-        unidade: 'm²',
-        quantidade: arred(m2ComIsolamento, 2),
-        precoUnitario: precoIsolamento.preco,
-        valor: arred(m2ComIsolamento * precoIsolamento.preco, 2),
-      });
-    }
+    addMaoDeObra(maoDeObraLinhas, precos, 'isolamento_acustico', m2ComIsolamento);
   }
 
   const m2Total = m2Teto + m2Paredes;
   if (acabamentos.pintura !== 'nao' && m2Total > 0) {
-    const chavePintura = acabamentos.pintura === '2demaos' ? 'pintura_2demaos' : 'pintura_1demao';
-    const precoPintura = precos[chavePintura];
-    if (precoPintura) {
-      maoDeObraLinhas.push({
-        chave: chavePintura,
-        descricao: precoPintura.descricao,
-        unidade: 'm²',
-        quantidade: arred(m2Total, 2),
-        precoUnitario: precoPintura.preco,
-        valor: arred(m2Total * precoPintura.preco, 2),
-      });
-    }
+    const numDemaos = acabamentos.pintura === '2demaos' ? 2 : 1;
+    // Antes da pintura: acabamento de placa (massa + lixagem) e primário —
+    // trabalho obrigatório, não incluído no preço da própria pintura.
+    addMaoDeObra(maoDeObraLinhas, precos, 'acabamento_placa', m2Total);
+    addMaoDeObra(maoDeObraLinhas, precos, 'primario', m2Total);
+
+    const chavePintura = numDemaos === 2 ? 'pintura_2demaos' : 'pintura_1demao';
+    addMaoDeObra(maoDeObraLinhas, precos, chavePintura, m2Total);
+
+    const chaveTinta = acabamentos.qualidadeTinta === 'extrema' ? 'tinta_extrema' : acabamentos.qualidadeTinta === 'normal_alta' ? 'tinta_normal_alta' : 'tinta_normal';
+    addLinha(materiaisMapa, precos, chaveTinta, arred(m2Total * numDemaos, 2));
   }
 
-  if (acabamentos.led === 'fita' && acabamentos.metrosLed && teto.tipo !== 'sanca_led') {
+  if (acabamentos.led !== 'nao' && acabamentos.metrosLed && teto.tipo !== 'sanca_led') {
     addLinha(materiaisMapa, precos, 'fita_led', acabamentos.metrosLed);
+    addLinha(materiaisMapa, precos, 'transformador_led', 1);
+    if (acabamentos.led === 'fita_zigbee') addLinha(materiaisMapa, precos, 'modulo_zigbee', 1);
   }
+
+  if (acabamentos.rodape) {
+    addLinha(materiaisMapa, precos, 'rodape', arred(perimetroSala, 2));
+  }
+
+  const totalPontosEletricos = (acabamentos.pontosLuz || 0) + (acabamentos.interruptores || 0) + (acabamentos.tomadas || 0);
+  addMaoDeObra(maoDeObraLinhas, precos, 'ponto_eletrico', totalPontosEletricos);
 
   const materiais = Array.from(materiaisMapa.values());
   const totalMateriais = arred(materiais.reduce((s, m) => s + m.valor, 0));

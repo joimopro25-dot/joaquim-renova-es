@@ -34,9 +34,9 @@ export default function PladurWizard({
   const [aCarregarPrecos, setACarregarPrecos] = useState(true);
 
   const [espaco, setEspaco] = useState<EspacoConfig>({ nome: 'Divisão', comprimento: 4, largura: 3, peDireito: 2.6 });
-  const [teto, setTeto] = useState<TetoConfig>({ tipo: 'nenhum', tipoSanca: 'simples', larguraSancaCm: 20, alturaSancaCm: 20, cobertura: 'toda' });
+  const [teto, setTeto] = useState<TetoConfig>({ tipo: 'nenhum', remate: 'justificado', tipoSanca: 'simples', larguraSancaCm: 20, alturaSancaCm: 20, cobertura: 'toda', focosLed: 0 });
   const [paredes, setParedes] = useState<ParedeConfig[]>([]);
-  const [acabamentos, setAcabamentos] = useState<AcabamentosConfig>({ pintura: 'nao', led: 'nao', metrosLed: 0 });
+  const [acabamentos, setAcabamentos] = useState<AcabamentosConfig>({ pintura: 'nao', qualidadeTinta: 'normal', led: 'nao', metrosLed: 0, rodape: false, pontosLuz: 0, interruptores: 0, tomadas: 0 });
 
   useEffect(() => {
     async function carregar() {
@@ -55,7 +55,7 @@ export default function PladurWizard({
   }, [espaco, teto, paredes, acabamentos, tabelaPrecos, precos.length]);
 
   function adicionarParede() {
-    setParedes((prev) => [...prev, { id: gerarId(), larguraM: 3, tipoTrabalho: 'revestimento', tipoPlaca: 'normal', sistemaFixacao: 'omega', tipoIsolamento: 'nenhum' }]);
+    setParedes((prev) => [...prev, { id: gerarId(), larguraM: 3, tipoTrabalho: 'revestimento', tipoPlaca: 'normal', sistemaFixacao: 'omega', estrutura: 'simples', tipoIsolamento: 'nenhum', temTv: false }]);
   }
 
   function atualizarParede(id: string, campos: Partial<ParedeConfig>) {
@@ -140,6 +140,22 @@ export default function PladurWizard({
             ))}
           </div>
 
+          {teto.tipo !== 'nenhum' && (
+            <div className="border border-sand-200 rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-ink-500 block mb-1">Remate perimetral (encontro com a parede)</label>
+                <select value={teto.remate} onChange={(e) => setTeto({ ...teto, remate: e.target.value as any })} className="input w-full">
+                  <option value="justificado">Justificado à parede (perfil angular)</option>
+                  <option value="sombra">Junta de sombra (Perfil Pladur Sombra)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-ink-500 block mb-1">Focos LED embutidos (quantidade)</label>
+                <input type="number" step="1" min="0" value={teto.focosLed} onChange={(e) => setTeto({ ...teto, focosLed: parseInt(e.target.value) || 0 })} className="input w-full" />
+              </div>
+            </div>
+          )}
+
           {(teto.tipo === 'sanca_simples' || teto.tipo === 'sanca_led') && (
             <div className="border border-sand-200 rounded-lg p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
@@ -178,7 +194,7 @@ export default function PladurWizard({
         <div className="space-y-3">
           {paredes.length === 0 && <p className="text-sm text-ink-400">Nenhuma parede a revestir. Adiciona se houver trabalho de pladur nas paredes.</p>}
           {paredes.map((p) => (
-            <div key={p.id} className="border border-sand-200 rounded-lg p-3 grid grid-cols-1 sm:grid-cols-6 gap-2 items-end">
+            <div key={p.id} className="border border-sand-200 rounded-lg p-3 grid grid-cols-1 sm:grid-cols-4 gap-2">
               <div>
                 <label className="text-xs text-ink-500 block mb-1">Largura (m)</label>
                 <input type="number" step="0.01" value={p.larguraM} onChange={(e) => atualizarParede(p.id, { larguraM: parseFloat(e.target.value) || 0 })} className="input w-full" />
@@ -198,12 +214,20 @@ export default function PladurWizard({
                   <option value="divisoria">Divisória</option>
                 </select>
               </div>
-              {p.tipoTrabalho === 'revestimento' && (
+              {p.tipoTrabalho === 'revestimento' ? (
                 <div>
                   <label className="text-xs text-ink-500 block mb-1">Sistema</label>
                   <select value={p.sistemaFixacao} onChange={(e) => atualizarParede(p.id, { sistemaFixacao: e.target.value as any })} className="input w-full">
                     <option value="omega">Perfil ómega (direto à parede)</option>
                     <option value="montante">Guia + Montante (autoportante)</option>
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs text-ink-500 block mb-1">Estrutura</label>
+                  <select value={p.estrutura} onChange={(e) => atualizarParede(p.id, { estrutura: e.target.value as any })} className="input w-full">
+                    <option value="simples">Simples (1 placa/lado)</option>
+                    <option value="dupla">Dupla (2 placas/lado)</option>
                   </select>
                 </div>
               )}
@@ -224,7 +248,12 @@ export default function PladurWizard({
                   <option value="bolha">Plástico bolha</option>
                 </select>
               </div>
-              <button type="button" onClick={() => removerParede(p.id)} className="text-ink-300 hover:text-red-600 justify-self-end"><X size={16} /></button>
+              <label className="flex items-center gap-1.5 text-xs text-ink-600">
+                <input type="checkbox" checked={p.temTv} onChange={(e) => atualizarParede(p.id, { temTv: e.target.checked })} /> Reforço + ponto para TV
+              </label>
+              <button type="button" onClick={() => removerParede(p.id)} className="text-ink-300 hover:text-red-600 justify-self-end self-end">
+                <X size={16} /> Remover
+              </button>
             </div>
           ))}
           <button type="button" onClick={adicionarParede} className="border border-sand-200 rounded-lg px-3 py-2 text-sm text-ink-600 hover:bg-sand-50 flex items-center gap-1.5">
@@ -234,27 +263,63 @@ export default function PladurWizard({
       )}
 
       {passo === 3 && (
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs text-ink-500 block mb-1">Pintura</label>
-            <select value={acabamentos.pintura} onChange={(e) => setAcabamentos({ ...acabamentos, pintura: e.target.value as any })} className="input w-full sm:w-64">
-              <option value="nao">Sem pintura</option>
-              <option value="1demao">1 demão</option>
-              <option value="2demaos">2 demãos</option>
-            </select>
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-ink-500 block mb-1">Pintura</label>
+              <select value={acabamentos.pintura} onChange={(e) => setAcabamentos({ ...acabamentos, pintura: e.target.value as any })} className="input w-full">
+                <option value="nao">Sem pintura</option>
+                <option value="1demao">1 demão</option>
+                <option value="2demaos">2 demãos</option>
+              </select>
+            </div>
+            {acabamentos.pintura !== 'nao' && (
+              <div>
+                <label className="text-xs text-ink-500 block mb-1">Qualidade da tinta</label>
+                <select value={acabamentos.qualidadeTinta} onChange={(e) => setAcabamentos({ ...acabamentos, qualidadeTinta: e.target.value as any })} className="input w-full">
+                  <option value="normal">Normal</option>
+                  <option value="normal_alta">Normal Alta</option>
+                  <option value="extrema">Extrema (lavável)</option>
+                </select>
+              </div>
+            )}
           </div>
+
           {teto.tipo !== 'sanca_led' && (
             <div>
               <label className="text-xs text-ink-500 block mb-1">Iluminação LED</label>
               <select value={acabamentos.led} onChange={(e) => setAcabamentos({ ...acabamentos, led: e.target.value as any })} className="input w-full sm:w-64">
                 <option value="nao">Não</option>
                 <option value="fita">Fita LED</option>
+                <option value="fita_zigbee">Fita LED + controlo Zigbee/app</option>
               </select>
-              {acabamentos.led === 'fita' && (
+              {acabamentos.led !== 'nao' && (
                 <input type="number" step="0.5" placeholder="Metros de fita" value={acabamentos.metrosLed} onChange={(e) => setAcabamentos({ ...acabamentos, metrosLed: parseFloat(e.target.value) || 0 })} className="input w-40 mt-2" />
               )}
             </div>
           )}
+
+          <label className="flex items-center gap-1.5 text-sm text-ink-600">
+            <input type="checkbox" checked={acabamentos.rodape} onChange={(e) => setAcabamentos({ ...acabamentos, rodape: e.target.checked })} /> Incluir rodapé novo (perímetro da divisão)
+          </label>
+
+          <div>
+            <p className="text-xs text-ink-500 mb-2">Eletricidade nova (opcional)</p>
+            <div className="grid grid-cols-3 gap-3 max-w-md">
+              <div>
+                <label className="text-xs text-ink-400 block mb-1">Pontos de luz</label>
+                <input type="number" step="1" min="0" value={acabamentos.pontosLuz} onChange={(e) => setAcabamentos({ ...acabamentos, pontosLuz: parseInt(e.target.value) || 0 })} className="input w-full" />
+              </div>
+              <div>
+                <label className="text-xs text-ink-400 block mb-1">Interruptores</label>
+                <input type="number" step="1" min="0" value={acabamentos.interruptores} onChange={(e) => setAcabamentos({ ...acabamentos, interruptores: parseInt(e.target.value) || 0 })} className="input w-full" />
+              </div>
+              <div>
+                <label className="text-xs text-ink-400 block mb-1">Tomadas</label>
+                <input type="number" step="1" min="0" value={acabamentos.tomadas} onChange={(e) => setAcabamentos({ ...acabamentos, tomadas: parseInt(e.target.value) || 0 })} className="input w-full" />
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

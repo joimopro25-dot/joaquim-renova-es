@@ -4,9 +4,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatMoney } from '../lib/format';
 import {
-  EspacoConfig, TetoConfig, ParedeConfig, AcabamentosConfig, TipoTeto, TipoTrabalhoParede, TipoPlaca, AberturaConfig, TipoAbertura,
+  EspacoConfig, TetoConfig, ParedeConfig, AcabamentosConfig, TipoTeto, TipoTrabalhoParede, TipoPlaca, AberturaConfig, TipoAbertura, LadoParede,
   calcularOrcamentoPladur, tabelaPrecosParaMapa, PrecoItem, ResultadoPladur,
 } from '../lib/pladur';
+import PlantaPladur from './PlantaPladur';
 import { ArrowLeft, ArrowRight, Plus, X, Loader2 } from 'lucide-react';
 
 function gerarId() {
@@ -34,7 +35,7 @@ export default function PladurWizard({
   const [aCarregarPrecos, setACarregarPrecos] = useState(true);
 
   const [espaco, setEspaco] = useState<EspacoConfig>({ nome: 'Divisão', comprimento: 4, largura: 3, peDireito: 2.6, comprimentoPlaca: 2.5 });
-  const [teto, setTeto] = useState<TetoConfig>({ tipo: 'nenhum', remate: 'justificado', tipoSanca: 'simples', larguraSancaCm: 20, alturaSancaCm: 20, cobertura: 'toda', focosLed: 0 });
+  const [teto, setTeto] = useState<TetoConfig>({ tipo: 'nenhum', remate: 'justificado', tipoSanca: 'simples', larguraSancaCm: 20, alturaSancaCm: 20, cobertura: 'toda', focosLedPosicoes: [] });
   const [paredes, setParedes] = useState<ParedeConfig[]>([]);
   const [acabamentos, setAcabamentos] = useState<AcabamentosConfig>({ pintura: 'nao', qualidadeTinta: 'normal', led: 'nao', metrosLed: 0, rodape: false, pontosLuz: 0, interruptores: 0, tomadas: 0 });
 
@@ -67,7 +68,7 @@ export default function PladurWizard({
   }
 
   function adicionarAbertura(paredeId: string, tipo: TipoAbertura) {
-    const nova: AberturaConfig = { id: gerarId(), tipo, larguraM: tipo === 'porta' ? 0.8 : 1.2, alturaM: tipo === 'porta' ? 2.1 : 1.2 };
+    const nova: AberturaConfig = { id: gerarId(), tipo, larguraM: tipo === 'porta' ? 0.8 : 1.2, alturaM: tipo === 'porta' ? 2.1 : 1.2, posicaoM: 0 };
     setParedes((prev) => prev.map((p) => (p.id === paredeId ? { ...p, aberturas: [...p.aberturas, nova] } : p)));
   }
 
@@ -79,8 +80,6 @@ export default function PladurWizard({
     setParedes((prev) => prev.map((p) => (p.id === paredeId ? { ...p, aberturas: p.aberturas.filter((a) => a.id !== aberturaId) } : p)));
   }
 
-  const larguraPx = 260;
-  const alturaPx = espaco.largura > 0 ? (larguraPx * espaco.largura) / Math.max(espaco.comprimento, 0.1) : 0;
   const escalaOk = espaco.comprimento > 0 && espaco.largura > 0;
 
   if (aCarregarPrecos) {
@@ -133,15 +132,7 @@ export default function PladurWizard({
             <p className="text-xs text-ink-400">Área da divisão: {(espaco.comprimento * espaco.largura).toFixed(2)} m²</p>
           </div>
           <div className="flex items-center justify-center bg-sand-50 rounded-lg border border-sand-200 p-4">
-            {escalaOk ? (
-              <svg width={larguraPx + 40} height={Math.min(alturaPx, 220) + 40} viewBox={`0 0 ${larguraPx + 40} ${Math.min(alturaPx, 220) + 40}`}>
-                <rect x={20} y={20} width={larguraPx} height={Math.min(alturaPx, 220)} fill="#fff" stroke="#c2a878" strokeWidth={2} />
-                <text x={20 + larguraPx / 2} y={14} textAnchor="middle" className="fill-ink-500" fontSize={11}>{espaco.comprimento.toFixed(2)} m</text>
-                <text x={12} y={20 + Math.min(alturaPx, 220) / 2} textAnchor="middle" className="fill-ink-500" fontSize={11} transform={`rotate(-90, 12, ${20 + Math.min(alturaPx, 220) / 2})`}>{espaco.largura.toFixed(2)} m</text>
-              </svg>
-            ) : (
-              <p className="text-xs text-ink-400">Preenche as medidas para ver a planta.</p>
-            )}
+            <PlantaPladur espaco={espaco} paredes={paredes} teto={teto} />
           </div>
         </div>
       )}
@@ -162,18 +153,15 @@ export default function PladurWizard({
           </div>
 
           {teto.tipo !== 'nenhum' && (
-            <div className="border border-sand-200 rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-ink-500 block mb-1">Remate perimetral (encontro com a parede)</label>
-                <select value={teto.remate} onChange={(e) => setTeto({ ...teto, remate: e.target.value as any })} className="input w-full">
-                  <option value="justificado">Justificado à parede (perfil angular)</option>
-                  <option value="sombra">Junta de sombra (Perfil Pladur Sombra)</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-ink-500 block mb-1">Focos LED embutidos (quantidade)</label>
-                <input type="number" step="1" min="0" value={teto.focosLed} onChange={(e) => setTeto({ ...teto, focosLed: parseInt(e.target.value) || 0 })} className="input w-full" />
-              </div>
+            <div className="border border-sand-200 rounded-lg p-4">
+              <label className="text-xs text-ink-500 block mb-1">Remate perimetral (encontro com a parede)</label>
+              <select value={teto.remate} onChange={(e) => setTeto({ ...teto, remate: e.target.value as any })} className="input w-full sm:w-72 mb-4">
+                <option value="justificado">Justificado à parede (perfil angular)</option>
+                <option value="sombra">Junta de sombra (Perfil Pladur Sombra)</option>
+              </select>
+
+              <p className="text-xs text-ink-500 mb-2">Focos LED embutidos ({teto.focosLedPosicoes.length}) — coloca-os na planta abaixo</p>
+              <PlantaPladur espaco={espaco} paredes={paredes} teto={teto} editarFocos onTetoChange={setTeto} />
             </div>
           )}
 
@@ -213,6 +201,11 @@ export default function PladurWizard({
 
       {passo === 2 && (
         <div className="space-y-3">
+          {paredes.some((p) => p.tipoTrabalho === 'revestimento' && p.lado) && (
+            <div className="border border-sand-200 rounded-lg p-3 bg-sand-50 flex justify-center">
+              <PlantaPladur espaco={espaco} paredes={paredes} teto={teto} />
+            </div>
+          )}
           {paredes.length === 0 && <p className="text-sm text-ink-400">Nenhuma parede a revestir. Adiciona se houver trabalho de pladur nas paredes.</p>}
           {paredes.map((p) => (
             <div key={p.id} className="border border-sand-200 rounded-lg p-3 grid grid-cols-1 sm:grid-cols-4 gap-2">
@@ -220,6 +213,18 @@ export default function PladurWizard({
                 <label className="text-xs text-ink-500 block mb-1">Largura (m)</label>
                 <input type="number" step="0.01" value={p.larguraM} onChange={(e) => atualizarParede(p.id, { larguraM: parseFloat(e.target.value) || 0 })} className="input w-full" />
               </div>
+              {p.tipoTrabalho === 'revestimento' && (
+                <div>
+                  <label className="text-xs text-ink-500 block mb-1">Lado do espaço</label>
+                  <select value={p.lado || ''} onChange={(e) => atualizarParede(p.id, { lado: (e.target.value || undefined) as LadoParede | undefined })} className="input w-full">
+                    <option value="">— não definido —</option>
+                    <option value="norte">Norte</option>
+                    <option value="sul">Sul</option>
+                    <option value="este">Este</option>
+                    <option value="oeste">Oeste</option>
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="text-xs text-ink-500 block mb-1">Tipo de trabalho</label>
                 <select
@@ -292,6 +297,12 @@ export default function PladurWizard({
                       <label className="text-[10px] text-ink-400 block">Altura (m)</label>
                       <input type="number" step="0.01" value={a.alturaM} onChange={(e) => atualizarAbertura(p.id, a.id, { alturaM: parseFloat(e.target.value) || 0 })} className="input text-xs py-1 w-20" />
                     </div>
+                    {p.lado && (
+                      <div>
+                        <label className="text-[10px] text-ink-400 block">Posição desde o início da parede (m)</label>
+                        <input type="number" step="0.01" min="0" value={a.posicaoM} onChange={(e) => atualizarAbertura(p.id, a.id, { posicaoM: parseFloat(e.target.value) || 0 })} className="input text-xs py-1 w-24" />
+                      </div>
+                    )}
                     <button type="button" onClick={() => removerAbertura(p.id, a.id)} className="text-ink-300 hover:text-red-600"><X size={14} /></button>
                   </div>
                 ))}
@@ -371,6 +382,10 @@ export default function PladurWizard({
 
       {passo === 4 && resultado && (
         <div>
+          <div className="flex justify-center mb-6">
+            <PlantaPladur espaco={espaco} paredes={paredes} teto={teto} />
+          </div>
+
           <div className="space-y-4 mb-6">
             {resultado.materiais.length > 0 && (
               <div>

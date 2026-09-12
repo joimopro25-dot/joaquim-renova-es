@@ -26,13 +26,19 @@ export type EspacoConfig = {
 };
 
 export type TipoAbertura = 'porta' | 'janela';
+export type LadoParede = 'norte' | 'sul' | 'este' | 'oeste';
 
 export type AberturaConfig = {
   id: string;
   tipo: TipoAbertura;
   larguraM: number;
   alturaM: number;
+  // Distância (m) do canto inicial da parede até ao início do vão — permite
+  // desenhar a abertura na posição real na planta.
+  posicaoM: number;
 };
+
+export type FocoLedPosicao = { id: string; x: number; y: number };
 
 export type TetoConfig = {
   tipo: TipoTeto;
@@ -41,11 +47,14 @@ export type TetoConfig = {
   larguraSancaCm?: number;
   alturaSancaCm?: number;
   cobertura?: Cobertura;
-  focosLed?: number;
+  focosLedPosicoes: FocoLedPosicao[];
 };
 
 export type ParedeConfig = {
   id: string;
+  // Lado do espaço a que esta parede corresponde, para a desenhar na
+  // posição certa na planta (só relevante para paredes perimetrais).
+  lado?: LadoParede;
   larguraM: number;
   tipoTrabalho: TipoTrabalhoParede;
   tipoPlaca: TipoPlaca;
@@ -191,9 +200,10 @@ export function calcularOrcamentoPladur(
     }
 
     // Focos LED embutidos no teto (contam à parte da fita LED).
-    if (teto.focosLed && teto.focosLed > 0) {
-      addLinha(materiaisMapa, precos, 'foco_led', teto.focosLed);
-      addMaoDeObra(maoDeObraLinhas, precos, 'foco_led_instalacao', teto.focosLed);
+    const numFocosLed = (teto.focosLedPosicoes || []).length;
+    if (numFocosLed > 0) {
+      addLinha(materiaisMapa, precos, 'foco_led', numFocosLed);
+      addMaoDeObra(maoDeObraLinhas, precos, 'foco_led_instalacao', numFocosLed);
     }
 
     if (teto.tipo === 'sanca_led' && acabamentos.metrosLed) {

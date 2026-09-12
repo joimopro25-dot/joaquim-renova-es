@@ -55,7 +55,7 @@ export default function PladurWizard({
   }, [espaco, teto, paredes, acabamentos, tabelaPrecos, precos.length]);
 
   function adicionarParede() {
-    setParedes((prev) => [...prev, { id: gerarId(), larguraM: 3, tipoTrabalho: 'revestimento', tipoPlaca: 'normal', isolamentoAcustico: false }]);
+    setParedes((prev) => [...prev, { id: gerarId(), larguraM: 3, tipoTrabalho: 'revestimento', tipoPlaca: 'normal', sistemaFixacao: 'omega', tipoIsolamento: 'nenhum' }]);
   }
 
   function atualizarParede(id: string, campos: Partial<ParedeConfig>) {
@@ -178,19 +178,35 @@ export default function PladurWizard({
         <div className="space-y-3">
           {paredes.length === 0 && <p className="text-sm text-ink-400">Nenhuma parede a revestir. Adiciona se houver trabalho de pladur nas paredes.</p>}
           {paredes.map((p) => (
-            <div key={p.id} className="border border-sand-200 rounded-lg p-3 grid grid-cols-1 sm:grid-cols-5 gap-2 items-end">
+            <div key={p.id} className="border border-sand-200 rounded-lg p-3 grid grid-cols-1 sm:grid-cols-6 gap-2 items-end">
               <div>
                 <label className="text-xs text-ink-500 block mb-1">Largura (m)</label>
                 <input type="number" step="0.01" value={p.larguraM} onChange={(e) => atualizarParede(p.id, { larguraM: parseFloat(e.target.value) || 0 })} className="input w-full" />
               </div>
               <div>
                 <label className="text-xs text-ink-500 block mb-1">Tipo de trabalho</label>
-                <select value={p.tipoTrabalho} onChange={(e) => atualizarParede(p.id, { tipoTrabalho: e.target.value as TipoTrabalhoParede })} className="input w-full">
+                <select
+                  value={p.tipoTrabalho}
+                  onChange={(e) => {
+                    const tipoTrabalho = e.target.value as TipoTrabalhoParede;
+                    atualizarParede(p.id, { tipoTrabalho, sistemaFixacao: tipoTrabalho === 'revestimento' ? p.sistemaFixacao : 'montante' });
+                  }}
+                  className="input w-full"
+                >
                   <option value="revestimento">Revestimento direto</option>
                   <option value="tabique">Tabique novo</option>
                   <option value="divisoria">Divisória</option>
                 </select>
               </div>
+              {p.tipoTrabalho === 'revestimento' && (
+                <div>
+                  <label className="text-xs text-ink-500 block mb-1">Sistema</label>
+                  <select value={p.sistemaFixacao} onChange={(e) => atualizarParede(p.id, { sistemaFixacao: e.target.value as any })} className="input w-full">
+                    <option value="omega">Perfil ómega (direto à parede)</option>
+                    <option value="montante">Guia + Montante (autoportante)</option>
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="text-xs text-ink-500 block mb-1">Tipo de placa</label>
                 <select value={p.tipoPlaca} onChange={(e) => atualizarParede(p.id, { tipoPlaca: e.target.value as TipoPlaca })} className="input w-full">
@@ -199,9 +215,15 @@ export default function PladurWizard({
                   <option value="cortafogo">Corta-fogo</option>
                 </select>
               </div>
-              <label className="flex items-center gap-1.5 text-xs text-ink-600">
-                <input type="checkbox" checked={p.isolamentoAcustico} onChange={(e) => atualizarParede(p.id, { isolamentoAcustico: e.target.checked })} /> Isolamento acústico
-              </label>
+              <div>
+                <label className="text-xs text-ink-500 block mb-1">Isolamento</label>
+                <select value={p.tipoIsolamento} onChange={(e) => atualizarParede(p.id, { tipoIsolamento: e.target.value as any })} className="input w-full">
+                  <option value="nenhum">Nenhum</option>
+                  <option value="la_rocha">Lã de rocha</option>
+                  <option value="la_mineral">Lã mineral</option>
+                  <option value="bolha">Plástico bolha</option>
+                </select>
+              </div>
               <button type="button" onClick={() => removerParede(p.id)} className="text-ink-300 hover:text-red-600 justify-self-end"><X size={16} /></button>
             </div>
           ))}

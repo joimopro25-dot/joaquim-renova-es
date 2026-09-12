@@ -6,6 +6,8 @@ export type TipoSanca = 'simples' | 'goteira' | 'invertida';
 export type Cobertura = 'toda' | 'uma' | 'duas';
 export type TipoTrabalhoParede = 'revestimento' | 'tabique' | 'divisoria';
 export type TipoPlaca = 'normal' | 'hidrofuga' | 'cortafogo';
+export type SistemaFixacao = 'montante' | 'omega';
+export type TipoIsolamento = 'nenhum' | 'la_rocha' | 'la_mineral' | 'bolha';
 export type TipoPintura = 'nao' | '1demao' | '2demaos';
 export type TipoLed = 'nao' | 'fita' | 'spots';
 
@@ -29,7 +31,8 @@ export type ParedeConfig = {
   larguraM: number;
   tipoTrabalho: TipoTrabalhoParede;
   tipoPlaca: TipoPlaca;
-  isolamentoAcustico: boolean;
+  sistemaFixacao: SistemaFixacao;
+  tipoIsolamento: TipoIsolamento;
 };
 
 export type AcabamentosConfig = {
@@ -155,16 +158,26 @@ export function calcularOrcamentoPladur(
     const m2 = arred(parede.larguraM * espaco.peDireito, 2);
     m2Paredes += m2;
     const placas = (m2 * 1.10) / 3.0;
-    const montantes = parede.larguraM / 0.60;
-    const calhas = (parede.larguraM * 2) + (espaco.peDireito * 2);
 
     const chavePlaca = parede.tipoPlaca === 'hidrofuga' ? 'placa_hidrofuga' : parede.tipoPlaca === 'cortafogo' ? 'placa_cortafogo' : 'placa_normal';
     addLinha(materiaisMapa, precos, chavePlaca, Math.ceil(placas));
-    addLinha(materiaisMapa, precos, 'montante', Math.ceil(montantes / 3));
-    addLinha(materiaisMapa, precos, 'calha_guia', Math.ceil(calhas / 3));
 
-    if (parede.isolamentoAcustico) {
-      addLinha(materiaisMapa, precos, 'la_rocha', m2);
+    // Sistema de fixação: perfil ómega (fixado direto à parede existente,
+    // só aplicável em revestimento direto) ou estrutura guia+montante
+    // (autoportante, obrigatória em tabiques/divisórias novas).
+    if (parede.sistemaFixacao === 'omega' && parede.tipoTrabalho === 'revestimento') {
+      const perfisOmega = Math.ceil(parede.larguraM / 0.60) * espaco.peDireito;
+      addLinha(materiaisMapa, precos, 'perfil_omega', Math.ceil(perfisOmega / 3));
+    } else {
+      const montantes = parede.larguraM / 0.60;
+      const calhas = (parede.larguraM * 2) + (espaco.peDireito * 2);
+      addLinha(materiaisMapa, precos, 'montante', Math.ceil(montantes / 3));
+      addLinha(materiaisMapa, precos, 'calha_guia', Math.ceil(calhas / 3));
+    }
+
+    if (parede.tipoIsolamento !== 'nenhum') {
+      const chaveIsolamento = parede.tipoIsolamento === 'la_mineral' ? 'la_mineral' : parede.tipoIsolamento === 'bolha' ? 'isolamento_bolha' : 'la_rocha';
+      addLinha(materiaisMapa, precos, chaveIsolamento, m2);
       m2ComIsolamento += m2;
     }
 

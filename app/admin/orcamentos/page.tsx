@@ -9,6 +9,7 @@ import { Plus, FileText, Upload, Trash2 } from 'lucide-react';
 import ImportarOrcamento from './ImportarOrcamento';
 
 type Cliente = { id: string; nome: string };
+type Imovel = { id: string; nome: string };
 type Orcamento = {
   id: string;
   titulo: string;
@@ -36,6 +37,8 @@ export default function OrcamentosPage() {
   const [showForm, setShowForm] = useState(false);
   const [showImportar, setShowImportar] = useState(false);
   const [clienteId, setClienteId] = useState('');
+  const [imovelId, setImovelId] = useState('');
+  const [imoveisCliente, setImoveisCliente] = useState<Imovel[]>([]);
   const [titulo, setTitulo] = useState('');
   const [creating, setCreating] = useState(false);
 
@@ -55,13 +58,23 @@ export default function OrcamentosPage() {
 
   useEffect(() => { carregar(); }, []);
 
+  useEffect(() => {
+    async function carregarImoveis() {
+      if (!clienteId) { setImoveisCliente([]); setImovelId(''); return; }
+      const { data } = await supabase.from('imoveis').select('id, nome').eq('cliente_id', clienteId).order('criado_em');
+      setImoveisCliente(data || []);
+      setImovelId('');
+    }
+    carregarImoveis();
+  }, [clienteId]);
+
   async function criarOrcamento(e: React.FormEvent) {
     e.preventDefault();
     if (!clienteId) { alert('Escolhe um cliente.'); return; }
     setCreating(true);
     const { data, error } = await supabase
       .from('orcamentos')
-      .insert([{ cliente_id: clienteId, titulo, status: 'rascunho' }])
+      .insert([{ cliente_id: clienteId, imovel_id: imovelId || null, titulo, status: 'rascunho' }])
       .select()
       .single();
     setCreating(false);
@@ -113,6 +126,12 @@ export default function OrcamentosPage() {
                 {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
               </select>
               <input type="text" placeholder="Título (ex: Renovação Casa de Banho)" value={titulo} onChange={(e) => setTitulo(e.target.value)} className="input" required />
+              {imoveisCliente.length > 0 && (
+                <select value={imovelId} onChange={(e) => setImovelId(e.target.value)} className="input">
+                  <option value="">Sem imóvel associado</option>
+                  {imoveisCliente.map((im) => <option key={im.id} value={im.id}>{im.nome}</option>)}
+                </select>
+              )}
               <button disabled={creating} className="btn-primary justify-center disabled:opacity-60">
                 {creating ? 'A criar...' : 'Criar e adicionar linhas'}
               </button>

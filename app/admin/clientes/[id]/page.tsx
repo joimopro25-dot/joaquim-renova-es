@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
-import { ArrowLeft, Briefcase, HardHat, FileText, Mail as MailIcon, Tag } from 'lucide-react';
+import { ArrowLeft, Briefcase, HardHat, FileText, Mail as MailIcon, Tag, Home, Plus, Trash2 } from 'lucide-react';
 
 type Cliente = {
   id: string;
@@ -19,7 +19,8 @@ type Cliente = {
 
 type Obra = { id: string; titulo: string; status: string; valor_total: number | null };
 type Subempreitada = { id: string; descricao: string; estado: string; tipo_valor: string; valor_unitario: number };
-type Orcamento = { id: string; titulo: string; status: string };
+type Orcamento = { id: string; titulo: string; status: string; imovel_id: string | null };
+type Imovel = { id: string; nome: string; morada: string | null; tipo: string | null };
 type Email = { id: string; direcao: string; assunto: string; data: string; lida: boolean; obra_id: string | null };
 
 const ESTADOS_OBRA: Record<string, { label: string; color: string }> = {
@@ -45,6 +46,12 @@ export default function ClienteDetalhe() {
   const [subempreitadas, setSubempreitadas] = useState<Subempreitada[]>([]);
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [emails, setEmails] = useState<Email[]>([]);
+  const [imoveis, setImoveis] = useState<Imovel[]>([]);
+  const [showFormImovel, setShowFormImovel] = useState(false);
+  const [nomeImovel, setNomeImovel] = useState('');
+  const [moradaImovel, setMoradaImovel] = useState('');
+  const [tipoImovel, setTipoImovel] = useState('');
+  const [aCriarImovel, setACriarImovel] = useState(false);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
 
@@ -68,14 +75,16 @@ export default function ClienteDetalhe() {
       setDataNascimento(clienteData.data_nascimento || '');
     }
 
-    const [{ data: obrasData }, { data: subsData }, { data: orcData }] = await Promise.all([
+    const [{ data: obrasData }, { data: subsData }, { data: orcData }, { data: imoveisData }] = await Promise.all([
       supabase.from('obras').select('id, titulo, status, valor_total').eq('cliente_id', id).order('criado_em', { ascending: false }),
       supabase.from('subempreitadas').select('id, descricao, estado, tipo_valor, valor_unitario').eq('cliente_id', id).order('criado_em', { ascending: false }),
-      supabase.from('orcamentos').select('id, titulo, status').eq('cliente_id', id).order('criado_em', { ascending: false }),
+      supabase.from('orcamentos').select('id, titulo, status, imovel_id').eq('cliente_id', id).order('criado_em', { ascending: false }),
+      supabase.from('imoveis').select('id, nome, morada, tipo').eq('cliente_id', id).order('criado_em'),
     ]);
     setObras(obrasData || []);
     setSubempreitadas(subsData || []);
     setOrcamentos(orcData || []);
+    setImoveis(imoveisData || []);
 
     if (clienteData?.email) {
       const { data: emailsData } = await supabase
@@ -102,6 +111,23 @@ export default function ClienteDetalhe() {
     }).eq('id', id);
     setGuardando(false);
     if (error) { alert('Erro: ' + error.message); return; }
+    carregar();
+  }
+
+  async function criarImovel(e: React.FormEvent) {
+    e.preventDefault();
+    if (!nomeImovel.trim()) return;
+    setACriarImovel(true);
+    const { error } = await supabase.from('imoveis').insert([{ cliente_id: id, nome: nomeImovel, morada: moradaImovel || null, tipo: tipoImovel || null }]);
+    setACriarImovel(false);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setNomeImovel(''); setMoradaImovel(''); setTipoImovel(''); setShowFormImovel(false);
+    carregar();
+  }
+
+  async function removerImovel(imovelId: string) {
+    if (!confirm('Remover este imóvel? Os orçamentos ligados a ele deixam de estar associados a nenhum imóvel.')) return;
+    await supabase.from('imoveis').delete().eq('id', imovelId);
     carregar();
   }
 
@@ -135,6 +161,36 @@ export default function ClienteDetalhe() {
             {guardando ? 'A guardar...' : 'Guardar Alterações'}
           </button>
         </form>
+      </div>
+
+      <div className="card p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-ink-700 flex items-center gap-2"><Home size={16} /> Imóveis</h3>
+          <button onClick={() => setShowFormImovel((v) => !v)} className="text-sm text-brand-600 hover:text-brand-700 flex items-center gap-1"><Plus size={14} /> Novo Imóvel</button>
+        </div>
+        {showFormImovel && (
+          <form onSubmit={criarImovel} className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4 p-3 bg-sand-50 rounded-lg">
+            <input type="text" placeholder="Nome (ex: Casa de Famalicão)" value={nomeImovel} onChange={(e) => setNomeImovel(e.target.value)} className="input md:col-span-2" required />
+            <input type="text" placeholder="Morada (opcional)" value={moradaImovel} onChange={(e) => setMoradaImovel(e.target.value)} className="input" />
+            <input type="text" placeholder="Tipo (ex: Moradia)" value={tipoImovel} onChange={(e) => setTipoImovel(e.target.value)} className="input" />
+            <button disabled={aCriarImovel} className="btn-primary justify-center md:col-span-4 disabled:opacity-60">{aCriarImovel ? 'A criar...' : 'Criar Imóvel'}</button>
+          </form>
+        )}
+        {imoveis.length === 0 ? (
+          <p className="text-sm text-ink-400 text-center py-4">Ainda sem imóveis registados para este cliente.</p>
+        ) : (
+          <div className="space-y-2">
+            {imoveis.map((im) => (
+              <div key={im.id} className="flex items-center justify-between p-3 border border-sand-200 rounded-lg text-sm">
+                <div>
+                  <p className="font-medium text-ink-800">{im.nome}{im.tipo && <span className="text-ink-400 font-normal"> · {im.tipo}</span>}</p>
+                  {im.morada && <p className="text-xs text-ink-400">{im.morada}</p>}
+                </div>
+                <button onClick={() => removerImovel(im.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={15} /></button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="card p-6 mb-6">
@@ -188,7 +244,10 @@ export default function ClienteDetalhe() {
               const info = ESTADOS_ORCAMENTO[o.status] || ESTADOS_ORCAMENTO.rascunho;
               return (
                 <Link key={o.id} href={`/admin/orcamentos/${o.id}`} className="flex items-center justify-between p-3 border border-sand-200 rounded-lg hover:bg-sand-50 transition-colors text-sm">
-                  <span className="font-medium text-ink-800">{o.titulo}</span>
+                  <span>
+                    <span className="font-medium text-ink-800">{o.titulo}</span>
+                    {o.imovel_id && <span className="text-ink-400"> · {imoveis.find((im) => im.id === o.imovel_id)?.nome || 'imóvel'}</span>}
+                  </span>
                   <span className={`badge ${info.color}`}>{info.label}</span>
                 </Link>
               );

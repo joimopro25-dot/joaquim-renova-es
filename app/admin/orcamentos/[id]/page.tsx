@@ -8,7 +8,7 @@ import { precoUnitarioFinal, totalLinha, calcularTotais } from '../../../../lib/
 import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp, Package, Wrench, Pencil, LayoutPanelTop } from 'lucide-react';
 import ImportarOrcamento from '../ImportarOrcamento';
 import ConsultoriaChat from '../../../../components/ConsultoriaChat';
-import PladurWizard from '../../../../components/PladurWizard';
+import PladurWizard, { PladurConfigCompleta } from '../../../../components/PladurWizard';
 
 type Linha = {
   id: string;
@@ -60,6 +60,7 @@ type Orcamento = {
   iva_subcontratado_percentagem: number;
   cliente_id: string;
   consultoria_id: string | null;
+  pladur_config: PladurConfigCompleta | null;
   clientes: { nome: string } | null;
 };
 
@@ -434,18 +435,26 @@ export default function OrcamentoDetalhePage() {
         <div className="card p-6 mb-6">
           <button onClick={() => setShowPladur((v) => !v)} className="flex items-center gap-2 font-semibold text-ink-700 w-full">
             <LayoutPanelTop size={16} className="text-brand-500" /> Planeador de Pladur
+            {orcamento.pladur_config && <span className="badge bg-brand-100 text-brand-700 text-[10px]">já configurado</span>}
             <span className="text-xs font-normal text-ink-400 ml-auto">{showPladur ? 'fechar' : 'abrir'}</span>
           </button>
 
           {showPladur && (
             <div className="mt-4">
               <p className="text-xs text-ink-400 mb-3">
-                Configura a divisão (medidas, teto, paredes, acabamentos) e obtém logo as linhas de material e mão de obra calculadas, prontas a adicionar a este orçamento.
+                {orcamento.pladur_config
+                  ? 'Ajusta a divisão abaixo — ao guardar, as linhas de material/mão de obra do Pladur neste orçamento são recalculadas e substituídas (linhas adicionadas manualmente não são tocadas).'
+                  : 'Configura a divisão (medidas, teto, paredes, acabamentos) e obtém logo as linhas de material e mão de obra calculadas, prontas a adicionar a este orçamento.'}
               </p>
               <PladurWizard
                 aGuardar={aGuardarPladur}
-                onFinalizar={async (resultado) => {
+                configInicial={orcamento.pladur_config}
+                onFinalizar={async (resultado, config) => {
                   setAGuardarPladur(true);
+                  // Remove as linhas do Pladur anteriores (se as houver) antes de inserir as novas,
+                  // para editar em vez de duplicar. Linhas manuais (capitulo != 'Pladur') não são tocadas.
+                  await supabase.from('orcamento_linhas').delete().eq('orcamento_id', id).eq('capitulo', 'Pladur');
+
                   const linhasMateriais = resultado.materiais.map((l) => ({
                     orcamento_id: id,
                     capitulo: 'Pladur',
@@ -465,8 +474,10 @@ export default function OrcamentoDetalhePage() {
                     preco_unitario: l.precoUnitario,
                   }));
                   const { error } = await supabase.from('orcamento_linhas').insert([...linhasMateriais, ...linhasMaoObra]);
+                  if (error) { setAGuardarPladur(false); alert('Erro: ' + error.message); return; }
+
+                  await supabase.from('orcamentos').update({ pladur_config: config }).eq('id', id);
                   setAGuardarPladur(false);
-                  if (error) { alert('Erro: ' + error.message); return; }
                   setShowPladur(false);
                   carregar();
                 }}

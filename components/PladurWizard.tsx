@@ -23,21 +23,29 @@ const TETO_OPCOES: { value: TipoTeto; label: string }[] = [
   { value: 'sanca_led', label: 'Teto falso com sanca + iluminação LED' },
 ];
 
+export type PladurConfigCompleta = { espaco: EspacoConfig; teto: TetoConfig; paredes: ParedeConfig[]; acabamentos: AcabamentosConfig };
+
+const ESPACO_VAZIO: EspacoConfig = { nome: 'Divisão', comprimento: 4, largura: 3, peDireito: 2.6, comprimentoPlaca: 2.5 };
+const TETO_VAZIO: TetoConfig = { tipo: 'nenhum', remate: 'justificado', tipoSanca: 'simples', larguraSancaCm: 20, alturaSancaCm: 20, cobertura: 'toda', focosLedPosicoes: [] };
+const ACABAMENTOS_VAZIO: AcabamentosConfig = { pintura: 'nao', qualidadeTinta: 'normal', led: 'nao', metrosLed: 0, rodape: false, pontosLuz: 0, interruptores: 0, tomadas: 0 };
+
 export default function PladurWizard({
   onFinalizar,
   aGuardar,
+  configInicial,
 }: {
-  onFinalizar: (resultado: ResultadoPladur, config: { espaco: EspacoConfig; teto: TetoConfig; paredes: ParedeConfig[]; acabamentos: AcabamentosConfig }) => void;
+  onFinalizar: (resultado: ResultadoPladur, config: PladurConfigCompleta) => void;
   aGuardar?: boolean;
+  configInicial?: PladurConfigCompleta | null;
 }) {
   const [passo, setPasso] = useState(0);
   const [precos, setPrecos] = useState<PrecoItem[]>([]);
   const [aCarregarPrecos, setACarregarPrecos] = useState(true);
 
-  const [espaco, setEspaco] = useState<EspacoConfig>({ nome: 'Divisão', comprimento: 4, largura: 3, peDireito: 2.6, comprimentoPlaca: 2.5 });
-  const [teto, setTeto] = useState<TetoConfig>({ tipo: 'nenhum', remate: 'justificado', tipoSanca: 'simples', larguraSancaCm: 20, alturaSancaCm: 20, cobertura: 'toda', focosLedPosicoes: [] });
-  const [paredes, setParedes] = useState<ParedeConfig[]>([]);
-  const [acabamentos, setAcabamentos] = useState<AcabamentosConfig>({ pintura: 'nao', qualidadeTinta: 'normal', led: 'nao', metrosLed: 0, rodape: false, pontosLuz: 0, interruptores: 0, tomadas: 0 });
+  const [espaco, setEspaco] = useState<EspacoConfig>(configInicial?.espaco || ESPACO_VAZIO);
+  const [teto, setTeto] = useState<TetoConfig>(configInicial?.teto || TETO_VAZIO);
+  const [paredes, setParedes] = useState<ParedeConfig[]>(configInicial?.paredes || []);
+  const [acabamentos, setAcabamentos] = useState<AcabamentosConfig>(configInicial?.acabamentos || ACABAMENTOS_VAZIO);
 
   useEffect(() => {
     async function carregar() {

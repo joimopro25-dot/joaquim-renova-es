@@ -116,11 +116,11 @@ export default function PladurWizard({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-ink-500 block mb-1">Comprimento (m)</label>
-                <input type="number" step="0.01" min="1" value={espaco.comprimento} onChange={(e) => setEspaco({ ...espaco, comprimento: parseFloat(e.target.value) || 0 })} className="input w-full" />
+                <input type="number" onFocus={(e) => e.target.select()} step="0.01" min="1" value={espaco.comprimento} onChange={(e) => setEspaco({ ...espaco, comprimento: parseFloat(e.target.value) || 0 })} className="input w-full" />
               </div>
               <div>
                 <label className="text-xs text-ink-500 block mb-1">Largura (m)</label>
-                <input type="number" step="0.01" min="1" value={espaco.largura} onChange={(e) => setEspaco({ ...espaco, largura: parseFloat(e.target.value) || 0 })} className="input w-full" />
+                <input type="number" onFocus={(e) => e.target.select()} step="0.01" min="1" value={espaco.largura} onChange={(e) => setEspaco({ ...espaco, largura: parseFloat(e.target.value) || 0 })} className="input w-full" />
               </div>
             </div>
             <div>
@@ -201,7 +201,7 @@ export default function PladurWizard({
           {teto.tipo === 'sanca_led' && (
             <div>
               <label className="text-xs text-ink-500 block mb-1">Metros de fita LED</label>
-              <input type="number" step="0.5" value={acabamentos.metrosLed} onChange={(e) => setAcabamentos({ ...acabamentos, metrosLed: parseFloat(e.target.value) || 0 })} className="input w-40" />
+              <input type="number" onFocus={(e) => e.target.select()} step="0.5" value={acabamentos.metrosLed} onChange={(e) => setAcabamentos({ ...acabamentos, metrosLed: parseFloat(e.target.value) || 0 })} className="input w-40" />
             </div>
           )}
         </div>
@@ -219,7 +219,7 @@ export default function PladurWizard({
             <div key={p.id} className="border border-sand-200 rounded-lg p-3 grid grid-cols-1 sm:grid-cols-4 gap-2">
               <div>
                 <label className="text-xs text-ink-500 block mb-1">Largura (m)</label>
-                <input type="number" step="0.01" value={p.larguraM} onChange={(e) => atualizarParede(p.id, { larguraM: parseFloat(e.target.value) || 0 })} className="input w-full" />
+                <input type="number" onFocus={(e) => e.target.select()} step="0.01" value={p.larguraM} onChange={(e) => atualizarParede(p.id, { larguraM: parseFloat(e.target.value) || 0 })} className="input w-full" />
               </div>
               {p.tipoTrabalho === 'revestimento' && (
                 <div>
@@ -299,16 +299,16 @@ export default function PladurWizard({
                     </select>
                     <div>
                       <label className="text-[10px] text-ink-400 block">Largura (m)</label>
-                      <input type="number" step="0.01" value={a.larguraM} onChange={(e) => atualizarAbertura(p.id, a.id, { larguraM: parseFloat(e.target.value) || 0 })} className="input text-xs py-1 w-20" />
+                      <input type="number" onFocus={(e) => e.target.select()} step="0.01" value={a.larguraM} onChange={(e) => atualizarAbertura(p.id, a.id, { larguraM: parseFloat(e.target.value) || 0 })} className="input text-xs py-1 w-20" />
                     </div>
                     <div>
                       <label className="text-[10px] text-ink-400 block">Altura (m)</label>
-                      <input type="number" step="0.01" value={a.alturaM} onChange={(e) => atualizarAbertura(p.id, a.id, { alturaM: parseFloat(e.target.value) || 0 })} className="input text-xs py-1 w-20" />
+                      <input type="number" onFocus={(e) => e.target.select()} step="0.01" value={a.alturaM} onChange={(e) => atualizarAbertura(p.id, a.id, { alturaM: parseFloat(e.target.value) || 0 })} className="input text-xs py-1 w-20" />
                     </div>
                     {p.lado && (
                       <div>
                         <label className="text-[10px] text-ink-400 block">Posição desde o início da parede (m)</label>
-                        <input type="number" step="0.01" min="0" value={a.posicaoM} onChange={(e) => atualizarAbertura(p.id, a.id, { posicaoM: parseFloat(e.target.value) || 0 })} className="input text-xs py-1 w-24" />
+                        <input type="number" onFocus={(e) => e.target.select()} step="0.01" min="0" value={a.posicaoM} onChange={(e) => atualizarAbertura(p.id, a.id, { posicaoM: parseFloat(e.target.value) || 0 })} className="input text-xs py-1 w-24" />
                       </div>
                     )}
                     <button type="button" onClick={() => removerAbertura(p.id, a.id)} className="text-ink-300 hover:text-red-600"><X size={14} /></button>
@@ -359,7 +359,7 @@ export default function PladurWizard({
                 <option value="fita_zigbee">Fita LED + controlo Zigbee/app</option>
               </select>
               {acabamentos.led !== 'nao' && (
-                <input type="number" step="0.5" placeholder="Metros de fita" value={acabamentos.metrosLed} onChange={(e) => setAcabamentos({ ...acabamentos, metrosLed: parseFloat(e.target.value) || 0 })} className="input w-40 mt-2" />
+                <input type="number" onFocus={(e) => e.target.select()} step="0.5" placeholder="Metros de fita" value={acabamentos.metrosLed} onChange={(e) => setAcabamentos({ ...acabamentos, metrosLed: parseFloat(e.target.value) || 0 })} className="input w-40 mt-2" />
               )}
             </div>
           )}
@@ -373,15 +373,15 @@ export default function PladurWizard({
             <div className="grid grid-cols-3 gap-3 max-w-md">
               <div>
                 <label className="text-xs text-ink-400 block mb-1">Pontos de luz</label>
-                <input type="number" step="1" min="0" value={acabamentos.pontosLuz} onChange={(e) => setAcabamentos({ ...acabamentos, pontosLuz: parseInt(e.target.value) || 0 })} className="input w-full" />
+                <input type="number" onFocus={(e) => e.target.select()} step="1" min="0" value={acabamentos.pontosLuz} onChange={(e) => setAcabamentos({ ...acabamentos, pontosLuz: parseInt(e.target.value) || 0 })} className="input w-full" />
               </div>
               <div>
                 <label className="text-xs text-ink-400 block mb-1">Interruptores</label>
-                <input type="number" step="1" min="0" value={acabamentos.interruptores} onChange={(e) => setAcabamentos({ ...acabamentos, interruptores: parseInt(e.target.value) || 0 })} className="input w-full" />
+                <input type="number" onFocus={(e) => e.target.select()} step="1" min="0" value={acabamentos.interruptores} onChange={(e) => setAcabamentos({ ...acabamentos, interruptores: parseInt(e.target.value) || 0 })} className="input w-full" />
               </div>
               <div>
                 <label className="text-xs text-ink-400 block mb-1">Tomadas</label>
-                <input type="number" step="1" min="0" value={acabamentos.tomadas} onChange={(e) => setAcabamentos({ ...acabamentos, tomadas: parseInt(e.target.value) || 0 })} className="input w-full" />
+                <input type="number" onFocus={(e) => e.target.select()} step="1" min="0" value={acabamentos.tomadas} onChange={(e) => setAcabamentos({ ...acabamentos, tomadas: parseInt(e.target.value) || 0 })} className="input w-full" />
               </div>
             </div>
           </div>

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
 import { calcularTotais } from '../../../lib/orcamento';
-import { Plus, FileText, Upload } from 'lucide-react';
+import { Plus, FileText, Upload, Trash2 } from 'lucide-react';
 import ImportarOrcamento from './ImportarOrcamento';
 
 type Cliente = { id: string; nome: string };
@@ -69,6 +69,14 @@ export default function OrcamentosPage() {
     window.location.href = `/admin/orcamentos/${data.id}`;
   }
 
+  async function removerOrcamento(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm('Eliminar este orçamento e todas as suas linhas? Esta ação não pode ser desfeita.')) return;
+    const { error } = await supabase.from('orcamentos').delete().eq('id', id);
+    if (error) { alert('Erro ao eliminar: ' + error.message); return; }
+    carregar();
+  }
+
   return (
     <div className="p-4 md:p-8">
       <div className="flex justify-between items-center mb-6">
@@ -122,14 +130,15 @@ export default function OrcamentosPage() {
                 <th className="p-4 font-medium">Cliente</th>
                 <th className="p-4 font-medium">Estado</th>
                 <th className="p-4 font-medium">Valor</th>
+                <th className="p-4"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-sand-100">
               {loading ? (
-                <tr><td colSpan={4} className="p-10 text-center text-ink-300 text-sm">A carregar...</td></tr>
+                <tr><td colSpan={5} className="p-10 text-center text-ink-300 text-sm">A carregar...</td></tr>
               ) : orcamentos.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-10 text-center text-ink-400 text-sm">
+                  <td colSpan={5} className="p-10 text-center text-ink-400 text-sm">
                     <FileText size={28} className="mx-auto mb-2 text-ink-200" />
                     Nenhum orçamento criado.
                   </td>
@@ -145,6 +154,9 @@ export default function OrcamentosPage() {
                       <td className="p-4 text-ink-500">{o.clientes?.nome || '—'}</td>
                       <td className="p-4"><span className={`badge ${info.color}`}>{info.label}</span></td>
                       <td className="p-4 text-ink-500">{formatMoney(calcularTotais(o.orcamento_linhas, o).total)}</td>
+                      <td className="p-4 text-right">
+                        <button onClick={(e) => removerOrcamento(o.id, e)} className="text-ink-300 hover:text-red-600"><Trash2 size={15} /></button>
+                      </td>
                     </tr>
                   );
                 })

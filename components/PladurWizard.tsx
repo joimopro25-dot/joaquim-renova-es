@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatMoney } from '../lib/format';
 import {
-  EspacoConfig, TetoConfig, ParedeConfig, AcabamentosConfig, TipoTeto, TipoTrabalhoParede, TipoPlaca,
+  EspacoConfig, TetoConfig, ParedeConfig, AcabamentosConfig, TipoTeto, TipoTrabalhoParede, TipoPlaca, AberturaConfig, TipoAbertura,
   calcularOrcamentoPladur, tabelaPrecosParaMapa, PrecoItem, ResultadoPladur,
 } from '../lib/pladur';
 import { ArrowLeft, ArrowRight, Plus, X, Loader2 } from 'lucide-react';
@@ -33,7 +33,7 @@ export default function PladurWizard({
   const [precos, setPrecos] = useState<PrecoItem[]>([]);
   const [aCarregarPrecos, setACarregarPrecos] = useState(true);
 
-  const [espaco, setEspaco] = useState<EspacoConfig>({ nome: 'Divisão', comprimento: 4, largura: 3, peDireito: 2.6 });
+  const [espaco, setEspaco] = useState<EspacoConfig>({ nome: 'Divisão', comprimento: 4, largura: 3, peDireito: 2.6, comprimentoPlaca: 2.5 });
   const [teto, setTeto] = useState<TetoConfig>({ tipo: 'nenhum', remate: 'justificado', tipoSanca: 'simples', larguraSancaCm: 20, alturaSancaCm: 20, cobertura: 'toda', focosLed: 0 });
   const [paredes, setParedes] = useState<ParedeConfig[]>([]);
   const [acabamentos, setAcabamentos] = useState<AcabamentosConfig>({ pintura: 'nao', qualidadeTinta: 'normal', led: 'nao', metrosLed: 0, rodape: false, pontosLuz: 0, interruptores: 0, tomadas: 0 });
@@ -55,7 +55,7 @@ export default function PladurWizard({
   }, [espaco, teto, paredes, acabamentos, tabelaPrecos, precos.length]);
 
   function adicionarParede() {
-    setParedes((prev) => [...prev, { id: gerarId(), larguraM: 3, tipoTrabalho: 'revestimento', tipoPlaca: 'normal', sistemaFixacao: 'omega', estrutura: 'simples', tipoIsolamento: 'nenhum', temTv: false }]);
+    setParedes((prev) => [...prev, { id: gerarId(), larguraM: 3, tipoTrabalho: 'revestimento', tipoPlaca: 'normal', sistemaFixacao: 'omega', estrutura: 'simples', tipoIsolamento: 'nenhum', temTv: false, aberturas: [] }]);
   }
 
   function atualizarParede(id: string, campos: Partial<ParedeConfig>) {
@@ -64,6 +64,19 @@ export default function PladurWizard({
 
   function removerParede(id: string) {
     setParedes((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  function adicionarAbertura(paredeId: string, tipo: TipoAbertura) {
+    const nova: AberturaConfig = { id: gerarId(), tipo, larguraM: tipo === 'porta' ? 0.8 : 1.2, alturaM: tipo === 'porta' ? 2.1 : 1.2 };
+    setParedes((prev) => prev.map((p) => (p.id === paredeId ? { ...p, aberturas: [...p.aberturas, nova] } : p)));
+  }
+
+  function atualizarAbertura(paredeId: string, aberturaId: string, campos: Partial<AberturaConfig>) {
+    setParedes((prev) => prev.map((p) => (p.id === paredeId ? { ...p, aberturas: p.aberturas.map((a) => (a.id === aberturaId ? { ...a, ...campos } : a)) } : p)));
+  }
+
+  function removerAbertura(paredeId: string, aberturaId: string) {
+    setParedes((prev) => prev.map((p) => (p.id === paredeId ? { ...p, aberturas: p.aberturas.filter((a) => a.id !== aberturaId) } : p)));
   }
 
   const larguraPx = 260;
@@ -107,6 +120,14 @@ export default function PladurWizard({
               <label className="text-xs text-ink-500 block mb-1">Pé-direito (m)</label>
               <select value={espaco.peDireito} onChange={(e) => setEspaco({ ...espaco, peDireito: parseFloat(e.target.value) })} className="input w-full">
                 {[2.40, 2.60, 2.70, 2.80].map((v) => <option key={v} value={v}>{v.toFixed(2)} m</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-ink-500 block mb-1">Comprimento das placas a usar</label>
+              <select value={espaco.comprimentoPlaca} onChange={(e) => setEspaco({ ...espaco, comprimentoPlaca: parseFloat(e.target.value) as any })} className="input w-full">
+                <option value="2.5">2,5 m (mais comum)</option>
+                <option value="2.6">2,6 m</option>
+                <option value="3">3,0 m (menos desperdício em vãos maiores)</option>
               </select>
             </div>
             <p className="text-xs text-ink-400">Área da divisão: {(espaco.comprimento * espaco.largura).toFixed(2)} m²</p>
@@ -252,8 +273,33 @@ export default function PladurWizard({
                 <input type="checkbox" checked={p.temTv} onChange={(e) => atualizarParede(p.id, { temTv: e.target.checked })} /> Reforço + ponto para TV
               </label>
               <button type="button" onClick={() => removerParede(p.id)} className="text-ink-300 hover:text-red-600 justify-self-end self-end">
-                <X size={16} /> Remover
+                <X size={16} /> Remover parede
               </button>
+
+              <div className="sm:col-span-4 border-t border-sand-100 pt-2 mt-1">
+                <p className="text-xs text-ink-500 mb-1.5">Portas / janelas nesta parede (desconta área e conta reforços automaticamente)</p>
+                {p.aberturas.map((a) => (
+                  <div key={a.id} className="flex flex-wrap items-end gap-2 mb-1.5">
+                    <select value={a.tipo} onChange={(e) => atualizarAbertura(p.id, a.id, { tipo: e.target.value as TipoAbertura })} className="input text-xs py-1 w-28">
+                      <option value="porta">Porta</option>
+                      <option value="janela">Janela</option>
+                    </select>
+                    <div>
+                      <label className="text-[10px] text-ink-400 block">Largura (m)</label>
+                      <input type="number" step="0.01" value={a.larguraM} onChange={(e) => atualizarAbertura(p.id, a.id, { larguraM: parseFloat(e.target.value) || 0 })} className="input text-xs py-1 w-20" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-ink-400 block">Altura (m)</label>
+                      <input type="number" step="0.01" value={a.alturaM} onChange={(e) => atualizarAbertura(p.id, a.id, { alturaM: parseFloat(e.target.value) || 0 })} className="input text-xs py-1 w-20" />
+                    </div>
+                    <button type="button" onClick={() => removerAbertura(p.id, a.id)} className="text-ink-300 hover:text-red-600"><X size={14} /></button>
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => adicionarAbertura(p.id, 'porta')} className="text-xs border border-sand-200 rounded-md px-2 py-1 text-ink-600 hover:bg-sand-50 flex items-center gap-1"><Plus size={12} /> Porta</button>
+                  <button type="button" onClick={() => adicionarAbertura(p.id, 'janela')} className="text-xs border border-sand-200 rounded-md px-2 py-1 text-ink-600 hover:bg-sand-50 flex items-center gap-1"><Plus size={12} /> Janela</button>
+                </div>
+              </div>
             </div>
           ))}
           <button type="button" onClick={adicionarParede} className="border border-sand-200 rounded-lg px-3 py-2 text-sm text-ink-600 hover:bg-sand-50 flex items-center gap-1.5">

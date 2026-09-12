@@ -15,11 +15,23 @@ export type TipoPintura = 'nao' | '1demao' | '2demaos';
 export type QualidadeTinta = 'normal' | 'normal_alta' | 'extrema';
 export type TipoLed = 'nao' | 'fita' | 'fita_zigbee';
 
+export type ComprimentoPlaca = 2.5 | 2.6 | 3.0;
+
 export type EspacoConfig = {
   nome: string;
   comprimento: number;
   largura: number;
   peDireito: number;
+  comprimentoPlaca: ComprimentoPlaca;
+};
+
+export type TipoAbertura = 'porta' | 'janela';
+
+export type AberturaConfig = {
+  id: string;
+  tipo: TipoAbertura;
+  larguraM: number;
+  alturaM: number;
 };
 
 export type TetoConfig = {
@@ -41,6 +53,7 @@ export type ParedeConfig = {
   estrutura: EstruturaParede;
   tipoIsolamento: TipoIsolamento;
   temTv: boolean;
+  aberturas: AberturaConfig[];
 };
 
 export type AcabamentosConfig = {
@@ -137,12 +150,14 @@ export function calcularOrcamentoPladur(
 
   const m2Teto = teto.tipo !== 'nenhum' ? arred(espaco.comprimento * espaco.largura, 2) : 0;
   const perimetroSala = (espaco.comprimento + espaco.largura) * 2;
+  // m² por placa: 1.20m de largura (padrão) × comprimento escolhido (2.5 / 2.6 / 3.0 m).
+  const areaPlaca = 1.20 * (espaco.comprimentoPlaca || 2.5);
 
   if (teto.tipo !== 'nenhum') {
     // Modulação da estrutura: 600mm em condições normais (400mm em zonas
     // húmidas/reforçadas — cf. manuais técnicos Pladur/Gyptec), aplicada
     // igualmente aos perfis primários e secundários.
-    const placas = (m2Teto * 1.10) / 3.0;
+    const placas = (m2Teto * 1.10) / areaPlaca;
     const perfisPrimarios = (espaco.largura / 0.60) * espaco.comprimento;
     const perfisSecundarios = (espaco.comprimento / 0.60) * espaco.largura;
     const parafusos = placas * 30;
@@ -169,7 +184,7 @@ export function calcularOrcamentoPladur(
     if (teto.tipo === 'sanca_simples' || teto.tipo === 'sanca_led') {
       const perimetro = perimetroSanca(espaco, teto.cobertura);
       const alturaSancaM = (teto.alturaSancaCm || 20) / 100;
-      const placasSanca = (perimetro * alturaSancaM * 1.15) / 3.0;
+      const placasSanca = (perimetro * alturaSancaM * 1.15) / areaPlaca;
       const perfisSanca = perimetro * 2.5;
       addLinha(materiaisMapa, precos, 'placa_normal', Math.ceil(placasSanca));
       addLinha(materiaisMapa, precos, 'perfil_primario', Math.ceil(perfisSanca / 3));
@@ -194,10 +209,14 @@ export function calcularOrcamentoPladur(
   let m2Paredes = 0;
   let m2ComIsolamento = 0;
   for (const parede of paredes) {
-    const m2 = arred(parede.larguraM * espaco.peDireito, 2);
+    const m2Bruto = arred(parede.larguraM * espaco.peDireito, 2);
+    // Desconta a área das portas/janelas nesta parede — não se gasta placa
+    // onde há vão aberto.
+    const m2Aberturas = (parede.aberturas || []).reduce((s, a) => s + a.larguraM * a.alturaM, 0);
+    const m2 = Math.max(0, arred(m2Bruto - m2Aberturas, 2));
     m2Paredes += m2;
     const fatorPlacas = parede.estrutura === 'dupla' ? 2 : 1;
-    const placas = ((m2 * 1.10) / 3.0) * fatorPlacas;
+    const placas = ((m2 * 1.10) / areaPlaca) * fatorPlacas;
 
     const chavePlaca = parede.tipoPlaca === 'hidrofuga' ? 'placa_hidrofuga' : parede.tipoPlaca === 'cortafogo' ? 'placa_cortafogo' : 'placa_normal';
     addLinha(materiaisMapa, precos, chavePlaca, Math.ceil(placas));
@@ -227,6 +246,17 @@ export function calcularOrcamentoPladur(
     if (parede.temTv) {
       addLinha(materiaisMapa, precos, 'reforco_tv', 1);
       addMaoDeObra(maoDeObraLinhas, precos, 'reforco_tv_instalacao', 1, `_${parede.id}`);
+    }
+
+    // Reforço à volta de cada porta/janela: montantes duplos nas ombreiras
+    // (verticais) + verga horizontal no topo, e perfil de canto em alumínio
+    // a proteger as arestas vivas do vão.
+    for (const abertura of parede.aberturas || []) {
+      const montantesReforco = 2 * abertura.alturaM;
+      const vergaSuperior = abertura.larguraM;
+      addLinha(materiaisMapa, precos, 'montante', Math.ceil((montantesReforco + vergaSuperior) / 3));
+      const perimetroAbertura = (2 * abertura.alturaM) + abertura.larguraM;
+      addLinha(materiaisMapa, precos, 'perfil_canto_aluminio', arred(perimetroAbertura, 2));
     }
 
     const chaveMaoObraParede = parede.tipoTrabalho === 'revestimento' ? 'revestimento_parede' : 'tabique_divisoria';

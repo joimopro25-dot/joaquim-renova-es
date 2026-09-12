@@ -4,8 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import { Inbox, UserPlus, Trash2, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { calcularOrcamentoPladur, tabelaPrecosParaMapa, PrecoItem } from '../../../lib/pladur';
+import type { PladurConfigCompleta } from '../../../components/PladurWizard';
 
-type ZonaLead = { zona: string; label: string; area: string | null; intervencoes: string[]; notas: string | null };
+type ZonaLead = { zona: string; label: string; area: string | null; intervencoes: string[]; notas: string | null; pladur_config?: PladurConfigCompleta | null };
 type Lead = {
   id: string;
   nome: string;
@@ -77,8 +79,36 @@ export default function LeadsPage() {
     if (orcError) { alert('Erro ao criar orçamento: ' + orcError.message); setGerando(null); return; }
 
     const zonas = lead.zonas || [];
+    const precisaPrecosPladur = zonas.some((z) => z.pladur_config);
+    let tabelaPrecos: ReturnType<typeof tabelaPrecosParaMapa> | null = null;
+    if (precisaPrecosPladur) {
+      const { data: precosData } = await supabase.from('pladur_precos').select('*');
+      tabelaPrecos = tabelaPrecosParaMapa((precosData as PrecoItem[]) || []);
+    }
+
     for (const z of zonas) {
-      const intervencoes = z.intervencoes.length > 0 ? z.intervencoes : ['A definir'];
+      if (z.pladur_config && tabelaPrecos) {
+        const { espaco, teto, paredes, acabamentos } = z.pladur_config;
+        const resultado = calcularOrcamentoPladur(espaco, teto, paredes, acabamentos, tabelaPrecos);
+        const linhas = [
+          ...resultado.materiais.map((l) => ({ tipo_linha: 'material', ...l })),
+          ...resultado.maoDeObra.map((l) => ({ tipo_linha: 'mao_obra', ...l })),
+        ];
+        if (linhas.length > 0) {
+          await supabase.from('orcamento_linhas').insert(linhas.map((l) => ({
+            orcamento_id: orcamento.id,
+            capitulo: z.label,
+            descricao: l.descricao,
+            unidade: l.unidade,
+            quantidade: l.quantidade,
+            tipo_linha: l.tipo_linha,
+            preco_unitario: l.precoUnitario,
+          })));
+        }
+      }
+
+      const intervencoesRestantes = z.intervencoes.filter((op) => !z.pladur_config || !['Teto falso', 'Revestimentos', 'Abertura de parede / open space'].includes(op));
+      const intervencoes = intervencoesRestantes.length > 0 ? intervencoesRestantes : (z.pladur_config ? [] : ['A definir']);
       for (const intervencao of intervencoes) {
         await supabase.from('orcamento_linhas').insert([{
           orcamento_id: orcamento.id,
@@ -170,6 +200,9 @@ export default function LeadsPage() {
                           </div>
                         )}
                         {z.notas && <p className="text-xs text-ink-400 mt-1.5">{z.notas}</p>}
+                        {z.pladur_config && (
+                          <p className="text-xs text-brand-700 mt-1.5 flex items-center gap-1">📐 Pladur já simulado pelo cliente para este espaço</p>
+                        )}
                       </div>
                     ))}
                   </div>

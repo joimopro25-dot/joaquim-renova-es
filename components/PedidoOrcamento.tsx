@@ -4,9 +4,18 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { DIVISOES, NOMES_DIVISOES } from '../lib/divisoes';
 import Link from 'next/link';
-import { CheckCircle2, Send, ArrowRight, ArrowLeft, Plus, X } from 'lucide-react';
+import { CheckCircle2, Send, ArrowRight, ArrowLeft, Plus, X, LayoutPanelTop } from 'lucide-react';
+import PladurWizard, { PladurConfigCompleta } from './PladurWizard';
+import { ResultadoPladur } from '../lib/pladur';
+import { formatMoney } from '../lib/format';
 
-type Instancia = { id: string; tipo: string; label: string; area: string; intervencoes: string[]; notas: string };
+type Instancia = {
+  id: string; tipo: string; label: string; area: string; intervencoes: string[]; notas: string;
+  pladurConfig?: PladurConfigCompleta; pladurTotal?: number;
+};
+
+// Intervenções que fazem sentido simular com o Planeador de Pladur.
+const INTERVENCOES_PLADUR = ['Teto falso', 'Revestimentos', 'Abertura de parede / open space'];
 
 function gerarId() {
   return Math.random().toString(36).slice(2);
@@ -25,6 +34,7 @@ export default function PedidoOrcamento() {
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState('');
+  const [pladurParaId, setPladurParaId] = useState<string | null>(null);
 
   function adicionarInstancia(tipo: string) {
     setInstancias((prev) => {
@@ -50,6 +60,11 @@ export default function PedidoOrcamento() {
     }));
   }
 
+  function guardarPladur(id: string, resultado: ResultadoPladur, config: PladurConfigCompleta) {
+    setInstancias((prev) => prev.map((i) => (i.id === id ? { ...i, pladurConfig: config, pladurTotal: resultado.total } : i)));
+    setPladurParaId(null);
+  }
+
   async function enviarPedido(e: React.FormEvent) {
     e.preventDefault();
     if (!aceitouPrivacidade) { setErro('Tem de aceitar a Política de Privacidade para enviar o pedido.'); return; }
@@ -62,6 +77,7 @@ export default function PedidoOrcamento() {
       area: i.area || null,
       intervencoes: i.intervencoes,
       notas: i.notas || null,
+      pladur_config: i.pladurConfig || null,
     }));
 
     const tipoObra = instancias.map((i) => i.label).join(', ');
@@ -167,9 +183,19 @@ export default function PedidoOrcamento() {
                   placeholder="Notas específicas para este espaço (opcional)"
                   value={i.notas}
                   onChange={(e) => atualizarInstancia(i.id, 'notas', e.target.value)}
-                  className="input w-full"
+                  className="input w-full mb-2"
                   rows={2}
                 />
+                {i.intervencoes.some((op) => INTERVENCOES_PLADUR.includes(op)) && (
+                  <button
+                    type="button"
+                    onClick={() => setPladurParaId(i.id)}
+                    className="text-xs border border-brand-300 text-brand-700 bg-brand-50 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-brand-100"
+                  >
+                    <LayoutPanelTop size={13} />
+                    {i.pladurConfig ? `Pladur simulado: ${formatMoney(i.pladurTotal || 0)} — editar` : 'Simular com o Planeador de Pladur'}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -180,6 +206,21 @@ export default function PedidoOrcamento() {
             <button type="button" onClick={() => setPasso(3)} className="btn-primary flex-1 justify-center">
               Continuar <ArrowRight size={16} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {pladurParaId && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setPladurParaId(null)}>
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-ink-800">Planeador de Pladur — {instancias.find((i) => i.id === pladurParaId)?.label}</h3>
+              <button onClick={() => setPladurParaId(null)} className="text-ink-400 hover:text-ink-700"><X size={18} /></button>
+            </div>
+            <PladurWizard
+              configInicial={instancias.find((i) => i.id === pladurParaId)?.pladurConfig || null}
+              onFinalizar={(resultado, config) => guardarPladur(pladurParaId, resultado, config)}
+            />
           </div>
         </div>
       )}

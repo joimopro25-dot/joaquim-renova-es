@@ -80,14 +80,9 @@ export default function HomePage() {
         <p className="text-sm text-ink-400 mb-8">
           Servimos Vila Nova de Famalicão e concelhos vizinhos — Braga, Guimarães, Barcelos, Santo Tirso, Vila do Conde e Trofa.
         </p>
-        <div className="flex flex-wrap justify-center gap-3">
-          <a href="#contacto" className="btn-primary inline-flex text-base px-6 py-3">
-            Pedir Orçamento
-          </a>
-          <Link href="/planeador-pladur" className="inline-flex items-center text-base px-6 py-3 rounded-lg border border-sand-300 text-ink-700 hover:bg-white transition-colors">
-            Planeador de Pladur
-          </Link>
-        </div>
+        <a href="#contacto" className="btn-primary inline-flex text-base px-6 py-3">
+          Pedir Orçamento
+        </a>
       </section>
 
       {servicos.length > 0 && (

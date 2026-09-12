@@ -99,8 +99,14 @@ export default function PladurWizard({
       <div className="flex items-center gap-2 mb-6 text-xs text-ink-400">
         {PASSOS.map((label, i) => (
           <React.Fragment key={label}>
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center font-medium shrink-0 ${passo >= i ? 'bg-brand-500 text-white' : 'bg-sand-100 text-ink-400'}`}>{i + 1}</span>
-            <span className={`hidden sm:inline ${passo === i ? 'text-ink-700 font-medium' : ''}`}>{label}</span>
+            <button
+              type="button"
+              onClick={() => setPasso(i)}
+              className={`w-6 h-6 rounded-full flex items-center justify-center font-medium shrink-0 cursor-pointer hover:opacity-80 ${passo >= i ? 'bg-brand-500 text-white' : 'bg-sand-100 text-ink-400'}`}
+            >
+              {i + 1}
+            </button>
+            <button type="button" onClick={() => setPasso(i)} className={`hidden sm:inline hover:text-ink-700 ${passo === i ? 'text-ink-700 font-medium' : ''}`}>{label}</button>
             {i < PASSOS.length - 1 && <span className={`flex-1 h-px ${passo > i ? 'bg-brand-500' : 'bg-sand-200'}`} />}
           </React.Fragment>
         ))}
@@ -442,13 +448,18 @@ export default function PladurWizard({
             </div>
           </div>
 
-          <button
-            onClick={() => onFinalizar(resultado, { espaco, teto, paredes, acabamentos })}
-            disabled={aGuardar}
-            className="btn-primary w-full justify-center disabled:opacity-60"
-          >
-            {aGuardar ? 'A guardar...' : 'Continuar'}
-          </button>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setPasso((p) => p - 1)} className="border border-sand-200 rounded-lg px-4 py-2 text-sm text-ink-600 hover:bg-sand-50 flex items-center gap-1.5">
+              <ArrowLeft size={16} /> Voltar
+            </button>
+            <button
+              onClick={() => onFinalizar(resultado, { espaco, teto, paredes, acabamentos })}
+              disabled={aGuardar}
+              className="btn-primary flex-1 justify-center disabled:opacity-60"
+            >
+              {aGuardar ? 'A guardar...' : 'Guardar Orçamento'}
+            </button>
+          </div>
         </div>
       )}
 

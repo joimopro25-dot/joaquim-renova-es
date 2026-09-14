@@ -6,7 +6,7 @@ import { formatMoney } from '../lib/format';
 import { calcularOrcamentoEletrica, tabelaPrecosParaMapa, PrecoItem, ResultadoEletrica, EletricaConfig } from '../lib/eletrica';
 import { Loader2 } from 'lucide-react';
 
-const CONFIG_VAZIA: EletricaConfig = { pontosLuz: 0, pontosComando: 0, pontosTomada: 0, intervencaoQuadro: false, detetoresIncendio: 0 };
+const CONFIG_VAZIA: EletricaConfig = { pontosLuz: 0, pontosComando: 0, pontosTomada: 0, intervencaoQuadro: false, detetoresIncendio: 0, notasAdicionais: '' };
 
 export default function EletricaWizard({
   onFinalizar,
@@ -65,6 +65,17 @@ export default function EletricaWizard({
           <label className="text-xs text-ink-500 block mb-1">Detetores de fumo/incêndio</label>
           <input type="number" onFocus={(e) => e.target.select()} step="1" min="0" value={config.detetoresIncendio} onChange={(e) => setConfig({ ...config, detetoresIncendio: parseInt(e.target.value) || 0 })} className="input w-32" />
         </div>
+      </div>
+
+      <div className="mb-6">
+        <label className="text-xs text-ink-500 block mb-1">Outras necessidades (sensores de presença, domótica, etc.) — descreve para orçamentarmos depois</label>
+        <textarea
+          value={config.notasAdicionais}
+          onChange={(e) => setConfig({ ...config, notasAdicionais: e.target.value })}
+          className="input w-full"
+          rows={2}
+          placeholder="Ex: sensor de presença no corredor, comando por telemóvel na sala..."
+        />
       </div>
 
       {resultado && (

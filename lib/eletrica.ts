@@ -6,6 +6,10 @@ export type EletricaConfig = {
   pontosTomada: number;
   intervencaoQuadro: boolean;
   detetoresIncendio: number;
+  // Texto livre para pedidos que não se encaixam nos campos acima (sensores
+  // de presença, domótica, etc.) — fica registado como linha a orçamentar
+  // manualmente depois, em vez de tentarmos adivinhar um preço.
+  notasAdicionais: string;
 };
 
 export type PrecoItem = { chave: string; descricao: string; unidade: string; preco: number };
@@ -43,6 +47,17 @@ export function calcularOrcamentoEletrica(config: EletricaConfig, precos: Tabela
   addLinha(maoDeObra, precos, 'ponto_tomada', config.pontosTomada);
   if (config.intervencaoQuadro) addLinha(maoDeObra, precos, 'quadro_eletrico', 1);
   addLinha(maoDeObra, precos, 'deteccao_incendio', config.detetoresIncendio);
+
+  if (config.notasAdicionais && config.notasAdicionais.trim()) {
+    maoDeObra.push({
+      chave: 'notas_adicionais',
+      descricao: `A orçamentar: ${config.notasAdicionais.trim()}`,
+      unidade: 'vg',
+      quantidade: 1,
+      precoUnitario: 0,
+      valor: 0,
+    });
+  }
 
   const totalMaoDeObra = arred(maoDeObra.reduce((s, m) => s + m.valor, 0));
   const subtotal = totalMaoDeObra;

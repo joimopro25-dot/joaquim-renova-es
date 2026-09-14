@@ -11,6 +11,7 @@ import { formatMoney } from '../lib/format';
 
 type Instancia = {
   id: string; tipo: string; label: string; area: string; intervencoes: string[]; notas: string;
+  comprimento: string; largura: string; peDireito: string;
   pladurConfig?: PladurConfigCompleta; pladurTotal?: number;
 };
 
@@ -40,7 +41,7 @@ export default function PedidoOrcamento() {
     setInstancias((prev) => {
       const existentes = prev.filter((i) => i.tipo === tipo).length;
       const label = existentes === 0 ? DIVISOES[tipo].label : `${DIVISOES[tipo].label} ${existentes + 1}`;
-      return [...prev, { id: gerarId(), tipo, label, area: '', intervencoes: [], notas: '' }];
+      return [...prev, { id: gerarId(), tipo, label, area: '', intervencoes: [], notas: '', comprimento: '', largura: '', peDireito: '2.6' }];
     });
   }
 
@@ -48,7 +49,7 @@ export default function PedidoOrcamento() {
     setInstancias((prev) => prev.filter((i) => i.id !== id));
   }
 
-  function atualizarInstancia(id: string, campo: 'label' | 'area' | 'notas', valor: string) {
+  function atualizarInstancia(id: string, campo: 'label' | 'area' | 'notas' | 'comprimento' | 'largura' | 'peDireito', valor: string) {
     setInstancias((prev) => prev.map((i) => (i.id === id ? { ...i, [campo]: valor } : i)));
   }
 
@@ -75,6 +76,9 @@ export default function PedidoOrcamento() {
       zona: i.tipo,
       label: i.label,
       area: i.area || null,
+      comprimento: i.comprimento || null,
+      largura: i.largura || null,
+      pe_direito: i.peDireito || null,
       intervencoes: i.intervencoes,
       notas: i.notas || null,
       pladur_config: i.pladurConfig || null,
@@ -164,13 +168,12 @@ export default function PedidoOrcamento() {
                   onChange={(e) => atualizarInstancia(i.id, 'label', e.target.value)}
                   className="font-medium text-ink-800 mb-2 w-full bg-transparent border-b border-transparent hover:border-sand-200 focus:border-brand-400 outline-none"
                 />
-                <input
-                  type="number"
-                  placeholder="Área aproximada (m²) — opcional"
-                  value={i.area}
-                  onChange={(e) => atualizarInstancia(i.id, 'area', e.target.value)}
-                  className="input w-full mb-2"
-                />
+                <p className="text-xs text-ink-400 mb-1.5">Medidas aproximadas (opcional, mas ajuda a calcular melhor)</p>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <input type="number" step="0.1" placeholder="Comprimento (m)" value={i.comprimento} onChange={(e) => atualizarInstancia(i.id, 'comprimento', e.target.value)} className="input w-full" />
+                  <input type="number" step="0.1" placeholder="Largura (m)" value={i.largura} onChange={(e) => atualizarInstancia(i.id, 'largura', e.target.value)} className="input w-full" />
+                  <input type="number" step="0.1" placeholder="Pé-direito (m)" value={i.peDireito} onChange={(e) => atualizarInstancia(i.id, 'peDireito', e.target.value)} className="input w-full" />
+                </div>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {DIVISOES[i.tipo].opcoes.map((op) => (
                     <label key={op} className={`text-xs px-2.5 py-1.5 rounded-full border cursor-pointer transition-colors ${i.intervencoes.includes(op) ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-sand-200 text-ink-500 hover:bg-sand-50'}`}>
@@ -219,6 +222,12 @@ export default function PedidoOrcamento() {
             </div>
             <PladurWizard
               configInicial={instancias.find((i) => i.id === pladurParaId)?.pladurConfig || null}
+              espacoPartilhado={{
+                nome: instancias.find((i) => i.id === pladurParaId)?.label,
+                comprimento: parseFloat(instancias.find((i) => i.id === pladurParaId)?.comprimento || '') || undefined,
+                largura: parseFloat(instancias.find((i) => i.id === pladurParaId)?.largura || '') || undefined,
+                peDireito: parseFloat(instancias.find((i) => i.id === pladurParaId)?.peDireito || '') || undefined,
+              }}
               onFinalizar={(resultado, config) => guardarPladur(pladurParaId, resultado, config)}
             />
           </div>

@@ -33,16 +33,22 @@ export default function PladurWizard({
   onFinalizar,
   aGuardar,
   configInicial,
+  espacoPartilhado,
 }: {
   onFinalizar: (resultado: ResultadoPladur, config: PladurConfigCompleta) => void;
   aGuardar?: boolean;
   configInicial?: PladurConfigCompleta | null;
+  // Medidas já recolhidas fora deste wizard (ex: pela divisão no "Pedir
+  // Orçamento") — pré-preenchem o passo Espaço para não se repetir a
+  // pergunta quando várias calculadoras (Pladur, Pintura, ...) partilham a
+  // mesma divisão.
+  espacoPartilhado?: Partial<EspacoConfig>;
 }) {
   const [passo, setPasso] = useState(0);
   const [precos, setPrecos] = useState<PrecoItem[]>([]);
   const [aCarregarPrecos, setACarregarPrecos] = useState(true);
 
-  const [espaco, setEspaco] = useState<EspacoConfig>(configInicial?.espaco || ESPACO_VAZIO);
+  const [espaco, setEspaco] = useState<EspacoConfig>({ ...ESPACO_VAZIO, ...espacoPartilhado, ...(configInicial?.espaco || {}) });
   const [teto, setTeto] = useState<TetoConfig>(configInicial?.teto || TETO_VAZIO);
   const [paredes, setParedes] = useState<ParedeConfig[]>(configInicial?.paredes || []);
   const [acabamentos, setAcabamentos] = useState<AcabamentosConfig>(configInicial?.acabamentos || ACABAMENTOS_VAZIO);

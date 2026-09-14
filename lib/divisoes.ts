@@ -22,11 +22,11 @@ export const DIVISOES: Record<string, Divisao> = {
   },
   quarto: {
     label: 'Quarto',
-    opcoes: ['Pintura', 'Pavimento novo', 'Roupeiro embutido', 'Iluminação'],
+    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Roupeiro embutido', 'Iluminação'],
   },
   hall_corredor: {
     label: 'Hall / Corredor',
-    opcoes: ['Pintura', 'Pavimento novo', 'Iluminação'],
+    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Iluminação'],
   },
   exterior_jardim: {
     label: 'Exterior / Jardim',

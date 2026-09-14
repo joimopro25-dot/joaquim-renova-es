@@ -16,6 +16,7 @@ const INTERVENCOES_COM_PLANEADOR = ['Teto falso', 'Revestimentos', 'Abertura de 
 
 type ZonaLead = {
   zona: string; label: string; area: string | null; intervencoes: string[]; notas: string | null;
+  comprimento?: string | null; largura?: string | null; pe_direito?: string | null;
   pladur_config?: PladurConfigCompleta | null;
   pintura_config?: PinturaConfigCompleta | null;
   pavimento_config?: PavimentoConfigCompleta | null;
@@ -104,11 +105,11 @@ export default function LeadsPage() {
     const precosPavimento = mapaPavimento((precosPavimentoData as PrecoItem[]) || []);
     const precosEletrica = mapaEletrica((precosEletricaData as PrecoItem[]) || []);
 
-    async function inserirLinhas(zonaLabel: string, linhas: { tipo_linha: string; descricao: string; unidade: string; quantidade: number; precoUnitario: number }[]) {
+    async function inserirLinhas(capitulo: string, linhas: { tipo_linha: string; descricao: string; unidade: string; quantidade: number; precoUnitario: number }[]) {
       if (linhas.length === 0) return;
       await supabase.from('orcamento_linhas').insert(linhas.map((l) => ({
         orcamento_id: orcamento.id,
-        capitulo: zonaLabel,
+        capitulo,
         descricao: l.descricao,
         unidade: l.unidade,
         quantidade: l.quantidade,
@@ -124,7 +125,7 @@ export default function LeadsPage() {
         temPlaneador = true;
         const { espaco, teto, paredes, acabamentos } = z.pladur_config;
         const resultado = calcularOrcamentoPladur(espaco, teto, paredes, acabamentos, precosPladur);
-        await inserirLinhas(z.label, [
+        await inserirLinhas(`${z.label} · Pladur`, [
           ...resultado.materiais.map((l) => ({ tipo_linha: 'material', ...l })),
           ...resultado.maoDeObra.map((l) => ({ tipo_linha: 'mao_obra', ...l })),
         ]);
@@ -133,7 +134,7 @@ export default function LeadsPage() {
         temPlaneador = true;
         const { comprimento, largura, peDireito, config } = z.pintura_config;
         const resultado = calcularOrcamentoPintura(comprimento, largura, peDireito, config, precosPintura);
-        await inserirLinhas(z.label, [
+        await inserirLinhas(`${z.label} · Pintura`, [
           ...resultado.materiais.map((l) => ({ tipo_linha: 'material', ...l })),
           ...resultado.maoDeObra.map((l) => ({ tipo_linha: 'mao_obra', ...l })),
         ]);
@@ -142,7 +143,7 @@ export default function LeadsPage() {
         temPlaneador = true;
         const { comprimento, largura, config } = z.pavimento_config;
         const resultado = calcularOrcamentoPavimento(comprimento, largura, config, precosPavimento);
-        await inserirLinhas(z.label, [
+        await inserirLinhas(`${z.label} · Pavimento`, [
           ...resultado.materiais.map((l) => ({ tipo_linha: 'material', ...l })),
           ...resultado.maoDeObra.map((l) => ({ tipo_linha: 'mao_obra', ...l })),
         ]);
@@ -150,7 +151,23 @@ export default function LeadsPage() {
       if (z.eletrica_config) {
         temPlaneador = true;
         const resultado = calcularOrcamentoEletrica(z.eletrica_config, precosEletrica);
-        await inserirLinhas(z.label, resultado.maoDeObra.map((l) => ({ tipo_linha: 'mao_obra', ...l })));
+        await inserirLinhas(`${z.label} · Elétrica`, resultado.maoDeObra.map((l) => ({ tipo_linha: 'mao_obra', ...l })));
+      }
+
+      if (temPlaneador) {
+        // Recria a divisão no editor do admin (Divisões), com as mesmas
+        // configs, para poderem ser reabertas e reajustadas mais tarde.
+        await supabase.from('orcamento_divisoes').insert([{
+          orcamento_id: orcamento.id,
+          label: z.label,
+          comprimento: z.comprimento ? parseFloat(z.comprimento) : (z.pladur_config?.espaco.comprimento ?? null),
+          largura: z.largura ? parseFloat(z.largura) : (z.pladur_config?.espaco.largura ?? null),
+          pe_direito: z.pe_direito ? parseFloat(z.pe_direito) : (z.pladur_config?.espaco.peDireito ?? 2.6),
+          pladur_config: z.pladur_config || null,
+          pintura_config: z.pintura_config || null,
+          pavimento_config: z.pavimento_config || null,
+          eletrica_config: z.eletrica_config || null,
+        }]);
       }
 
       const intervencoesRestantes = z.intervencoes.filter((op) => !temPlaneador || !INTERVENCOES_COM_PLANEADOR.includes(op));

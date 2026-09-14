@@ -30,8 +30,13 @@ type Orcamento = {
   iva_mao_obra_percentagem: number;
   iva_subcontratado_percentagem: number;
   criado_em: string;
-  pladur_config: PladurConfigCompleta | null;
   clientes: { nome: string; nif: string | null; morada: string | null } | null;
+};
+
+type DivisaoPlanta = {
+  id: string;
+  label: string;
+  pladur_config: PladurConfigCompleta | null;
 };
 
 const SECCOES: { tipo: string; label: string }[] = [
@@ -45,18 +50,21 @@ export default function RelatorioOrcamento() {
   const [orcamento, setOrcamento] = useState<Orcamento | null>(null);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [fotos, setFotos] = useState<Foto[]>([]);
+  const [divisoes, setDivisoes] = useState<DivisaoPlanta[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function carregar() {
-      const [{ data: orc }, { data: linhasData }, { data: fotosData }] = await Promise.all([
-        supabase.from('orcamentos').select('titulo, descricao, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem, criado_em, pladur_config, clientes(nome, nif, morada)').eq('id', id).single(),
+      const [{ data: orc }, { data: linhasData }, { data: fotosData }, { data: divisoesData }] = await Promise.all([
+        supabase.from('orcamentos').select('titulo, descricao, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem, criado_em, clientes(nome, nif, morada)').eq('id', id).single(),
         supabase.from('orcamento_linhas_cliente').select('*').eq('orcamento_id', id).order('criado_em'),
         supabase.from('orcamento_fotos').select('id, url, legenda').eq('orcamento_id', id).order('criado_em', { ascending: false }),
+        supabase.from('orcamento_divisoes').select('id, label, pladur_config').eq('orcamento_id', id).order('criado_em'),
       ]);
       setOrcamento(orc as any);
       setLinhas(linhasData || []);
       setFotos(fotosData || []);
+      setDivisoes(((divisoesData as any) || []).filter((d: DivisaoPlanta) => d.pladur_config));
       setLoading(false);
     }
     carregar();
@@ -151,12 +159,12 @@ export default function RelatorioOrcamento() {
         </div>
       </div>
 
-      {orcamento.pladur_config && (
-        <div className="mb-8 break-inside-avoid flex flex-col items-center">
-          <h3 className="font-semibold text-ink-800 mb-3 text-sm uppercase tracking-wide self-start">Planta do Espaço</h3>
-          <PlantaPladur espaco={orcamento.pladur_config.espaco} paredes={orcamento.pladur_config.paredes} teto={orcamento.pladur_config.teto} />
+      {divisoes.map((d) => d.pladur_config && (
+        <div key={d.id} className="mb-8 break-inside-avoid flex flex-col items-center">
+          <h3 className="font-semibold text-ink-800 mb-3 text-sm uppercase tracking-wide self-start">Planta — {d.label}</h3>
+          <PlantaPladur espaco={d.pladur_config.espaco} paredes={d.pladur_config.paredes} teto={d.pladur_config.teto} />
         </div>
-      )}
+      ))}
 
       {fotos.length > 0 && (
         <div className="mb-8 break-inside-avoid">

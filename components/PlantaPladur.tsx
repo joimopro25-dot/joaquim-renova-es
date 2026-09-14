@@ -91,7 +91,7 @@ export default function PlantaPladur({
 
   // Desenha uma parede perimetral com as suas aberturas.
   function desenharParede(lado: LadoParede) {
-    const p = paredes.find((pw) => pw.lado === lado && pw.tipoTrabalho === 'revestimento');
+    const p = paredes.find((pw) => pw.lado === lado);
     const comprimentoLado = lado === 'norte' || lado === 'sul' ? espaco.comprimento : espaco.largura;
     const elementos: React.ReactNode[] = [];
 

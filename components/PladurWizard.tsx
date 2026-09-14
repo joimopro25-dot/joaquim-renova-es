@@ -221,7 +221,7 @@ export default function PladurWizard({
 
       {passo === 2 && (
         <div className="space-y-3">
-          {paredes.some((p) => p.tipoTrabalho === 'revestimento' && p.lado) && (
+          {paredes.some((p) => p.lado) && (
             <div className="border border-sand-200 rounded-lg p-3 bg-sand-50 flex justify-center">
               <PlantaPladur espaco={espaco} paredes={paredes} teto={teto} />
             </div>
@@ -233,18 +233,16 @@ export default function PladurWizard({
                 <label className="text-xs text-ink-500 block mb-1">Largura (m)</label>
                 <input type="number" onFocus={(e) => e.target.select()} step="0.01" value={p.larguraM} onChange={(e) => atualizarParede(p.id, { larguraM: parseFloat(e.target.value) || 0 })} className="input w-full" />
               </div>
-              {p.tipoTrabalho === 'revestimento' && (
-                <div>
-                  <label className="text-xs text-ink-500 block mb-1">Lado do espaço</label>
-                  <select value={p.lado || ''} onChange={(e) => atualizarParede(p.id, { lado: (e.target.value || undefined) as LadoParede | undefined })} className="input w-full">
-                    <option value="">— não definido —</option>
-                    <option value="norte">Norte</option>
-                    <option value="sul">Sul</option>
-                    <option value="este">Este</option>
-                    <option value="oeste">Oeste</option>
-                  </select>
-                </div>
-              )}
+              <div>
+                <label className="text-xs text-ink-500 block mb-1">Lado do espaço (para a planta)</label>
+                <select value={p.lado || ''} onChange={(e) => atualizarParede(p.id, { lado: (e.target.value || undefined) as LadoParede | undefined })} className="input w-full">
+                  <option value="">— não definido —</option>
+                  <option value="norte">Norte</option>
+                  <option value="sul">Sul</option>
+                  <option value="este">Este</option>
+                  <option value="oeste">Oeste</option>
+                </select>
+              </div>
               <div>
                 <label className="text-xs text-ink-500 block mb-1">Tipo de trabalho</label>
                 <select

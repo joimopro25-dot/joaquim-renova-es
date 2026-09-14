@@ -1,12 +1,19 @@
 // Motor de cálculo do Planeador de Pintura.
 
 export type QualidadeTinta = 'normal' | 'normal_alta' | 'extrema';
+
+export type ParedePintura = {
+  id: string;
+  larguraM: number;
+  pintar: boolean;
+};
+
 export type PinturaConfig = {
-  pintarParedes: boolean;
+  paredes: ParedePintura[];
   pintarTeto: boolean;
   demaos: 1 | 2;
   qualidadeTinta: QualidadeTinta;
-  areaAberturasM2: number; // descontado da área de paredes (portas/janelas), opcional
+  areaAberturasM2: number; // descontado da área total de paredes (portas/janelas), opcional
 };
 
 export type PrecoItem = { chave: string; descricao: string; unidade: string; preco: number };
@@ -50,9 +57,10 @@ export function calcularOrcamentoPintura(
   const maoDeObra: LinhaCalculada[] = [];
 
   let m2Total = 0;
-  if (config.pintarParedes) {
-    const perimetro = (comprimento + largura) * 2;
-    const m2Paredes = Math.max(0, arred((perimetro * peDireito) - (config.areaAberturasM2 || 0), 2));
+  const paredesAPintar = config.paredes.filter((p) => p.pintar);
+  if (paredesAPintar.length > 0) {
+    const m2ParedesBruto = paredesAPintar.reduce((s, p) => s + p.larguraM * peDireito, 0);
+    const m2Paredes = Math.max(0, arred(m2ParedesBruto - (config.areaAberturasM2 || 0), 2));
     m2Total += m2Paredes;
   }
   if (config.pintarTeto) {
@@ -81,4 +89,13 @@ export function tabelaPrecosParaMapa(itens: PrecoItem[]): TabelaPrecos {
   const mapa: TabelaPrecos = {};
   for (const item of itens) mapa[item.chave] = item;
   return mapa;
+}
+
+export function paredesPorDefeito(comprimento: number, largura: number): ParedePintura[] {
+  return [
+    { id: 'norte', larguraM: comprimento, pintar: true },
+    { id: 'sul', larguraM: comprimento, pintar: true },
+    { id: 'este', larguraM: largura, pintar: true },
+    { id: 'oeste', larguraM: largura, pintar: true },
+  ];
 }

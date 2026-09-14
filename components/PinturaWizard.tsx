@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatMoney } from '../lib/format';
-import { calcularOrcamentoPintura, tabelaPrecosParaMapa, PrecoItem, ResultadoPintura, PinturaConfig } from '../lib/pintura';
+import { calcularOrcamentoPintura, tabelaPrecosParaMapa, paredesPorDefeito, PrecoItem, ResultadoPintura, PinturaConfig } from '../lib/pintura';
 import { Loader2 } from 'lucide-react';
 
 export type PinturaConfigCompleta = {
@@ -11,7 +11,9 @@ export type PinturaConfigCompleta = {
   config: PinturaConfig;
 };
 
-const CONFIG_VAZIA: PinturaConfig = { pintarParedes: true, pintarTeto: false, demaos: 2, qualidadeTinta: 'normal', areaAberturasM2: 0 };
+function configVazia(comprimento: number, largura: number): PinturaConfig {
+  return { paredes: paredesPorDefeito(comprimento, largura), pintarTeto: false, demaos: 2, qualidadeTinta: 'normal', areaAberturasM2: 0 };
+}
 
 export default function PinturaWizard({
   onFinalizar,
@@ -30,7 +32,7 @@ export default function PinturaWizard({
   const [comprimento, setComprimento] = useState(configInicial?.comprimento || espacoPartilhado?.comprimento || 4);
   const [largura, setLargura] = useState(configInicial?.largura || espacoPartilhado?.largura || 3);
   const [peDireito, setPeDireito] = useState(configInicial?.peDireito || espacoPartilhado?.peDireito || 2.6);
-  const [config, setConfig] = useState<PinturaConfig>(configInicial?.config || CONFIG_VAZIA);
+  const [config, setConfig] = useState<PinturaConfig>(configInicial?.config || configVazia(comprimento, largura));
 
   useEffect(() => {
     async function carregar() {
@@ -46,6 +48,10 @@ export default function PinturaWizard({
     if (precos.length === 0) return null;
     return calcularOrcamentoPintura(comprimento, largura, peDireito, config, tabelaPrecos);
   }, [comprimento, largura, peDireito, config, tabelaPrecos, precos.length]);
+
+  function atualizarParede(id: string, campos: Partial<{ larguraM: number; pintar: boolean }>) {
+    setConfig((prev) => ({ ...prev, paredes: prev.paredes.map((p) => (p.id === id ? { ...p, ...campos } : p)) }));
+  }
 
   if (aCarregarPrecos) {
     return <div className="text-center py-10 text-ink-300 text-sm flex items-center justify-center gap-2"><Loader2 size={16} className="animate-spin" /> A carregar preços...</div>;
@@ -68,16 +74,28 @@ export default function PinturaWizard({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-4 mb-4">
-        <label className="flex items-center gap-1.5 text-sm text-ink-600">
-          <input type="checkbox" checked={config.pintarParedes} onChange={(e) => setConfig({ ...config, pintarParedes: e.target.checked })} /> Pintar paredes
-        </label>
-        <label className="flex items-center gap-1.5 text-sm text-ink-600">
-          <input type="checkbox" checked={config.pintarTeto} onChange={(e) => setConfig({ ...config, pintarTeto: e.target.checked })} /> Pintar teto
-        </label>
+      <p className="text-xs text-ink-500 mb-2">Paredes a pintar — a divisão tem 4 paredes, escolhe quais e ajusta a largura de cada uma se forem diferentes</p>
+      <div className="border border-sand-200 rounded-lg divide-y divide-sand-100 mb-4">
+        {config.paredes.map((p, i) => (
+          <div key={p.id} className="flex items-center gap-3 p-2.5">
+            <label className="flex items-center gap-1.5 text-sm text-ink-600 w-24 shrink-0">
+              <input type="checkbox" checked={p.pintar} onChange={(e) => atualizarParede(p.id, { pintar: e.target.checked })} /> Parede {i + 1}
+            </label>
+            <input
+              type="number" step="0.01" value={p.larguraM}
+              onChange={(e) => atualizarParede(p.id, { larguraM: parseFloat(e.target.value) || 0 })}
+              className="input py-1 w-28 text-sm" disabled={!p.pintar}
+            />
+            <span className="text-xs text-ink-400">m de largura</span>
+          </div>
+        ))}
       </div>
 
-      {config.pintarParedes && (
+      <label className="flex items-center gap-1.5 text-sm text-ink-600 mb-4">
+        <input type="checkbox" checked={config.pintarTeto} onChange={(e) => setConfig({ ...config, pintarTeto: e.target.checked })} /> Pintar teto
+      </label>
+
+      {config.paredes.some((p) => p.pintar) && (
         <div className="mb-4">
           <label className="text-xs text-ink-500 block mb-1">Área de portas/janelas a descontar (m²) — opcional</label>
           <input type="number" step="0.1" min="0" value={config.areaAberturasM2} onChange={(e) => setConfig({ ...config, areaAberturasM2: parseFloat(e.target.value) || 0 })} className="input w-40" />
@@ -140,6 +158,9 @@ export default function PinturaWizard({
                   </table>
                 </div>
               </div>
+            )}
+            {resultado.materiais.length === 0 && resultado.maoDeObra.length === 0 && (
+              <p className="text-sm text-ink-400 text-center py-4">Marca pelo menos uma parede ou o teto para ver o cálculo.</p>
             )}
           </div>
 

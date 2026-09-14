@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { Camera, X, Loader2, Check, Trash2, PackagePlus, FileText } from 'lucide-react';
+import { Camera, X, Loader2, Check, Trash2, PackagePlus, FileText, RefreshCw } from 'lucide-react';
 
 type Obra = { id: string; titulo: string };
 type Subempreitada = { id: string; descricao: string };
@@ -17,7 +17,19 @@ type Item = {
   materialNome: string;
   incluir: boolean;
   destino: string;
+  precoRefTabela: string;
+  precoRefChave: string;
+  atualizarPrecoRef: boolean;
 };
+
+const TABELAS_PRECOS = [
+  { tabela: 'pladur_precos', label: 'Pladur' },
+  { tabela: 'pintura_precos', label: 'Pintura' },
+  { tabela: 'pavimento_precos', label: 'Pavimento' },
+  { tabela: 'eletrica_precos', label: 'Elétrica' },
+];
+
+type PrecoReferencia = { tabela: string; tabelaLabel: string; chave: string; descricao: string; preco: number };
 
 const OPCAO_GERAL = 'geral';
 
@@ -56,6 +68,21 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
   const [fornecedor, setFornecedor] = useState('');
   const [data, setData] = useState('');
   const [itens, setItens] = useState<Item[]>([]);
+  const [precosReferencia, setPrecosReferencia] = useState<PrecoReferencia[]>([]);
+
+  useEffect(() => {
+    async function carregarPrecos() {
+      const resultados = await Promise.all(TABELAS_PRECOS.map((t) => supabase.from(t.tabela).select('chave, descricao, preco')));
+      const lista: PrecoReferencia[] = [];
+      resultados.forEach((res, i) => {
+        for (const item of res.data || []) {
+          lista.push({ tabela: TABELAS_PRECOS[i].tabela, tabelaLabel: TABELAS_PRECOS[i].label, chave: item.chave, descricao: item.descricao, preco: item.preco });
+        }
+      });
+      setPrecosReferencia(lista);
+    }
+    carregarPrecos();
+  }, []);
 
   async function handleFicheiro(f: File | null) {
     if (!f) return;
@@ -85,6 +112,9 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
         materialNome: it.descricao || '',
         incluir: true,
         destino: '',
+        precoRefTabela: '',
+        precoRefChave: '',
+        atualizarPrecoRef: false,
       })));
       setStep('review');
     } catch (e: any) {
@@ -95,6 +125,20 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
 
   function atualizarItem(idx: number, campo: keyof Item, valor: any) {
     setItens((prev) => prev.map((it, i) => (i === idx ? { ...it, [campo]: valor } : it)));
+  }
+
+  function selecionarPrecoRef(idx: number, valorCombinado: string) {
+    const [tabela, chave] = valorCombinado ? valorCombinado.split('|') : ['', ''];
+    setItens((prev) => prev.map((it, i) => {
+      if (i !== idx) return it;
+      const ref = precosReferencia.find((p) => p.tabela === tabela && p.chave === chave);
+      const difere = !!ref && Math.abs(ref.preco - it.preco_unitario) > 0.005;
+      return { ...it, precoRefTabela: tabela, precoRefChave: chave, atualizarPrecoRef: difere };
+    }));
+  }
+
+  function precoRefDoItem(it: Item): PrecoReferencia | undefined {
+    return precosReferencia.find((p) => p.tabela === it.precoRefTabela && p.chave === it.precoRefChave);
   }
 
   function aplicarDestinoATodos(destino: string) {
@@ -190,7 +234,13 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
           desconto_percentagem: item.desconto_percentagem,
           iva_percentagem: item.iva_percentagem,
           material_id: materialId,
+          preco_ref_tabela: item.precoRefTabela || null,
+          preco_ref_chave: item.precoRefChave || null,
         }]);
+
+        if (item.precoRefTabela && item.precoRefChave && item.atualizarPrecoRef) {
+          await supabase.from(item.precoRefTabela).update({ preco: item.preco_unitario }).eq('chave', item.precoRefChave);
+        }
       }
     }
 
@@ -311,6 +361,46 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
               {destinosUsados.length > 1 && (
                 <div className="bg-purple-50 border border-purple-100 rounded-lg p-3 text-xs text-purple-800">
                   Esta fatura vai ser dividida em {destinosUsados.length} despesas separadas (uma por destino): {destinosUsados.map((d) => labelDestino(d)).join(', ')}.
+                </div>
+              )}
+
+              {precosReferencia.length > 0 && itensIncluidos.length > 0 && (
+                <div className="border border-sand-200 rounded-lg p-3">
+                  <p className="text-xs font-medium text-ink-600 mb-2 flex items-center gap-1.5"><RefreshCw size={13} /> Sincronizar preços de referência (opcional)</p>
+                  <p className="text-xs text-ink-400 mb-3">Liga um artigo a um preço de referência dos planeadores — se o valor da fatura for diferente, podes atualizar esse preço para refletir em orçamentos futuros.</p>
+                  <div className="space-y-2">
+                    {itens.map((it, idx) => {
+                      if (!it.incluir) return null;
+                      const ref = precoRefDoItem(it);
+                      const difere = !!ref && Math.abs(ref.preco - it.preco_unitario) > 0.005;
+                      return (
+                        <div key={idx} className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="text-ink-600 min-w-[140px] truncate" title={it.descricao}>{it.descricao || `Artigo ${idx + 1}`}</span>
+                          <select
+                            value={it.precoRefTabela && it.precoRefChave ? `${it.precoRefTabela}|${it.precoRefChave}` : ''}
+                            onChange={(e) => selecionarPrecoRef(idx, e.target.value)}
+                            className="input py-1 text-xs w-56"
+                          >
+                            <option value="">Não ligar a nenhum preço</option>
+                            {TABELAS_PRECOS.map((t) => (
+                              <optgroup key={t.tabela} label={t.label}>
+                                {precosReferencia.filter((p) => p.tabela === t.tabela).map((p) => (
+                                  <option key={p.chave} value={`${p.tabela}|${p.chave}`}>{p.descricao} ({p.preco.toFixed(2)}€)</option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                          {ref && difere && (
+                            <label className="flex items-center gap-1.5 text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
+                              <input type="checkbox" checked={it.atualizarPrecoRef} onChange={(e) => atualizarItem(idx, 'atualizarPrecoRef', e.target.checked)} />
+                              Atualizar de {ref.preco.toFixed(2)}€ para {it.preco_unitario.toFixed(2)}€?
+                            </label>
+                          )}
+                          {ref && !difere && <span className="text-ink-400">Preço já igual à referência.</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

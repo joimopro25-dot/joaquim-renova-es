@@ -18,15 +18,15 @@ export const DIVISOES: Record<string, Divisao> = {
   },
   sala: {
     label: 'Sala',
-    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Parede em Pladur (divisória/isolamento)', 'Iluminação', 'Abertura de parede / open space'],
+    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Parede em Pladur (divisória/isolamento)', 'Iluminação', 'Eletricidade', 'Abertura de parede / open space'],
   },
   quarto: {
     label: 'Quarto',
-    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Parede em Pladur (divisória/isolamento)', 'Roupeiro embutido', 'Iluminação'],
+    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Parede em Pladur (divisória/isolamento)', 'Roupeiro embutido', 'Iluminação', 'Eletricidade'],
   },
   hall_corredor: {
     label: 'Hall / Corredor',
-    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Parede em Pladur (divisória/isolamento)', 'Iluminação'],
+    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Parede em Pladur (divisória/isolamento)', 'Iluminação', 'Eletricidade'],
   },
   exterior_jardim: {
     label: 'Exterior / Jardim',

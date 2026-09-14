@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import { precoUnitarioFinal, totalLinha, calcularTotais } from '../../../../lib/orcamento';
-import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp, Package, Wrench, Pencil, LayoutPanelTop, PaintBucket, SquareStack, Zap, Lock, Unlock } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp, Package, Wrench, Pencil, LayoutPanelTop, PaintBucket, SquareStack, Zap, Lock, Unlock, Mail } from 'lucide-react';
 import ImportarOrcamento from '../ImportarOrcamento';
 import ConsultoriaChat from '../../../../components/ConsultoriaChat';
 import PladurWizard, { PladurConfigCompleta } from '../../../../components/PladurWizard';
@@ -69,7 +69,7 @@ type Orcamento = {
   pavimento_config: PavimentoConfigCompleta | null;
   eletrica_config: EletricaConfig | null;
   precos_libertados: boolean;
-  clientes: { nome: string } | null;
+  clientes: { nome: string; email: string | null } | null;
 };
 
 const ESTADOS: Record<string, { label: string; color: string }> = {
@@ -133,15 +133,22 @@ export default function OrcamentoDetalhePage() {
   const [legendaFoto, setLegendaFoto] = useState('');
   const [aEnviarFoto, setAEnviarFoto] = useState(false);
 
+  const [temAcessoPortal, setTemAcessoPortal] = useState<boolean | null>(null);
+  const [aConvidar, setAConvidar] = useState(false);
+
   const carregar = useCallback(async () => {
     setLoading(true);
     const [{ data: orc }, { data: linhasData }, { data: fotosData }, { data: fornecedoresData }] = await Promise.all([
-      supabase.from('orcamentos').select('*, clientes(nome)').eq('id', id).single(),
+      supabase.from('orcamentos').select('*, clientes(nome, email)').eq('id', id).single(),
       supabase.from('orcamento_linhas').select('*, fornecedores(nome)').eq('orcamento_id', id).order('criado_em'),
       supabase.from('orcamento_fotos').select('*').eq('orcamento_id', id).order('criado_em', { ascending: false }),
       supabase.from('fornecedores').select('id, nome').order('nome'),
     ]);
     setOrcamento(orc as any);
+    if ((orc as any)?.cliente_id) {
+      const { data: perfil } = await supabase.from('perfis').select('id').eq('cliente_id', (orc as any).cliente_id).maybeSingle();
+      setTemAcessoPortal(!!perfil);
+    }
     const listaLinhas = (linhasData as any) || [];
     setLinhas(listaLinhas);
     setFotos(fotosData || []);
@@ -351,6 +358,23 @@ export default function OrcamentoDetalhePage() {
     carregar();
   }
 
+  async function convidarClienteParaPortal() {
+    if (!orcamento?.clientes?.email) { alert('Este cliente não tem email registado.'); return; }
+    if (!confirm(`Enviar convite de acesso ao portal para ${orcamento.clientes.email}?`)) return;
+    setAConvidar(true);
+    const { data: sessao } = await supabase.auth.getSession();
+    const resp = await fetch('/api/convidar-cliente', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${sessao.session?.access_token}` },
+      body: JSON.stringify({ clienteId: orcamento.cliente_id, email: orcamento.clientes.email }),
+    });
+    const json = await resp.json();
+    setAConvidar(false);
+    if (!resp.ok) { alert('Erro ao enviar convite: ' + json.error); return; }
+    alert('Convite enviado com sucesso!');
+    carregar();
+  }
+
   async function atualizarCampo(campo: string, valor: number) {
     await supabase.from('orcamentos').update({ [campo]: valor }).eq('id', id);
     carregar();
@@ -429,6 +453,14 @@ export default function OrcamentoDetalhePage() {
         >
           {orcamento.precos_libertados ? <><Unlock size={16} /> Preços libertados ao cliente — clicar para esconder</> : <><Lock size={16} /> Preços escondidos do cliente — clicar para libertar</>}
         </button>
+        {temAcessoPortal === false && (
+          <button onClick={convidarClienteParaPortal} disabled={aConvidar} className="btn-primary bg-blue-600 hover:bg-blue-700 disabled:opacity-60">
+            <Mail size={16} /> {aConvidar ? 'A enviar...' : 'Convidar cliente para o portal'}
+          </button>
+        )}
+        {temAcessoPortal === true && (
+          <span className="text-xs text-ink-400 self-center flex items-center gap-1"><Check size={14} className="text-green-600" /> Cliente já tem acesso ao portal</span>
+        )}
       </div>
 
       {orcamento.status !== 'convertido' && (
@@ -502,7 +534,16 @@ export default function OrcamentoDetalhePage() {
                   const { error } = await supabase.from('orcamento_linhas').insert([...linhasMateriais, ...linhasMaoObra]);
                   if (error) { setAGuardarPladur(false); alert('Erro: ' + error.message); return; }
 
-                  await supabase.from('orcamentos').update({ pladur_config: config }).eq('id', id);
+                  // Focos LED embutidos / fita LED no teto implicam ligação elétrica —
+                  // sincroniza os pontos de luz com o Planeador de Elétrica deste orçamento
+                  // (só atualiza a configuração; as linhas só são recalculadas quando o
+                  // Elétrica for aberto e guardado).
+                  const pontosLuzLed = config.teto.focosLedPosicoes.length + (config.acabamentos.led !== 'nao' ? 1 : 0);
+                  const eletricaConfigAtualizado = pontosLuzLed > 0
+                    ? { ...(orcamento.eletrica_config || { pontosLuz: 0, pontosComando: 0, pontosTomada: 0, intervencaoQuadro: false, detetoresIncendio: 0, notasAdicionais: '' }), pontosLuzLed }
+                    : orcamento.eletrica_config;
+
+                  await supabase.from('orcamentos').update({ pladur_config: config, eletrica_config: eletricaConfigAtualizado }).eq('id', id);
                   setAGuardarPladur(false);
                   setShowPladur(false);
                   carregar();

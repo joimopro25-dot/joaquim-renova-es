@@ -432,7 +432,7 @@ export default function PladurWizard({
               disabled={aGuardar}
               className="btn-primary flex-1 justify-center disabled:opacity-60"
             >
-              {aGuardar ? 'A guardar...' : mostrarPrecos ? 'Guardar Orçamento' : 'Enviar Pedido'}
+              {aGuardar ? 'A guardar...' : mostrarPrecos ? 'Guardar Orçamento' : 'Validar Plano'}
             </button>
           </div>
         </div>

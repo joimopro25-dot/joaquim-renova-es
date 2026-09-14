@@ -6,6 +6,10 @@ export type EletricaConfig = {
   pontosTomada: number;
   intervencaoQuadro: boolean;
   detetoresIncendio: number;
+  // Sincronizado automaticamente a partir do Planeador de Pladur da mesma
+  // divisão (focos LED embutidos + fita LED) — não é um campo editável
+  // diretamente aqui, mas soma-se aos pontos de luz para o cálculo.
+  pontosLuzLed?: number;
   // Texto livre para pedidos que não se encaixam nos campos acima (sensores
   // de presença, domótica, etc.) — fica registado como linha a orçamentar
   // manualmente depois, em vez de tentarmos adivinhar um preço.
@@ -42,7 +46,7 @@ function addLinha(linhas: LinhaCalculada[], precos: TabelaPrecos, chave: string,
 export function calcularOrcamentoEletrica(config: EletricaConfig, precos: TabelaPrecos): ResultadoEletrica {
   const maoDeObra: LinhaCalculada[] = [];
 
-  addLinha(maoDeObra, precos, 'ponto_luz', config.pontosLuz);
+  addLinha(maoDeObra, precos, 'ponto_luz', config.pontosLuz + (config.pontosLuzLed || 0));
   addLinha(maoDeObra, precos, 'ponto_comando', config.pontosComando);
   addLinha(maoDeObra, precos, 'ponto_tomada', config.pontosTomada);
   if (config.intervencaoQuadro) addLinha(maoDeObra, precos, 'quadro_eletrico', 1);

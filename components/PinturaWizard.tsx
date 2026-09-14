@@ -188,7 +188,7 @@ export default function PinturaWizard({
             disabled={aGuardar}
             className="btn-primary w-full justify-center disabled:opacity-60"
           >
-            {aGuardar ? 'A guardar...' : mostrarPrecos ? 'Guardar' : 'Enviar Pedido'}
+            {aGuardar ? 'A guardar...' : mostrarPrecos ? 'Guardar' : 'Validar Plano'}
           </button>
         </div>
       )}

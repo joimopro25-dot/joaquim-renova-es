@@ -6,7 +6,7 @@ import { formatMoney } from '../lib/format';
 import { calcularOrcamentoEletrica, tabelaPrecosParaMapa, PrecoItem, ResultadoEletrica, EletricaConfig } from '../lib/eletrica';
 import { Loader2 } from 'lucide-react';
 
-const CONFIG_VAZIA: EletricaConfig = { pontosLuz: 0, pontosComando: 0, pontosTomada: 0, intervencaoQuadro: false, detetoresIncendio: 0, notasAdicionais: '' };
+const CONFIG_VAZIA: EletricaConfig = { pontosLuz: 0, pontosComando: 0, pontosTomada: 0, intervencaoQuadro: false, detetoresIncendio: 0, pontosLuzLed: 0, notasAdicionais: '' };
 
 export default function EletricaWizard({
   onFinalizar,
@@ -48,6 +48,9 @@ export default function EletricaWizard({
         <div>
           <label className="text-xs text-ink-500 block mb-1">Pontos de luz</label>
           <input type="number" onFocus={(e) => e.target.select()} step="1" min="0" value={config.pontosLuz} onChange={(e) => setConfig({ ...config, pontosLuz: parseInt(e.target.value) || 0 })} className="input w-full" />
+          {!!config.pontosLuzLed && (
+            <p className="text-[11px] text-brand-600 mt-1">+ {config.pontosLuzLed} do Planeador de Pladur (focos/fita LED) — já incluídos no total</p>
+          )}
         </div>
         <div>
           <label className="text-xs text-ink-500 block mb-1">Comandos/Interruptores</label>
@@ -122,7 +125,7 @@ export default function EletricaWizard({
             disabled={aGuardar}
             className="btn-primary w-full justify-center disabled:opacity-60"
           >
-            {aGuardar ? 'A guardar...' : mostrarPrecos ? 'Guardar' : 'Enviar Pedido'}
+            {aGuardar ? 'A guardar...' : mostrarPrecos ? 'Guardar' : 'Validar Plano'}
           </button>
         </div>
       )}

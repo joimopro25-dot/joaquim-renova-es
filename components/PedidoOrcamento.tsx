@@ -82,7 +82,21 @@ export default function PedidoOrcamento() {
   }
 
   function guardarPladur(id: string, resultado: ResultadoPladur, config: PladurConfigCompleta) {
-    setInstancias((prev) => prev.map((i) => (i.id === id ? { ...i, pladurConfig: config, pladurTotal: resultado.total } : i)));
+    // Focos LED embutidos e fita LED no teto de Pladur implicam ligação
+    // elétrica — sincroniza esse número de pontos automaticamente para o
+    // Planeador de Elétrica da mesma divisão, em vez de obrigar a repetir a
+    // contagem manualmente lá.
+    const pontosLuzLed = config.teto.focosLedPosicoes.length + (config.acabamentos.led !== 'nao' ? 1 : 0);
+    setInstancias((prev) => prev.map((i) => {
+      if (i.id !== id) return i;
+      const intervencoes = pontosLuzLed > 0 && !i.intervencoes.includes('Eletricidade')
+        ? [...i.intervencoes, 'Eletricidade']
+        : i.intervencoes;
+      const eletricaConfig = pontosLuzLed > 0
+        ? { ...(i.eletricaConfig || { pontosLuz: 0, pontosComando: 0, pontosTomada: 0, intervencaoQuadro: false, detetoresIncendio: 0, notasAdicionais: '' }), pontosLuzLed }
+        : i.eletricaConfig;
+      return { ...i, pladurConfig: config, pladurTotal: resultado.total, intervencoes, eletricaConfig };
+    }));
     setModalAberto(null);
   }
 

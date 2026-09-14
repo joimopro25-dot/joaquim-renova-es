@@ -6,11 +6,11 @@ export type Divisao = {
 export const DIVISOES: Record<string, Divisao> = {
   cozinha: {
     label: 'Cozinha',
-    opcoes: ['Pintura', 'Revestimentos', 'Desmontar armários existentes', 'Montar armários novos', 'Bancada nova', 'Eletrodomésticos novos', 'Lavandaria integrada', 'Canalização', 'Eletricidade', 'Iluminação'],
+    opcoes: ['Pintura', 'Revestimentos', 'Desmontar armários existentes', 'Montar armários novos', 'Bancada nova', 'Eletrodomésticos novos', 'Lavandaria integrada', 'Canalização', 'Eletricidade'],
   },
   casa_banho: {
     label: 'Casa de Banho',
-    opcoes: ['Pintura', 'Revestimentos', 'Substituir sanitários', 'Móveis suspensos novos', 'Duche/banheira nova', 'Canalização', 'Eletricidade', 'Iluminação'],
+    opcoes: ['Pintura', 'Revestimentos', 'Substituir sanitários', 'Móveis suspensos novos', 'Duche/banheira nova', 'Canalização', 'Eletricidade'],
   },
   lavandaria: {
     label: 'Lavandaria',
@@ -18,15 +18,15 @@ export const DIVISOES: Record<string, Divisao> = {
   },
   sala: {
     label: 'Sala',
-    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Parede em Pladur (divisória/isolamento)', 'Iluminação', 'Eletricidade', 'Abertura de parede / open space'],
+    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Parede em Pladur (divisória/isolamento)', 'Eletricidade', 'Abertura de parede / open space'],
   },
   quarto: {
     label: 'Quarto',
-    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Parede em Pladur (divisória/isolamento)', 'Roupeiro embutido', 'Iluminação', 'Eletricidade'],
+    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Parede em Pladur (divisória/isolamento)', 'Roupeiro embutido', 'Eletricidade'],
   },
   hall_corredor: {
     label: 'Hall / Corredor',
-    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Parede em Pladur (divisória/isolamento)', 'Iluminação', 'Eletricidade'],
+    opcoes: ['Pintura', 'Pavimento novo', 'Teto falso', 'Parede em Pladur (divisória/isolamento)', 'Eletricidade'],
   },
   exterior_jardim: {
     label: 'Exterior / Jardim',

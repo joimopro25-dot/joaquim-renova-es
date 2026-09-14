@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import { precoUnitarioFinal, totalLinha, calcularTotais } from '../../../../lib/orcamento';
-import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp, Package, Wrench, Pencil, LayoutPanelTop, PaintBucket, SquareStack, Zap } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp, Package, Wrench, Pencil, LayoutPanelTop, PaintBucket, SquareStack, Zap, Lock, Unlock } from 'lucide-react';
 import ImportarOrcamento from '../ImportarOrcamento';
 import ConsultoriaChat from '../../../../components/ConsultoriaChat';
 import PladurWizard, { PladurConfigCompleta } from '../../../../components/PladurWizard';
@@ -68,6 +68,7 @@ type Orcamento = {
   pintura_config: PinturaConfigCompleta | null;
   pavimento_config: PavimentoConfigCompleta | null;
   eletrica_config: EletricaConfig | null;
+  precos_libertados: boolean;
   clientes: { nome: string } | null;
 };
 
@@ -344,6 +345,12 @@ export default function OrcamentoDetalhePage() {
     carregar();
   }
 
+  async function alternarPrecosLibertados() {
+    if (!orcamento) return;
+    await supabase.from('orcamentos').update({ precos_libertados: !orcamento.precos_libertados }).eq('id', id);
+    carregar();
+  }
+
   async function atualizarCampo(campo: string, valor: number) {
     await supabase.from('orcamentos').update({ [campo]: valor }).eq('id', id);
     carregar();
@@ -412,10 +419,16 @@ export default function OrcamentoDetalhePage() {
         <span className={`badge ${info.color}`}>{info.label}</span>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
+      <div className="flex flex-wrap items-center gap-2 mb-6">
         <a href={`/admin/orcamentos/${id}/relatorio`} target="_blank" rel="noreferrer" className="btn-primary bg-ink-700 hover:bg-ink-800">
           <Printer size={16} /> Pré-visualizar / Imprimir
         </a>
+        <button
+          onClick={alternarPrecosLibertados}
+          className={`btn-primary ${orcamento.precos_libertados ? 'bg-green-600 hover:bg-green-700' : 'bg-sand-400 hover:bg-sand-500'}`}
+        >
+          {orcamento.precos_libertados ? <><Unlock size={16} /> Preços libertados ao cliente — clicar para esconder</> : <><Lock size={16} /> Preços escondidos do cliente — clicar para libertar</>}
+        </button>
       </div>
 
       {orcamento.status !== 'convertido' && (

@@ -13,7 +13,6 @@ import { ResultadoPladur } from '../lib/pladur';
 import { ResultadoPintura } from '../lib/pintura';
 import { ResultadoPavimento } from '../lib/pavimento';
 import { ResultadoEletrica, EletricaConfig } from '../lib/eletrica';
-import { formatMoney } from '../lib/format';
 
 type TipoPlaneador = 'pladur' | 'pintura' | 'pavimento' | 'eletrica';
 
@@ -233,9 +232,7 @@ export default function PedidoOrcamento() {
                 <div className="flex flex-wrap gap-2">
                   {PLANEADORES.filter((p) => i.intervencoes.some((op) => p.intervencoes.includes(op))).map((p) => {
                     const Icon = p.icon;
-                    const totalKey = `${p.tipo}Total` as const;
                     const configKey = `${p.tipo}Config` as const;
-                    const total = (i as any)[totalKey];
                     const temConfig = !!(i as any)[configKey];
                     return (
                       <button
@@ -245,7 +242,7 @@ export default function PedidoOrcamento() {
                         className="text-xs border border-brand-300 text-brand-700 bg-brand-50 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-brand-100"
                       >
                         <Icon size={13} />
-                        {temConfig ? `${p.label} simulado: ${formatMoney(total || 0)} — editar` : `Simular ${p.label}`}
+                        {temConfig ? `${p.label} configurado — editar` : `Configurar ${p.label}`}
                       </button>
                     );
                   })}
@@ -273,6 +270,9 @@ export default function PedidoOrcamento() {
               </h3>
               <button onClick={() => setModalAberto(null)} className="text-ink-400 hover:text-ink-700"><X size={18} /></button>
             </div>
+            <p className="text-xs text-ink-400 mb-4">
+              Personaliza tudo ao detalhe — os valores não aparecem aqui, vais recebê-los por email / na tua conta Projetar Conforto depois de revistos.
+            </p>
 
             {modalAberto.tipo === 'pladur' && (
               <PladurWizard
@@ -284,6 +284,7 @@ export default function PedidoOrcamento() {
                   peDireito: parseFloat(instanciaModal.peDireito || '') || undefined,
                 }}
                 onFinalizar={(resultado, config) => guardarPladur(instanciaModal.id, resultado, config)}
+                mostrarPrecos={false}
               />
             )}
             {modalAberto.tipo === 'pintura' && (
@@ -295,6 +296,7 @@ export default function PedidoOrcamento() {
                   peDireito: parseFloat(instanciaModal.peDireito || '') || undefined,
                 }}
                 onFinalizar={(resultado, config) => guardarPintura(instanciaModal.id, resultado, config)}
+                mostrarPrecos={false}
               />
             )}
             {modalAberto.tipo === 'pavimento' && (
@@ -305,12 +307,14 @@ export default function PedidoOrcamento() {
                   largura: parseFloat(instanciaModal.largura || '') || undefined,
                 }}
                 onFinalizar={(resultado, config) => guardarPavimento(instanciaModal.id, resultado, config)}
+                mostrarPrecos={false}
               />
             )}
             {modalAberto.tipo === 'eletrica' && (
               <EletricaWizard
                 configInicial={instanciaModal.eletricaConfig || null}
                 onFinalizar={(resultado, config) => guardarEletrica(instanciaModal.id, resultado, config)}
+                mostrarPrecos={false}
               />
             )}
           </div>

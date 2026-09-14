@@ -34,6 +34,7 @@ export default function PladurWizard({
   aGuardar,
   configInicial,
   espacoPartilhado,
+  mostrarPrecos = true,
 }: {
   onFinalizar: (resultado: ResultadoPladur, config: PladurConfigCompleta) => void;
   aGuardar?: boolean;
@@ -43,6 +44,10 @@ export default function PladurWizard({
   // pergunta quando várias calculadoras (Pladur, Pintura, ...) partilham a
   // mesma divisão.
   espacoPartilhado?: Partial<EspacoConfig>;
+  // Falso no site público: o cliente configura tudo mas não vê preços — os
+  // valores são calculados e guardados na mesma, só ficam visíveis quando o
+  // admin liberta o orçamento.
+  mostrarPrecos?: boolean;
 }) {
   const [passo, setPasso] = useState(0);
   const [precos, setPrecos] = useState<PrecoItem[]>([]);
@@ -362,53 +367,61 @@ export default function PladurWizard({
             <PlantaPladur espaco={espaco} paredes={paredes} teto={teto} />
           </div>
 
-          <div className="space-y-4 mb-6">
-            {resultado.materiais.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-ink-500 uppercase mb-1.5">Materiais</p>
-                <div className="border border-sand-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-left text-sm">
-                    <tbody className="divide-y divide-sand-100">
-                      {resultado.materiais.map((l) => (
-                        <tr key={l.chave}>
-                          <td className="p-2 text-ink-700">{l.descricao}</td>
-                          <td className="p-2 text-right text-ink-400">{l.quantidade} {l.unidade}</td>
-                          <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(l.valor)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+          {mostrarPrecos ? (
+            <>
+              <div className="space-y-4 mb-6">
+                {resultado.materiais.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-ink-500 uppercase mb-1.5">Materiais</p>
+                    <div className="border border-sand-200 rounded-lg overflow-hidden">
+                      <table className="w-full text-left text-sm">
+                        <tbody className="divide-y divide-sand-100">
+                          {resultado.materiais.map((l) => (
+                            <tr key={l.chave}>
+                              <td className="p-2 text-ink-700">{l.descricao}</td>
+                              <td className="p-2 text-right text-ink-400">{l.quantidade} {l.unidade}</td>
+                              <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(l.valor)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                {resultado.maoDeObra.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-ink-500 uppercase mb-1.5">Mão de Obra</p>
+                    <div className="border border-sand-200 rounded-lg overflow-hidden">
+                      <table className="w-full text-left text-sm">
+                        <tbody className="divide-y divide-sand-100">
+                          {resultado.maoDeObra.map((l) => (
+                            <tr key={l.chave}>
+                              <td className="p-2 text-ink-700">{l.descricao}</td>
+                              <td className="p-2 text-right text-ink-400">{l.quantidade} {l.unidade}</td>
+                              <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(l.valor)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-            {resultado.maoDeObra.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-ink-500 uppercase mb-1.5">Mão de Obra</p>
-                <div className="border border-sand-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-left text-sm">
-                    <tbody className="divide-y divide-sand-100">
-                      {resultado.maoDeObra.map((l) => (
-                        <tr key={l.chave}>
-                          <td className="p-2 text-ink-700">{l.descricao}</td>
-                          <td className="p-2 text-right text-ink-400">{l.quantidade} {l.unidade}</td>
-                          <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(l.valor)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
 
-          <div className="flex justify-end mb-4">
-            <div className="w-full sm:w-72 text-sm space-y-1">
-              <div className="flex justify-between"><span className="text-ink-500">Subtotal Materiais</span><span>{formatMoney(resultado.totalMateriais)}</span></div>
-              <div className="flex justify-between"><span className="text-ink-500">Subtotal Mão de Obra</span><span>{formatMoney(resultado.totalMaoDeObra)}</span></div>
-              <div className="flex justify-between"><span className="text-ink-500">IVA (23%)</span><span>{formatMoney(resultado.iva)}</span></div>
-              <div className="flex justify-between font-semibold text-lg pt-1 border-t border-ink-800"><span>TOTAL</span><span>{formatMoney(resultado.total)}</span></div>
-            </div>
-          </div>
+              <div className="flex justify-end mb-4">
+                <div className="w-full sm:w-72 text-sm space-y-1">
+                  <div className="flex justify-between"><span className="text-ink-500">Subtotal Materiais</span><span>{formatMoney(resultado.totalMateriais)}</span></div>
+                  <div className="flex justify-between"><span className="text-ink-500">Subtotal Mão de Obra</span><span>{formatMoney(resultado.totalMaoDeObra)}</span></div>
+                  <div className="flex justify-between"><span className="text-ink-500">IVA (23%)</span><span>{formatMoney(resultado.iva)}</span></div>
+                  <div className="flex justify-between font-semibold text-lg pt-1 border-t border-ink-800"><span>TOTAL</span><span>{formatMoney(resultado.total)}</span></div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-ink-500 bg-sand-50 border border-sand-200 rounded-lg p-3 mb-6">
+              Configuração concluída. Vais receber o orçamento com os valores por email / na tua conta Projetar Conforto.
+            </p>
+          )}
 
           <div className="flex gap-2">
             <button type="button" onClick={() => setPasso((p) => p - 1)} className="border border-sand-200 rounded-lg px-4 py-2 text-sm text-ink-600 hover:bg-sand-50 flex items-center gap-1.5">
@@ -419,7 +432,7 @@ export default function PladurWizard({
               disabled={aGuardar}
               className="btn-primary flex-1 justify-center disabled:opacity-60"
             >
-              {aGuardar ? 'A guardar...' : 'Guardar Orçamento'}
+              {aGuardar ? 'A guardar...' : mostrarPrecos ? 'Guardar Orçamento' : 'Enviar Pedido'}
             </button>
           </div>
         </div>

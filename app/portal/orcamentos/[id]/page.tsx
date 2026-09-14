@@ -29,6 +29,7 @@ type Orcamento = {
   iva_material_percentagem: number;
   iva_mao_obra_percentagem: number;
   iva_subcontratado_percentagem: number;
+  precos_libertados: boolean;
 };
 
 const ESTADOS: Record<string, { label: string; color: string }> = {
@@ -55,7 +56,7 @@ export default function PortalOrcamentoDetalhe() {
 
   async function carregar() {
     const [{ data: orc }, { data: linhasData }, { data: fotosData }] = await Promise.all([
-      supabase.from('orcamentos').select('id, titulo, descricao, status, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem').eq('id', id).single(),
+      supabase.from('orcamentos').select('id, titulo, descricao, status, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem, precos_libertados').eq('id', id).single(),
       supabase.from('orcamento_linhas_cliente').select('*').eq('orcamento_id', id).order('criado_em'),
       supabase.from('orcamento_fotos').select('id, url, legenda').eq('orcamento_id', id).order('criado_em', { ascending: false }),
     ]);
@@ -101,7 +102,13 @@ export default function PortalOrcamentoDetalhe() {
         <span className={`badge ${info.color}`}>{info.label}</span>
       </div>
 
-      {orcamento.status === 'enviado' && (
+      {!orcamento.precos_libertados && (
+        <div className="card p-5 mb-6 bg-sand-50 border-sand-200">
+          <p className="text-sm text-ink-700">O seu pedido foi recebido e está a ser preparado. Vai receber uma notificação assim que os valores estiverem disponíveis para aprovação.</p>
+        </div>
+      )}
+
+      {orcamento.precos_libertados && orcamento.status === 'enviado' && (
         <div className="card p-5 mb-6 flex flex-wrap items-center justify-between gap-3 bg-blue-50 border-blue-100">
           <p className="text-sm text-ink-700">Reveja os detalhes abaixo e indique se aprova este orçamento.</p>
           <div className="flex gap-2">
@@ -129,8 +136,8 @@ export default function PortalOrcamentoDetalhe() {
                     <th className="p-2 font-medium">Descrição</th>
                     <th className="p-2 font-medium text-right">Un</th>
                     <th className="p-2 font-medium text-right">Qtd</th>
-                    <th className="p-2 font-medium text-right">Preço un.</th>
-                    <th className="p-2 font-medium text-right">Total</th>
+                    {orcamento.precos_libertados && <th className="p-2 font-medium text-right">Preço un.</th>}
+                    {orcamento.precos_libertados && <th className="p-2 font-medium text-right">Total</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-sand-100">
@@ -139,14 +146,16 @@ export default function PortalOrcamentoDetalhe() {
                       <td className="p-2 text-ink-800">{l.descricao}</td>
                       <td className="p-2 text-right text-ink-500">{l.unidade}</td>
                       <td className="p-2 text-right text-ink-500">{l.quantidade}</td>
-                      <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario_final)}</td>
-                      <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(l.preco_total)}</td>
+                      {orcamento.precos_libertados && <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario_final)}</td>}
+                      {orcamento.precos_libertados && <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(l.preco_total)}</td>}
                     </tr>
                   ))}
-                  <tr className="bg-sand-50 font-medium">
-                    <td colSpan={4} className="p-2 text-right text-ink-600">Subtotal {label}</td>
-                    <td className="p-2 text-right text-ink-800">{formatMoney(subtotalSec)}</td>
-                  </tr>
+                  {orcamento.precos_libertados && (
+                    <tr className="bg-sand-50 font-medium">
+                      <td colSpan={4} className="p-2 text-right text-ink-600">Subtotal {label}</td>
+                      <td className="p-2 text-right text-ink-800">{formatMoney(subtotalSec)}</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -168,17 +177,19 @@ export default function PortalOrcamentoDetalhe() {
         </div>
       )}
 
-      <div className="card p-6">
-        <div className="space-y-2 text-sm max-w-sm ml-auto">
-          <div className="flex justify-between"><span className="text-ink-500">Total dos Trabalhos</span><span className="text-ink-800">{formatMoney(totais.subtotal)}</span></div>
-          <div className="flex justify-between"><span className="text-ink-500">Imprevistos ({orcamento.margem_percentagem}%)</span><span className="text-ink-800">{formatMoney(totais.imprevistos)}</span></div>
-          <div className="flex justify-between"><span className="text-ink-500">IVA</span><span className="text-ink-800">{formatMoney(totais.iva)}</span></div>
-          <div className="flex justify-between pt-2 border-t border-sand-100 font-semibold text-base">
-            <span className="text-ink-800">Total com IVA</span>
-            <span className="text-brand-600">{formatMoney(totais.total)}</span>
+      {orcamento.precos_libertados && (
+        <div className="card p-6">
+          <div className="space-y-2 text-sm max-w-sm ml-auto">
+            <div className="flex justify-between"><span className="text-ink-500">Total dos Trabalhos</span><span className="text-ink-800">{formatMoney(totais.subtotal)}</span></div>
+            <div className="flex justify-between"><span className="text-ink-500">Imprevistos ({orcamento.margem_percentagem}%)</span><span className="text-ink-800">{formatMoney(totais.imprevistos)}</span></div>
+            <div className="flex justify-between"><span className="text-ink-500">IVA</span><span className="text-ink-800">{formatMoney(totais.iva)}</span></div>
+            <div className="flex justify-between pt-2 border-t border-sand-100 font-semibold text-base">
+              <span className="text-ink-800">Total com IVA</span>
+              <span className="text-brand-600">{formatMoney(totais.total)}</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

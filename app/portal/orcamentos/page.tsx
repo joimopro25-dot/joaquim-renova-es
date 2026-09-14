@@ -14,6 +14,7 @@ type Orcamento = {
   iva_material_percentagem: number;
   iva_mao_obra_percentagem: number;
   iva_subcontratado_percentagem: number;
+  precos_libertados: boolean;
 };
 
 const ESTADOS: Record<string, { label: string; color: string }> = {
@@ -37,7 +38,7 @@ export default function PortalOrcamentosPage() {
 
       const { data } = await supabase
         .from('orcamentos')
-        .select('id, titulo, status, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem')
+        .select('id, titulo, status, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem, precos_libertados')
         .eq('cliente_id', perfil.cliente_id)
         .order('criado_em', { ascending: false });
       const lista = (data as any) || [];
@@ -81,7 +82,9 @@ export default function PortalOrcamentosPage() {
                 </div>
                 <span className={`badge ${info.color} mb-3 inline-block`}>{info.label}</span>
                 <div className="flex items-center justify-between text-sm text-ink-400">
-                  <span className="text-ink-800 font-medium">{totais.total.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })}</span>
+                  <span className="text-ink-800 font-medium">
+                    {o.precos_libertados ? totais.total.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }) : 'Valores em preparação'}
+                  </span>
                   <span className="flex items-center gap-1 text-brand-600">Ver detalhe <ArrowRight size={13} /></span>
                 </div>
               </Link>

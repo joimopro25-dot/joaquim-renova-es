@@ -27,7 +27,7 @@ export type PladurConfigCompleta = { espaco: EspacoConfig; teto: TetoConfig; par
 
 const ESPACO_VAZIO: EspacoConfig = { nome: 'Divisão', comprimento: 4, largura: 3, peDireito: 2.6, comprimentoPlaca: 2.5 };
 const TETO_VAZIO: TetoConfig = { tipo: 'nenhum', remate: 'justificado', tipoSanca: 'simples', larguraSancaCm: 20, alturaSancaCm: 20, cobertura: 'toda', focosLedPosicoes: [] };
-const ACABAMENTOS_VAZIO: AcabamentosConfig = { pintura: 'nao', qualidadeTinta: 'normal', led: 'nao', metrosLed: 0, rodape: false, pontosLuz: 0, interruptores: 0, tomadas: 0 };
+const ACABAMENTOS_VAZIO: AcabamentosConfig = { led: 'nao', metrosLed: 0 };
 
 export default function PladurWizard({
   onFinalizar,
@@ -341,62 +341,20 @@ export default function PladurWizard({
 
       {passo === 3 && (
         <div className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-ink-500 block mb-1">Pintura</label>
-              <select value={acabamentos.pintura} onChange={(e) => setAcabamentos({ ...acabamentos, pintura: e.target.value as any })} className="input w-full">
-                <option value="nao">Sem pintura</option>
-                <option value="1demao">1 demão</option>
-                <option value="2demaos">2 demãos</option>
-              </select>
-            </div>
-            {acabamentos.pintura !== 'nao' && (
-              <div>
-                <label className="text-xs text-ink-500 block mb-1">Qualidade da tinta</label>
-                <select value={acabamentos.qualidadeTinta} onChange={(e) => setAcabamentos({ ...acabamentos, qualidadeTinta: e.target.value as any })} className="input w-full">
-                  <option value="normal">Normal</option>
-                  <option value="normal_alta">Normal Alta</option>
-                  <option value="extrema">Extrema (lavável)</option>
-                </select>
-              </div>
+          <div>
+            <label className="text-xs text-ink-500 block mb-1">Iluminação LED (embutida na estrutura de teto/sanca)</label>
+            <select value={acabamentos.led} onChange={(e) => setAcabamentos({ ...acabamentos, led: e.target.value as any })} className="input w-full sm:w-72">
+              <option value="nao">Não</option>
+              <option value="fita">Fita LED</option>
+              <option value="fita_zigbee">Fita LED + controlo Zigbee/app</option>
+            </select>
+            {acabamentos.led !== 'nao' && (
+              <input type="number" onFocus={(e) => e.target.select()} step="0.5" placeholder="Metros de fita" value={acabamentos.metrosLed} onChange={(e) => setAcabamentos({ ...acabamentos, metrosLed: parseFloat(e.target.value) || 0 })} className="input w-40 mt-2" />
             )}
           </div>
-
-          {teto.tipo !== 'sanca_led' && (
-            <div>
-              <label className="text-xs text-ink-500 block mb-1">Iluminação LED</label>
-              <select value={acabamentos.led} onChange={(e) => setAcabamentos({ ...acabamentos, led: e.target.value as any })} className="input w-full sm:w-64">
-                <option value="nao">Não</option>
-                <option value="fita">Fita LED</option>
-                <option value="fita_zigbee">Fita LED + controlo Zigbee/app</option>
-              </select>
-              {acabamentos.led !== 'nao' && (
-                <input type="number" onFocus={(e) => e.target.select()} step="0.5" placeholder="Metros de fita" value={acabamentos.metrosLed} onChange={(e) => setAcabamentos({ ...acabamentos, metrosLed: parseFloat(e.target.value) || 0 })} className="input w-40 mt-2" />
-              )}
-            </div>
-          )}
-
-          <label className="flex items-center gap-1.5 text-sm text-ink-600">
-            <input type="checkbox" checked={acabamentos.rodape} onChange={(e) => setAcabamentos({ ...acabamentos, rodape: e.target.checked })} /> Incluir rodapé novo (perímetro da divisão)
-          </label>
-
-          <div>
-            <p className="text-xs text-ink-500 mb-2">Eletricidade nova (opcional)</p>
-            <div className="grid grid-cols-3 gap-3 max-w-md">
-              <div>
-                <label className="text-xs text-ink-400 block mb-1">Pontos de luz</label>
-                <input type="number" onFocus={(e) => e.target.select()} step="1" min="0" value={acabamentos.pontosLuz} onChange={(e) => setAcabamentos({ ...acabamentos, pontosLuz: parseInt(e.target.value) || 0 })} className="input w-full" />
-              </div>
-              <div>
-                <label className="text-xs text-ink-400 block mb-1">Interruptores</label>
-                <input type="number" onFocus={(e) => e.target.select()} step="1" min="0" value={acabamentos.interruptores} onChange={(e) => setAcabamentos({ ...acabamentos, interruptores: parseInt(e.target.value) || 0 })} className="input w-full" />
-              </div>
-              <div>
-                <label className="text-xs text-ink-400 block mb-1">Tomadas</label>
-                <input type="number" onFocus={(e) => e.target.select()} step="1" min="0" value={acabamentos.tomadas} onChange={(e) => setAcabamentos({ ...acabamentos, tomadas: parseInt(e.target.value) || 0 })} className="input w-full" />
-              </div>
-            </div>
-          </div>
+          <p className="text-xs text-ink-400">
+            Pintura, rodapé e pontos elétricos passam a ser simulados nos planeadores próprios (Pintura / Elétrica), para poderes usá-los mesmo em divisões sem pladur.
+          </p>
         </div>
       )}
 

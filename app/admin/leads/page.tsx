@@ -107,7 +107,7 @@ export default function LeadsPage() {
         }
       }
 
-      const intervencoesRestantes = z.intervencoes.filter((op) => !z.pladur_config || !['Teto falso', 'Revestimentos', 'Abertura de parede / open space'].includes(op));
+      const intervencoesRestantes = z.intervencoes.filter((op) => !z.pladur_config || !['Teto falso', 'Revestimentos', 'Abertura de parede / open space', 'Parede em Pladur (divisória/isolamento)'].includes(op));
       const intervencoes = intervencoesRestantes.length > 0 ? intervencoesRestantes : (z.pladur_config ? [] : ['A definir']);
       for (const intervencao of intervencoes) {
         await supabase.from('orcamento_linhas').insert([{

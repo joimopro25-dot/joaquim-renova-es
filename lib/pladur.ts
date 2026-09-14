@@ -65,15 +65,13 @@ export type ParedeConfig = {
   aberturas: AberturaConfig[];
 };
 
+// Pintura, rodapé e eletricidade deixaram de ser tratados aqui — passam a
+// ser planeadores próprios (Pintura, Pavimento, Elétrica), reutilizáveis
+// em qualquer divisão, não só em trabalhos de pladur. O Pladur só mantém
+// a iluminação LED por ser intrínseca à própria estrutura de teto/sanca.
 export type AcabamentosConfig = {
-  pintura: TipoPintura;
-  qualidadeTinta: QualidadeTinta;
   led: TipoLed;
   metrosLed?: number;
-  rodape: boolean;
-  pontosLuz: number;
-  interruptores: number;
-  tomadas: number;
 };
 
 export type PrecoItem = { chave: string; descricao: string; unidade: string; preco: number };
@@ -288,33 +286,11 @@ export function calcularOrcamentoPladur(
     addMaoDeObra(maoDeObraLinhas, precos, 'isolamento_acustico', m2ComIsolamento);
   }
 
-  const m2Total = m2Teto + m2Paredes;
-  if (acabamentos.pintura !== 'nao' && m2Total > 0) {
-    const numDemaos = acabamentos.pintura === '2demaos' ? 2 : 1;
-    // Antes da pintura: acabamento de placa (massa + lixagem) e primário —
-    // trabalho obrigatório, não incluído no preço da própria pintura.
-    addMaoDeObra(maoDeObraLinhas, precos, 'acabamento_placa', m2Total);
-    addMaoDeObra(maoDeObraLinhas, precos, 'primario', m2Total);
-
-    const chavePintura = numDemaos === 2 ? 'pintura_2demaos' : 'pintura_1demao';
-    addMaoDeObra(maoDeObraLinhas, precos, chavePintura, m2Total);
-
-    const chaveTinta = acabamentos.qualidadeTinta === 'extrema' ? 'tinta_extrema' : acabamentos.qualidadeTinta === 'normal_alta' ? 'tinta_normal_alta' : 'tinta_normal';
-    addLinha(materiaisMapa, precos, chaveTinta, arred(m2Total * numDemaos, 2));
-  }
-
   if (acabamentos.led !== 'nao' && acabamentos.metrosLed && teto.tipo !== 'sanca_led') {
     addLinha(materiaisMapa, precos, 'fita_led', acabamentos.metrosLed);
     addLinha(materiaisMapa, precos, 'transformador_led', 1);
     if (acabamentos.led === 'fita_zigbee') addLinha(materiaisMapa, precos, 'modulo_zigbee', 1);
   }
-
-  if (acabamentos.rodape) {
-    addLinha(materiaisMapa, precos, 'rodape', arred(perimetroSala, 2));
-  }
-
-  const totalPontosEletricos = (acabamentos.pontosLuz || 0) + (acabamentos.interruptores || 0) + (acabamentos.tomadas || 0);
-  addMaoDeObra(maoDeObraLinhas, precos, 'ponto_eletrico', totalPontosEletricos);
 
   const materiais = Array.from(materiaisMapa.values());
   const totalMateriais = arred(materiais.reduce((s, m) => s + m.valor, 0));

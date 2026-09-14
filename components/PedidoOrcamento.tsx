@@ -16,7 +16,7 @@ type Instancia = {
 };
 
 // Intervenções que fazem sentido simular com o Planeador de Pladur.
-const INTERVENCOES_PLADUR = ['Teto falso', 'Revestimentos', 'Abertura de parede / open space'];
+const INTERVENCOES_PLADUR = ['Teto falso', 'Revestimentos', 'Abertura de parede / open space', 'Parede em Pladur (divisória/isolamento)'];
 
 function gerarId() {
   return Math.random().toString(36).slice(2);

@@ -12,7 +12,7 @@ import type { PladurConfigCompleta } from '../../../components/PladurWizard';
 import type { PinturaConfigCompleta } from '../../../components/PinturaWizard';
 import type { PavimentoConfigCompleta } from '../../../components/PavimentoWizard';
 
-const INTERVENCOES_COM_PLANEADOR = ['Teto falso', 'Revestimentos', 'Abertura de parede / open space', 'Parede em Pladur (divisória/isolamento)', 'Pintura', 'Pintura exterior', 'Pavimento novo', 'Pavimento', 'Pavimento exterior', 'Eletricidade', 'Iluminação'];
+const INTERVENCOES_COM_PLANEADOR = ['Teto falso', 'Revestimentos', 'Abertura de parede / open space', 'Parede em Pladur (divisória/isolamento)', 'Pintura', 'Pintura exterior', 'Pavimento novo', 'Pavimento', 'Pavimento exterior', 'Eletricidade'];
 
 type ZonaLead = {
   zona: string; label: string; area: string | null; intervencoes: string[]; notas: string | null;

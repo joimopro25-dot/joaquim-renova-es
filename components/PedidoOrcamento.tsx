@@ -30,7 +30,7 @@ type Instancia = {
 const INTERVENCOES_PLADUR = ['Teto falso', 'Revestimentos', 'Abertura de parede / open space', 'Parede em Pladur (divisória/isolamento)'];
 const INTERVENCOES_PINTURA = ['Pintura', 'Pintura exterior'];
 const INTERVENCOES_PAVIMENTO = ['Pavimento novo', 'Pavimento', 'Pavimento exterior'];
-const INTERVENCOES_ELETRICA = ['Eletricidade', 'Iluminação'];
+const INTERVENCOES_ELETRICA = ['Eletricidade'];
 
 const PLANEADORES: { tipo: TipoPlaneador; intervencoes: string[]; label: string; icon: any }[] = [
   { tipo: 'pladur', intervencoes: INTERVENCOES_PLADUR, label: 'Pladur', icon: LayoutPanelTop },

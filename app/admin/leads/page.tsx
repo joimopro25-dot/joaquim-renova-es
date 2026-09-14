@@ -4,10 +4,23 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import { Inbox, UserPlus, Trash2, FileText, ChevronDown, ChevronUp } from 'lucide-react';
-import { calcularOrcamentoPladur, tabelaPrecosParaMapa, PrecoItem } from '../../../lib/pladur';
+import { calcularOrcamentoPladur, tabelaPrecosParaMapa as mapaPladur, PrecoItem } from '../../../lib/pladur';
+import { calcularOrcamentoPintura, tabelaPrecosParaMapa as mapaPintura } from '../../../lib/pintura';
+import { calcularOrcamentoPavimento, tabelaPrecosParaMapa as mapaPavimento } from '../../../lib/pavimento';
+import { calcularOrcamentoEletrica, tabelaPrecosParaMapa as mapaEletrica, EletricaConfig } from '../../../lib/eletrica';
 import type { PladurConfigCompleta } from '../../../components/PladurWizard';
+import type { PinturaConfigCompleta } from '../../../components/PinturaWizard';
+import type { PavimentoConfigCompleta } from '../../../components/PavimentoWizard';
 
-type ZonaLead = { zona: string; label: string; area: string | null; intervencoes: string[]; notas: string | null; pladur_config?: PladurConfigCompleta | null };
+const INTERVENCOES_COM_PLANEADOR = ['Teto falso', 'Revestimentos', 'Abertura de parede / open space', 'Parede em Pladur (divisória/isolamento)', 'Pintura', 'Pintura exterior', 'Pavimento novo', 'Pavimento', 'Pavimento exterior', 'Eletricidade'];
+
+type ZonaLead = {
+  zona: string; label: string; area: string | null; intervencoes: string[]; notas: string | null;
+  pladur_config?: PladurConfigCompleta | null;
+  pintura_config?: PinturaConfigCompleta | null;
+  pavimento_config?: PavimentoConfigCompleta | null;
+  eletrica_config?: EletricaConfig | null;
+};
 type Lead = {
   id: string;
   nome: string;
@@ -79,36 +92,69 @@ export default function LeadsPage() {
     if (orcError) { alert('Erro ao criar orçamento: ' + orcError.message); setGerando(null); return; }
 
     const zonas = lead.zonas || [];
-    const precisaPrecosPladur = zonas.some((z) => z.pladur_config);
-    let tabelaPrecos: ReturnType<typeof tabelaPrecosParaMapa> | null = null;
-    if (precisaPrecosPladur) {
-      const { data: precosData } = await supabase.from('pladur_precos').select('*');
-      tabelaPrecos = tabelaPrecosParaMapa((precosData as PrecoItem[]) || []);
+
+    const [{ data: precosPladurData }, { data: precosPinturaData }, { data: precosPavimentoData }, { data: precosEletricaData }] = await Promise.all([
+      zonas.some((z) => z.pladur_config) ? supabase.from('pladur_precos').select('*') : Promise.resolve({ data: [] as PrecoItem[] }),
+      zonas.some((z) => z.pintura_config) ? supabase.from('pintura_precos').select('*') : Promise.resolve({ data: [] as PrecoItem[] }),
+      zonas.some((z) => z.pavimento_config) ? supabase.from('pavimento_precos').select('*') : Promise.resolve({ data: [] as PrecoItem[] }),
+      zonas.some((z) => z.eletrica_config) ? supabase.from('eletrica_precos').select('*') : Promise.resolve({ data: [] as PrecoItem[] }),
+    ]);
+    const precosPladur = mapaPladur((precosPladurData as PrecoItem[]) || []);
+    const precosPintura = mapaPintura((precosPinturaData as PrecoItem[]) || []);
+    const precosPavimento = mapaPavimento((precosPavimentoData as PrecoItem[]) || []);
+    const precosEletrica = mapaEletrica((precosEletricaData as PrecoItem[]) || []);
+
+    async function inserirLinhas(zonaLabel: string, linhas: { tipo_linha: string; descricao: string; unidade: string; quantidade: number; precoUnitario: number }[]) {
+      if (linhas.length === 0) return;
+      await supabase.from('orcamento_linhas').insert(linhas.map((l) => ({
+        orcamento_id: orcamento.id,
+        capitulo: zonaLabel,
+        descricao: l.descricao,
+        unidade: l.unidade,
+        quantidade: l.quantidade,
+        tipo_linha: l.tipo_linha,
+        preco_unitario: l.precoUnitario,
+      })));
     }
 
     for (const z of zonas) {
-      if (z.pladur_config && tabelaPrecos) {
+      let temPlaneador = false;
+
+      if (z.pladur_config) {
+        temPlaneador = true;
         const { espaco, teto, paredes, acabamentos } = z.pladur_config;
-        const resultado = calcularOrcamentoPladur(espaco, teto, paredes, acabamentos, tabelaPrecos);
-        const linhas = [
+        const resultado = calcularOrcamentoPladur(espaco, teto, paredes, acabamentos, precosPladur);
+        await inserirLinhas(z.label, [
           ...resultado.materiais.map((l) => ({ tipo_linha: 'material', ...l })),
           ...resultado.maoDeObra.map((l) => ({ tipo_linha: 'mao_obra', ...l })),
-        ];
-        if (linhas.length > 0) {
-          await supabase.from('orcamento_linhas').insert(linhas.map((l) => ({
-            orcamento_id: orcamento.id,
-            capitulo: z.label,
-            descricao: l.descricao,
-            unidade: l.unidade,
-            quantidade: l.quantidade,
-            tipo_linha: l.tipo_linha,
-            preco_unitario: l.precoUnitario,
-          })));
-        }
+        ]);
+      }
+      if (z.pintura_config) {
+        temPlaneador = true;
+        const { comprimento, largura, peDireito, config } = z.pintura_config;
+        const resultado = calcularOrcamentoPintura(comprimento, largura, peDireito, config, precosPintura);
+        await inserirLinhas(z.label, [
+          ...resultado.materiais.map((l) => ({ tipo_linha: 'material', ...l })),
+          ...resultado.maoDeObra.map((l) => ({ tipo_linha: 'mao_obra', ...l })),
+        ]);
+      }
+      if (z.pavimento_config) {
+        temPlaneador = true;
+        const { comprimento, largura, config } = z.pavimento_config;
+        const resultado = calcularOrcamentoPavimento(comprimento, largura, config, precosPavimento);
+        await inserirLinhas(z.label, [
+          ...resultado.materiais.map((l) => ({ tipo_linha: 'material', ...l })),
+          ...resultado.maoDeObra.map((l) => ({ tipo_linha: 'mao_obra', ...l })),
+        ]);
+      }
+      if (z.eletrica_config) {
+        temPlaneador = true;
+        const resultado = calcularOrcamentoEletrica(z.eletrica_config, precosEletrica);
+        await inserirLinhas(z.label, resultado.maoDeObra.map((l) => ({ tipo_linha: 'mao_obra', ...l })));
       }
 
-      const intervencoesRestantes = z.intervencoes.filter((op) => !z.pladur_config || !['Teto falso', 'Revestimentos', 'Abertura de parede / open space', 'Parede em Pladur (divisória/isolamento)'].includes(op));
-      const intervencoes = intervencoesRestantes.length > 0 ? intervencoesRestantes : (z.pladur_config ? [] : ['A definir']);
+      const intervencoesRestantes = z.intervencoes.filter((op) => !temPlaneador || !INTERVENCOES_COM_PLANEADOR.includes(op));
+      const intervencoes = intervencoesRestantes.length > 0 ? intervencoesRestantes : (temPlaneador ? [] : ['A definir']);
       for (const intervencao of intervencoes) {
         await supabase.from('orcamento_linhas').insert([{
           orcamento_id: orcamento.id,
@@ -200,8 +246,13 @@ export default function LeadsPage() {
                           </div>
                         )}
                         {z.notas && <p className="text-xs text-ink-400 mt-1.5">{z.notas}</p>}
-                        {z.pladur_config && (
-                          <p className="text-xs text-brand-700 mt-1.5 flex items-center gap-1">📐 Pladur já simulado pelo cliente para este espaço</p>
+                        {(z.pladur_config || z.pintura_config || z.pavimento_config || z.eletrica_config) && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {z.pladur_config && <span className="text-xs text-brand-700">📐 Pladur simulado</span>}
+                            {z.pintura_config && <span className="text-xs text-brand-700">🎨 Pintura simulada</span>}
+                            {z.pavimento_config && <span className="text-xs text-brand-700">▦ Pavimento simulado</span>}
+                            {z.eletrica_config && <span className="text-xs text-brand-700">⚡ Elétrica simulada</span>}
+                          </div>
                         )}
                       </div>
                     ))}

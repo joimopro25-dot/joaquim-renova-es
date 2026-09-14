@@ -4,19 +4,40 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { DIVISOES, NOMES_DIVISOES } from '../lib/divisoes';
 import Link from 'next/link';
-import { CheckCircle2, Send, ArrowRight, ArrowLeft, Plus, X, LayoutPanelTop } from 'lucide-react';
+import { CheckCircle2, Send, ArrowRight, ArrowLeft, Plus, X, LayoutPanelTop, PaintBucket, SquareStack, Zap } from 'lucide-react';
 import PladurWizard, { PladurConfigCompleta } from './PladurWizard';
+import PinturaWizard, { PinturaConfigCompleta } from './PinturaWizard';
+import PavimentoWizard, { PavimentoConfigCompleta } from './PavimentoWizard';
+import EletricaWizard from './EletricaWizard';
 import { ResultadoPladur } from '../lib/pladur';
+import { ResultadoPintura } from '../lib/pintura';
+import { ResultadoPavimento } from '../lib/pavimento';
+import { ResultadoEletrica, EletricaConfig } from '../lib/eletrica';
 import { formatMoney } from '../lib/format';
+
+type TipoPlaneador = 'pladur' | 'pintura' | 'pavimento' | 'eletrica';
 
 type Instancia = {
   id: string; tipo: string; label: string; area: string; intervencoes: string[]; notas: string;
   comprimento: string; largura: string; peDireito: string;
   pladurConfig?: PladurConfigCompleta; pladurTotal?: number;
+  pinturaConfig?: PinturaConfigCompleta; pinturaTotal?: number;
+  pavimentoConfig?: PavimentoConfigCompleta; pavimentoTotal?: number;
+  eletricaConfig?: EletricaConfig; eletricaTotal?: number;
 };
 
-// Intervenções que fazem sentido simular com o Planeador de Pladur.
+// Intervenções que ativam cada planeador.
 const INTERVENCOES_PLADUR = ['Teto falso', 'Revestimentos', 'Abertura de parede / open space', 'Parede em Pladur (divisória/isolamento)'];
+const INTERVENCOES_PINTURA = ['Pintura', 'Pintura exterior'];
+const INTERVENCOES_PAVIMENTO = ['Pavimento novo', 'Pavimento', 'Pavimento exterior'];
+const INTERVENCOES_ELETRICA = ['Eletricidade'];
+
+const PLANEADORES: { tipo: TipoPlaneador; intervencoes: string[]; label: string; icon: any }[] = [
+  { tipo: 'pladur', intervencoes: INTERVENCOES_PLADUR, label: 'Pladur', icon: LayoutPanelTop },
+  { tipo: 'pintura', intervencoes: INTERVENCOES_PINTURA, label: 'Pintura', icon: PaintBucket },
+  { tipo: 'pavimento', intervencoes: INTERVENCOES_PAVIMENTO, label: 'Pavimento', icon: SquareStack },
+  { tipo: 'eletrica', intervencoes: INTERVENCOES_ELETRICA, label: 'Elétrica', icon: Zap },
+];
 
 function gerarId() {
   return Math.random().toString(36).slice(2);
@@ -35,7 +56,7 @@ export default function PedidoOrcamento() {
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState('');
-  const [pladurParaId, setPladurParaId] = useState<string | null>(null);
+  const [modalAberto, setModalAberto] = useState<{ tipo: TipoPlaneador; instanciaId: string } | null>(null);
 
   function adicionarInstancia(tipo: string) {
     setInstancias((prev) => {
@@ -63,7 +84,22 @@ export default function PedidoOrcamento() {
 
   function guardarPladur(id: string, resultado: ResultadoPladur, config: PladurConfigCompleta) {
     setInstancias((prev) => prev.map((i) => (i.id === id ? { ...i, pladurConfig: config, pladurTotal: resultado.total } : i)));
-    setPladurParaId(null);
+    setModalAberto(null);
+  }
+
+  function guardarPintura(id: string, resultado: ResultadoPintura, config: PinturaConfigCompleta) {
+    setInstancias((prev) => prev.map((i) => (i.id === id ? { ...i, pinturaConfig: config, pinturaTotal: resultado.total } : i)));
+    setModalAberto(null);
+  }
+
+  function guardarPavimento(id: string, resultado: ResultadoPavimento, config: PavimentoConfigCompleta) {
+    setInstancias((prev) => prev.map((i) => (i.id === id ? { ...i, pavimentoConfig: config, pavimentoTotal: resultado.total } : i)));
+    setModalAberto(null);
+  }
+
+  function guardarEletrica(id: string, resultado: ResultadoEletrica, config: EletricaConfig) {
+    setInstancias((prev) => prev.map((i) => (i.id === id ? { ...i, eletricaConfig: config, eletricaTotal: resultado.total } : i)));
+    setModalAberto(null);
   }
 
   async function enviarPedido(e: React.FormEvent) {
@@ -82,6 +118,9 @@ export default function PedidoOrcamento() {
       intervencoes: i.intervencoes,
       notas: i.notas || null,
       pladur_config: i.pladurConfig || null,
+      pintura_config: i.pinturaConfig || null,
+      pavimento_config: i.pavimentoConfig || null,
+      eletrica_config: i.eletricaConfig || null,
     }));
 
     const tipoObra = instancias.map((i) => i.label).join(', ');
@@ -101,6 +140,8 @@ export default function PedidoOrcamento() {
       </div>
     );
   }
+
+  const instanciaModal = modalAberto ? instancias.find((i) => i.id === modalAberto.instanciaId) : null;
 
   return (
     <div>
@@ -189,16 +230,26 @@ export default function PedidoOrcamento() {
                   className="input w-full mb-2"
                   rows={2}
                 />
-                {i.intervencoes.some((op) => INTERVENCOES_PLADUR.includes(op)) && (
-                  <button
-                    type="button"
-                    onClick={() => setPladurParaId(i.id)}
-                    className="text-xs border border-brand-300 text-brand-700 bg-brand-50 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-brand-100"
-                  >
-                    <LayoutPanelTop size={13} />
-                    {i.pladurConfig ? `Pladur simulado: ${formatMoney(i.pladurTotal || 0)} — editar` : 'Simular com o Planeador de Pladur'}
-                  </button>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {PLANEADORES.filter((p) => i.intervencoes.some((op) => p.intervencoes.includes(op))).map((p) => {
+                    const Icon = p.icon;
+                    const totalKey = `${p.tipo}Total` as const;
+                    const configKey = `${p.tipo}Config` as const;
+                    const total = (i as any)[totalKey];
+                    const temConfig = !!(i as any)[configKey];
+                    return (
+                      <button
+                        key={p.tipo}
+                        type="button"
+                        onClick={() => setModalAberto({ tipo: p.tipo, instanciaId: i.id })}
+                        className="text-xs border border-brand-300 text-brand-700 bg-brand-50 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-brand-100"
+                      >
+                        <Icon size={13} />
+                        {temConfig ? `${p.label} simulado: ${formatMoney(total || 0)} — editar` : `Simular ${p.label}`}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </div>
@@ -213,23 +264,55 @@ export default function PedidoOrcamento() {
         </div>
       )}
 
-      {pladurParaId && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setPladurParaId(null)}>
+      {modalAberto && instanciaModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setModalAberto(null)}>
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-ink-800">Planeador de Pladur — {instancias.find((i) => i.id === pladurParaId)?.label}</h3>
-              <button onClick={() => setPladurParaId(null)} className="text-ink-400 hover:text-ink-700"><X size={18} /></button>
+              <h3 className="font-semibold text-ink-800">
+                Planeador de {PLANEADORES.find((p) => p.tipo === modalAberto.tipo)?.label} — {instanciaModal.label}
+              </h3>
+              <button onClick={() => setModalAberto(null)} className="text-ink-400 hover:text-ink-700"><X size={18} /></button>
             </div>
-            <PladurWizard
-              configInicial={instancias.find((i) => i.id === pladurParaId)?.pladurConfig || null}
-              espacoPartilhado={{
-                nome: instancias.find((i) => i.id === pladurParaId)?.label,
-                comprimento: parseFloat(instancias.find((i) => i.id === pladurParaId)?.comprimento || '') || undefined,
-                largura: parseFloat(instancias.find((i) => i.id === pladurParaId)?.largura || '') || undefined,
-                peDireito: parseFloat(instancias.find((i) => i.id === pladurParaId)?.peDireito || '') || undefined,
-              }}
-              onFinalizar={(resultado, config) => guardarPladur(pladurParaId, resultado, config)}
-            />
+
+            {modalAberto.tipo === 'pladur' && (
+              <PladurWizard
+                configInicial={instanciaModal.pladurConfig || null}
+                espacoPartilhado={{
+                  nome: instanciaModal.label,
+                  comprimento: parseFloat(instanciaModal.comprimento || '') || undefined,
+                  largura: parseFloat(instanciaModal.largura || '') || undefined,
+                  peDireito: parseFloat(instanciaModal.peDireito || '') || undefined,
+                }}
+                onFinalizar={(resultado, config) => guardarPladur(instanciaModal.id, resultado, config)}
+              />
+            )}
+            {modalAberto.tipo === 'pintura' && (
+              <PinturaWizard
+                configInicial={instanciaModal.pinturaConfig || null}
+                espacoPartilhado={{
+                  comprimento: parseFloat(instanciaModal.comprimento || '') || undefined,
+                  largura: parseFloat(instanciaModal.largura || '') || undefined,
+                  peDireito: parseFloat(instanciaModal.peDireito || '') || undefined,
+                }}
+                onFinalizar={(resultado, config) => guardarPintura(instanciaModal.id, resultado, config)}
+              />
+            )}
+            {modalAberto.tipo === 'pavimento' && (
+              <PavimentoWizard
+                configInicial={instanciaModal.pavimentoConfig || null}
+                espacoPartilhado={{
+                  comprimento: parseFloat(instanciaModal.comprimento || '') || undefined,
+                  largura: parseFloat(instanciaModal.largura || '') || undefined,
+                }}
+                onFinalizar={(resultado, config) => guardarPavimento(instanciaModal.id, resultado, config)}
+              />
+            )}
+            {modalAberto.tipo === 'eletrica' && (
+              <EletricaWizard
+                configInicial={instanciaModal.eletricaConfig || null}
+                onFinalizar={(resultado, config) => guardarEletrica(instanciaModal.id, resultado, config)}
+              />
+            )}
           </div>
         </div>
       )}

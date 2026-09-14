@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
 import { Plus, Trash2, BookMarked } from 'lucide-react';
-import PladurPrecos from './PladurPrecos';
+import PrecosPlaneador from './PrecosPlaneador';
 
 type Item = {
   id: string;
@@ -15,8 +15,15 @@ type Item = {
   custo_material: number;
 };
 
+const TABS_PLANEADORES: { valor: string; label: string; tabela: string; descricaoIntro: string }[] = [
+  { valor: 'pladur', label: 'Pladur', tabela: 'pladur_precos', descricaoIntro: 'Preços usados pelo Planeador de Pladur. Ajusta livremente — atualiza logo o cálculo de novas simulações.' },
+  { valor: 'pintura', label: 'Pintura', tabela: 'pintura_precos', descricaoIntro: 'Preços usados pelo Planeador de Pintura.' },
+  { valor: 'pavimento', label: 'Pavimento', tabela: 'pavimento_precos', descricaoIntro: 'Preços usados pelo Planeador de Pavimento.' },
+  { valor: 'eletrica', label: 'Elétrica', tabela: 'eletrica_precos', descricaoIntro: 'Preços usados pelo Planeador de Elétrica (por ponto).' },
+];
+
 export default function PrecarioPage() {
-  const [aba, setAba] = useState<'geral' | 'pladur'>('geral');
+  const [aba, setAba] = useState<'geral' | 'pladur' | 'pintura' | 'pavimento' | 'eletrica'>('geral');
   const [itens, setItens] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -64,12 +71,16 @@ export default function PrecarioPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-4xl">
-      <div className="flex gap-2 mb-6 border-b border-sand-200">
+      <div className="flex gap-2 mb-6 border-b border-sand-200 flex-wrap">
         <button onClick={() => setAba('geral')} className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${aba === 'geral' ? 'border-brand-500 text-brand-700' : 'border-transparent text-ink-400 hover:text-ink-600'}`}>Geral</button>
-        <button onClick={() => setAba('pladur')} className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${aba === 'pladur' ? 'border-brand-500 text-brand-700' : 'border-transparent text-ink-400 hover:text-ink-600'}`}>Pladur</button>
+        {TABS_PLANEADORES.map((t) => (
+          <button key={t.valor} onClick={() => setAba(t.valor as any)} className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${aba === t.valor ? 'border-brand-500 text-brand-700' : 'border-transparent text-ink-400 hover:text-ink-600'}`}>{t.label}</button>
+        ))}
       </div>
 
-      {aba === 'pladur' ? <PladurPrecos /> : (
+      {aba !== 'geral' ? (
+        <PrecosPlaneador tabela={TABS_PLANEADORES.find((t) => t.valor === aba)!.tabela} descricaoIntro={TABS_PLANEADORES.find((t) => t.valor === aba)!.descricaoIntro} />
+      ) : (
       <>
       <div className="flex justify-between items-center mb-6">
         <p className="text-sm text-ink-400">{itens.length} item{itens.length !== 1 ? 's' : ''} de referência — usa-os ao criar linhas num Orçamento</p>

@@ -1,0 +1,59 @@
+// Motor de cálculo do Planeador de Elétrica.
+
+export type EletricaConfig = {
+  pontosLuz: number;
+  pontosComando: number;
+  pontosTomada: number;
+  intervencaoQuadro: boolean;
+  detetoresIncendio: number;
+};
+
+export type PrecoItem = { chave: string; descricao: string; unidade: string; preco: number };
+export type TabelaPrecos = Record<string, PrecoItem>;
+
+export type LinhaCalculada = { chave: string; descricao: string; unidade: string; quantidade: number; precoUnitario: number; valor: number };
+
+export type ResultadoEletrica = {
+  maoDeObra: LinhaCalculada[];
+  totalMaoDeObra: number;
+  subtotal: number;
+  iva: number;
+  total: number;
+};
+
+const IVA_PERCENTAGEM = 0.23;
+
+function arred(n: number, casas = 2) {
+  const f = Math.pow(10, casas);
+  return Math.round(n * f) / f;
+}
+
+function addLinha(linhas: LinhaCalculada[], precos: TabelaPrecos, chave: string, quantidade: number) {
+  if (quantidade <= 0) return;
+  const p = precos[chave];
+  if (!p) return;
+  linhas.push({ chave, descricao: p.descricao, unidade: p.unidade, quantidade: arred(quantidade, 2), precoUnitario: p.preco, valor: arred(quantidade * p.preco, 2) });
+}
+
+export function calcularOrcamentoEletrica(config: EletricaConfig, precos: TabelaPrecos): ResultadoEletrica {
+  const maoDeObra: LinhaCalculada[] = [];
+
+  addLinha(maoDeObra, precos, 'ponto_luz', config.pontosLuz);
+  addLinha(maoDeObra, precos, 'ponto_comando', config.pontosComando);
+  addLinha(maoDeObra, precos, 'ponto_tomada', config.pontosTomada);
+  if (config.intervencaoQuadro) addLinha(maoDeObra, precos, 'quadro_eletrico', 1);
+  addLinha(maoDeObra, precos, 'deteccao_incendio', config.detetoresIncendio);
+
+  const totalMaoDeObra = arred(maoDeObra.reduce((s, m) => s + m.valor, 0));
+  const subtotal = totalMaoDeObra;
+  const iva = arred(subtotal * IVA_PERCENTAGEM);
+  const total = arred(subtotal + iva);
+
+  return { maoDeObra, totalMaoDeObra, subtotal, iva, total };
+}
+
+export function tabelaPrecosParaMapa(itens: PrecoItem[]): TabelaPrecos {
+  const mapa: TabelaPrecos = {};
+  for (const item of itens) mapa[item.chave] = item;
+  return mapa;
+}

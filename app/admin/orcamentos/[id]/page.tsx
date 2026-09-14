@@ -5,10 +5,14 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import { precoUnitarioFinal, totalLinha, calcularTotais } from '../../../../lib/orcamento';
-import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp, Package, Wrench, Pencil, LayoutPanelTop } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Send, Check, X, ArrowRightCircle, Sparkles, Upload, Printer, ImageOff, HardHat, ChevronDown, ChevronUp, Package, Wrench, Pencil, LayoutPanelTop, PaintBucket, SquareStack, Zap } from 'lucide-react';
 import ImportarOrcamento from '../ImportarOrcamento';
 import ConsultoriaChat from '../../../../components/ConsultoriaChat';
 import PladurWizard, { PladurConfigCompleta } from '../../../../components/PladurWizard';
+import PinturaWizard, { PinturaConfigCompleta } from '../../../../components/PinturaWizard';
+import PavimentoWizard, { PavimentoConfigCompleta } from '../../../../components/PavimentoWizard';
+import EletricaWizard from '../../../../components/EletricaWizard';
+import { EletricaConfig } from '../../../../lib/eletrica';
 
 type Linha = {
   id: string;
@@ -61,6 +65,9 @@ type Orcamento = {
   cliente_id: string;
   consultoria_id: string | null;
   pladur_config: PladurConfigCompleta | null;
+  pintura_config: PinturaConfigCompleta | null;
+  pavimento_config: PavimentoConfigCompleta | null;
+  eletrica_config: EletricaConfig | null;
   clientes: { nome: string } | null;
 };
 
@@ -111,6 +118,12 @@ export default function OrcamentoDetalhePage() {
   const [showAssistente, setShowAssistente] = useState(false);
   const [showPladur, setShowPladur] = useState(false);
   const [aGuardarPladur, setAGuardarPladur] = useState(false);
+  const [showPintura, setShowPintura] = useState(false);
+  const [aGuardarPintura, setAGuardarPintura] = useState(false);
+  const [showPavimento, setShowPavimento] = useState(false);
+  const [aGuardarPavimento, setAGuardarPavimento] = useState(false);
+  const [showEletrica, setShowEletrica] = useState(false);
+  const [aGuardarEletrica, setAGuardarEletrica] = useState(false);
   const [linhasPropostas, setLinhasPropostas] = useState<LinhaProposta[] | null>(null);
   const [linhasSelecionadas, setLinhasSelecionadas] = useState<Set<number>>(new Set());
   const [aAdicionarPropostas, setAAdicionarPropostas] = useState(false);
@@ -479,6 +492,99 @@ export default function OrcamentoDetalhePage() {
                   await supabase.from('orcamentos').update({ pladur_config: config }).eq('id', id);
                   setAGuardarPladur(false);
                   setShowPladur(false);
+                  carregar();
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {editavel && (
+        <div className="card p-6 mb-6">
+          <button onClick={() => setShowPintura((v) => !v)} className="flex items-center gap-2 font-semibold text-ink-700 w-full">
+            <PaintBucket size={16} className="text-brand-500" /> Planeador de Pintura
+            {orcamento.pintura_config && <span className="badge bg-brand-100 text-brand-700 text-[10px]">já configurado</span>}
+            <span className="text-xs font-normal text-ink-400 ml-auto">{showPintura ? 'fechar' : 'abrir'}</span>
+          </button>
+          {showPintura && (
+            <div className="mt-4">
+              <PinturaWizard
+                aGuardar={aGuardarPintura}
+                configInicial={orcamento.pintura_config}
+                onFinalizar={async (resultado, config) => {
+                  setAGuardarPintura(true);
+                  await supabase.from('orcamento_linhas').delete().eq('orcamento_id', id).eq('capitulo', 'Pintura');
+                  const linhas = [
+                    ...resultado.materiais.map((l) => ({ orcamento_id: id, capitulo: 'Pintura', descricao: l.descricao, unidade: l.unidade, quantidade: l.quantidade, tipo_linha: 'material', preco_unitario: l.precoUnitario })),
+                    ...resultado.maoDeObra.map((l) => ({ orcamento_id: id, capitulo: 'Pintura', descricao: l.descricao, unidade: l.unidade, quantidade: l.quantidade, tipo_linha: 'mao_obra', preco_unitario: l.precoUnitario })),
+                  ];
+                  const { error } = await supabase.from('orcamento_linhas').insert(linhas);
+                  if (error) { setAGuardarPintura(false); alert('Erro: ' + error.message); return; }
+                  await supabase.from('orcamentos').update({ pintura_config: config }).eq('id', id);
+                  setAGuardarPintura(false);
+                  setShowPintura(false);
+                  carregar();
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {editavel && (
+        <div className="card p-6 mb-6">
+          <button onClick={() => setShowPavimento((v) => !v)} className="flex items-center gap-2 font-semibold text-ink-700 w-full">
+            <SquareStack size={16} className="text-brand-500" /> Planeador de Pavimento
+            {orcamento.pavimento_config && <span className="badge bg-brand-100 text-brand-700 text-[10px]">já configurado</span>}
+            <span className="text-xs font-normal text-ink-400 ml-auto">{showPavimento ? 'fechar' : 'abrir'}</span>
+          </button>
+          {showPavimento && (
+            <div className="mt-4">
+              <PavimentoWizard
+                aGuardar={aGuardarPavimento}
+                configInicial={orcamento.pavimento_config}
+                onFinalizar={async (resultado, config) => {
+                  setAGuardarPavimento(true);
+                  await supabase.from('orcamento_linhas').delete().eq('orcamento_id', id).eq('capitulo', 'Pavimento');
+                  const linhas = [
+                    ...resultado.materiais.map((l) => ({ orcamento_id: id, capitulo: 'Pavimento', descricao: l.descricao, unidade: l.unidade, quantidade: l.quantidade, tipo_linha: 'material', preco_unitario: l.precoUnitario })),
+                    ...resultado.maoDeObra.map((l) => ({ orcamento_id: id, capitulo: 'Pavimento', descricao: l.descricao, unidade: l.unidade, quantidade: l.quantidade, tipo_linha: 'mao_obra', preco_unitario: l.precoUnitario })),
+                  ];
+                  const { error } = await supabase.from('orcamento_linhas').insert(linhas);
+                  if (error) { setAGuardarPavimento(false); alert('Erro: ' + error.message); return; }
+                  await supabase.from('orcamentos').update({ pavimento_config: config }).eq('id', id);
+                  setAGuardarPavimento(false);
+                  setShowPavimento(false);
+                  carregar();
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {editavel && (
+        <div className="card p-6 mb-6">
+          <button onClick={() => setShowEletrica((v) => !v)} className="flex items-center gap-2 font-semibold text-ink-700 w-full">
+            <Zap size={16} className="text-brand-500" /> Planeador de Elétrica
+            {orcamento.eletrica_config && <span className="badge bg-brand-100 text-brand-700 text-[10px]">já configurado</span>}
+            <span className="text-xs font-normal text-ink-400 ml-auto">{showEletrica ? 'fechar' : 'abrir'}</span>
+          </button>
+          {showEletrica && (
+            <div className="mt-4">
+              <EletricaWizard
+                aGuardar={aGuardarEletrica}
+                configInicial={orcamento.eletrica_config}
+                onFinalizar={async (resultado, config) => {
+                  setAGuardarEletrica(true);
+                  await supabase.from('orcamento_linhas').delete().eq('orcamento_id', id).eq('capitulo', 'Elétrica');
+                  const linhas = resultado.maoDeObra.map((l) => ({ orcamento_id: id, capitulo: 'Elétrica', descricao: l.descricao, unidade: l.unidade, quantidade: l.quantidade, tipo_linha: 'mao_obra', preco_unitario: l.precoUnitario }));
+                  const { error } = await supabase.from('orcamento_linhas').insert(linhas);
+                  if (error) { setAGuardarEletrica(false); alert('Erro: ' + error.message); return; }
+                  await supabase.from('orcamentos').update({ eletrica_config: config }).eq('id', id);
+                  setAGuardarEletrica(false);
+                  setShowEletrica(false);
                   carregar();
                 }}
               />

@@ -2,9 +2,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { ImageOff } from 'lucide-react';
+import { ImageOff, ExternalLink } from 'lucide-react';
 
 type Item = { id: string; tipo: string; chave: string; descricao: string; unidade: string; preco: number; ordem: number; fonte: string | null; imagem_url: string | null };
+
+// A "fonte" é texto livre (ex: "Maxmat - Placa Gesso ... - maxmat.pt/pt/...").
+// Extrai o pedaço que parece um URL/domínio para se poder abrir num clique.
+function extrairUrl(fonte: string | null): string | null {
+  if (!fonte) return null;
+  const match = fonte.match(/(https?:\/\/[^\s]+)|([a-z0-9-]+\.(?:pt|com)[^\s]*)/i);
+  if (!match) return null;
+  const encontrado = match[0].replace(/[),.]+$/, '');
+  return encontrado.startsWith('http') ? encontrado : `https://${encontrado}`;
+}
 
 function Miniatura({ url, onChange }: { url: string | null; onChange: (url: string) => void }) {
   const [aEditar, setAEditar] = useState(false);
@@ -97,7 +107,14 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
                     <input type="number" step="0.01" defaultValue={i.preco} onBlur={(e) => atualizarPreco(i.id, parseFloat(e.target.value) || 0)} className="input w-24 text-right py-1" />
                   </td>
                   <td className="p-3">
-                    <input type="text" placeholder="loja / produto / link" defaultValue={i.fonte || ''} onBlur={(e) => atualizarFonte(i.id, e.target.value)} className="input w-56 text-xs py-1" />
+                    <div className="flex items-center gap-1.5">
+                      <input type="text" placeholder="loja / produto / link" defaultValue={i.fonte || ''} onBlur={(e) => atualizarFonte(i.id, e.target.value)} className="input w-56 text-xs py-1" />
+                      {extrairUrl(i.fonte) && (
+                        <a href={extrairUrl(i.fonte)!} target="_blank" rel="noreferrer" title="Abrir página do produto" className="text-ink-300 hover:text-brand-600 shrink-0">
+                          <ExternalLink size={14} />
+                        </a>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -127,7 +144,14 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
                     <input type="number" step="0.5" defaultValue={i.preco} onBlur={(e) => atualizarPreco(i.id, parseFloat(e.target.value) || 0)} className="input w-24 text-right py-1" />
                   </td>
                   <td className="p-3">
-                    <input type="text" placeholder="opcional" defaultValue={i.fonte || ''} onBlur={(e) => atualizarFonte(i.id, e.target.value)} className="input w-56 text-xs py-1" />
+                    <div className="flex items-center gap-1.5">
+                      <input type="text" placeholder="opcional" defaultValue={i.fonte || ''} onBlur={(e) => atualizarFonte(i.id, e.target.value)} className="input w-56 text-xs py-1" />
+                      {extrairUrl(i.fonte) && (
+                        <a href={extrairUrl(i.fonte)!} target="_blank" rel="noreferrer" title="Abrir link" className="text-ink-300 hover:text-brand-600 shrink-0">
+                          <ExternalLink size={14} />
+                        </a>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

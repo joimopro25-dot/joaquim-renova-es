@@ -74,7 +74,7 @@ export type AcabamentosConfig = {
   metrosLed?: number;
 };
 
-export type PrecoItem = { chave: string; descricao: string; unidade: string; preco: number };
+export type PrecoItem = { chave: string; descricao: string; unidade: string; preco: number; predefinido?: boolean };
 export type TabelaPrecos = Record<string, PrecoItem>;
 
 export type LinhaCalculada = {
@@ -302,8 +302,12 @@ export function calcularOrcamentoPladur(
   return { materiais, maoDeObra: maoDeObraLinhas, totalMateriais, totalMaoDeObra, subtotal, iva, total, m2Teto, m2Paredes: arred(m2Paredes, 2) };
 }
 
+// Uma chave pode ter vários produtos (variantes) — usa-se sempre o
+// marcado como predefinido; os outros ficam só como referência.
 export function tabelaPrecosParaMapa(itens: PrecoItem[]): TabelaPrecos {
   const mapa: TabelaPrecos = {};
-  for (const item of itens) mapa[item.chave] = item;
+  for (const item of itens) {
+    if (!mapa[item.chave] || item.predefinido) mapa[item.chave] = item;
+  }
   return mapa;
 }

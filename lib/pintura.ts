@@ -16,7 +16,7 @@ export type PinturaConfig = {
   areaAberturasM2: number; // descontado da área total de paredes (portas/janelas), opcional
 };
 
-export type PrecoItem = { chave: string; descricao: string; unidade: string; preco: number };
+export type PrecoItem = { chave: string; descricao: string; unidade: string; preco: number; predefinido?: boolean };
 export type TabelaPrecos = Record<string, PrecoItem>;
 
 export type LinhaCalculada = { chave: string; descricao: string; unidade: string; quantidade: number; precoUnitario: number; valor: number };
@@ -87,7 +87,9 @@ export function calcularOrcamentoPintura(
 
 export function tabelaPrecosParaMapa(itens: PrecoItem[]): TabelaPrecos {
   const mapa: TabelaPrecos = {};
-  for (const item of itens) mapa[item.chave] = item;
+  for (const item of itens) {
+    if (!mapa[item.chave] || item.predefinido) mapa[item.chave] = item;
+  }
   return mapa;
 }
 

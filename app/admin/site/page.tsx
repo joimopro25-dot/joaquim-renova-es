@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { ICONES, NOMES_ICONES } from '../../../lib/icons';
-import { Save, Plus, Trash2, GripVertical } from 'lucide-react';
+import { Save, Plus, Trash2, GripVertical, Pencil, X } from 'lucide-react';
 
 type SiteSettings = { id: number; hero_titulo: string; hero_subtitulo: string; telefone: string | null; email: string | null };
 type Servico = { id: string; titulo: string; descricao: string | null; icone: string; ordem: number };
@@ -17,6 +17,12 @@ export default function SitePage() {
   const [novoTitulo, setNovoTitulo] = useState('');
   const [novaDescricao, setNovaDescricao] = useState('');
   const [novoIcone, setNovoIcone] = useState('Hammer');
+
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [edTitulo, setEdTitulo] = useState('');
+  const [edDescricao, setEdDescricao] = useState('');
+  const [edIcone, setEdIcone] = useState('Hammer');
+  const [aGuardarEdicao, setAGuardarEdicao] = useState(false);
 
   async function carregar() {
     setLoading(true);
@@ -53,6 +59,23 @@ export default function SitePage() {
 
   async function removerServico(id: string) {
     await supabase.from('servicos_site').delete().eq('id', id);
+    carregar();
+  }
+
+  function iniciarEdicao(s: Servico) {
+    setEditandoId(s.id);
+    setEdTitulo(s.titulo);
+    setEdDescricao(s.descricao || '');
+    setEdIcone(s.icone);
+  }
+
+  async function guardarEdicao(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editandoId) return;
+    setAGuardarEdicao(true);
+    await supabase.from('servicos_site').update({ titulo: edTitulo, descricao: edDescricao, icone: edIcone }).eq('id', editandoId);
+    setAGuardarEdicao(false);
+    setEditandoId(null);
     carregar();
   }
 
@@ -102,16 +125,38 @@ export default function SitePage() {
         <div className="space-y-2 mb-4">
           {servicos.map((s, idx) => {
             const Icon = ICONES[s.icone] || ICONES.Hammer;
+            if (editandoId === s.id) {
+              return (
+                <form key={s.id} onSubmit={guardarEdicao} className="p-3 border border-brand-300 bg-brand-50/40 rounded-lg space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <select value={edIcone} onChange={(e) => setEdIcone(e.target.value)} className="input">
+                      {NOMES_ICONES.map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                    <input type="text" placeholder="Título" value={edTitulo} onChange={(e) => setEdTitulo(e.target.value)} className="input md:col-span-3" required />
+                  </div>
+                  <textarea placeholder="Descrição" value={edDescricao} onChange={(e) => setEdDescricao(e.target.value)} className="input w-full" rows={2} />
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={aGuardarEdicao} className="btn-primary text-sm py-1.5 disabled:opacity-60">
+                      <Save size={14} /> {aGuardarEdicao ? 'A guardar...' : 'Guardar'}
+                    </button>
+                    <button type="button" onClick={() => setEditandoId(null)} className="border border-sand-200 rounded-lg px-3 py-1.5 text-sm text-ink-600 hover:bg-sand-50 flex items-center gap-1">
+                      <X size={14} /> Cancelar
+                    </button>
+                  </div>
+                </form>
+              );
+            }
             return (
               <div key={s.id} className="flex items-center gap-3 p-3 border border-sand-200 rounded-lg">
                 <div className="flex flex-col text-ink-300">
                   <button type="button" onClick={() => moverServico(idx, -1)} disabled={idx === 0} className="disabled:opacity-30"><GripVertical size={14} className="rotate-90" /></button>
                 </div>
                 <Icon size={20} className="text-brand-500 shrink-0" />
-                <div className="flex-1 min-w-0">
+                <button type="button" onClick={() => iniciarEdicao(s)} className="flex-1 min-w-0 text-left hover:opacity-70">
                   <p className="font-medium text-ink-800 text-sm">{s.titulo}</p>
                   <p className="text-xs text-ink-400 truncate">{s.descricao}</p>
-                </div>
+                </button>
+                <button onClick={() => iniciarEdicao(s)} className="text-ink-300 hover:text-brand-600"><Pencil size={15} /></button>
                 <button onClick={() => removerServico(s.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={15} /></button>
               </div>
             );

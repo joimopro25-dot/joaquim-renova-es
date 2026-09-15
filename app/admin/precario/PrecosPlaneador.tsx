@@ -117,7 +117,7 @@ function DicaChave({ chave, existentes, conhecidas }: { chave: string; existente
 }
 
 function novoItemVazio(tipo: 'material' | 'mao_obra') {
-  return { chave: '', descricao: '', unidade: tipo === 'material' ? 'unid' : 'm²', preco: '0' };
+  return { chave: '', descricao: '', unidade: tipo === 'material' ? 'unid' : 'm²', preco: '0', fonte: '', imagem_url: '' };
 }
 
 export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: string; descricaoIntro: string }) {
@@ -190,6 +190,8 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
       unidade: form.unidade || (tipo === 'material' ? 'unid' : 'm²'),
       preco: parseFloat(form.preco) || 0,
       ordem: ordemMax + 1,
+      fonte: form.fonte.trim() || null,
+      imagem_url: form.imagem_url.trim() || null,
       // Se é a primeira linha desta chave, tem de ficar predefinida (senão
       // não entra em cálculo nenhum); se já existem variantes, entra como
       // alternativa até o Joaquim a marcar como predefinida.
@@ -283,6 +285,8 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
             <input type="text" placeholder="Descrição do produto" value={novoMaterial.descricao} onChange={(e) => setNovoMaterial({ ...novoMaterial, descricao: e.target.value })} className="input text-sm md:col-span-2" />
             <input type="text" placeholder="Un" value={novoMaterial.unidade} onChange={(e) => setNovoMaterial({ ...novoMaterial, unidade: e.target.value })} className="input text-sm" />
             <input type="number" step="0.01" placeholder="Preço" value={novoMaterial.preco} onChange={(e) => setNovoMaterial({ ...novoMaterial, preco: e.target.value })} className="input text-sm" />
+            <input type="text" placeholder="Fonte (loja / produto / link)" value={novoMaterial.fonte} onChange={(e) => setNovoMaterial({ ...novoMaterial, fonte: e.target.value })} className="input text-sm md:col-span-3" />
+            <input type="text" placeholder="URL da imagem (opcional)" value={novoMaterial.imagem_url} onChange={(e) => setNovoMaterial({ ...novoMaterial, imagem_url: e.target.value })} className="input text-sm md:col-span-2" />
             <button className="btn-primary text-sm py-1.5 justify-center md:col-span-5"><Plus size={14} /> Adicionar material</button>
           </form>
         </div>
@@ -354,6 +358,7 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
             <input type="text" placeholder="Descrição do trabalho" value={novaMaoObra.descricao} onChange={(e) => setNovaMaoObra({ ...novaMaoObra, descricao: e.target.value })} className="input text-sm md:col-span-2" />
             <input type="text" placeholder="Un" value={novaMaoObra.unidade} onChange={(e) => setNovaMaoObra({ ...novaMaoObra, unidade: e.target.value })} className="input text-sm" />
             <input type="number" step="0.5" placeholder="Preço" value={novaMaoObra.preco} onChange={(e) => setNovaMaoObra({ ...novaMaoObra, preco: e.target.value })} className="input text-sm" />
+            <input type="text" placeholder="Nota (opcional)" value={novaMaoObra.fonte} onChange={(e) => setNovaMaoObra({ ...novaMaoObra, fonte: e.target.value })} className="input text-sm md:col-span-5" />
             <button className="btn-primary text-sm py-1.5 justify-center md:col-span-5"><Plus size={14} /> Adicionar mão de obra</button>
           </form>
         </div>

@@ -45,7 +45,7 @@ export default function HomePage() {
     async function carregar() {
       const [{ data: s }, { data: sv }, { data: pj }, { data: ins }] = await Promise.all([
         supabase.from('site_settings').select('*').eq('id', 1).single(),
-        supabase.from('servicos_site').select('*').order('ordem'),
+        supabase.from('servicos_site').select('*').eq('ativo', true).order('ordem'),
         supabase.from('projetos').select('*, projeto_fotos(id, url, tipo, capa)').eq('destaque', true).order('ordem', { ascending: false }),
         supabase.from('inspiracoes').select('id, titulo, categoria, url').order('ordem', { ascending: false }),
       ]);

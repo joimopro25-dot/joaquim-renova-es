@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { ICONES, NOMES_ICONES } from '../../../lib/icons';
-import { Save, Plus, Trash2, GripVertical, Pencil, X } from 'lucide-react';
+import { Save, Plus, Trash2, GripVertical, Pencil, X, Eye, EyeOff } from 'lucide-react';
 
 type SiteSettings = { id: number; hero_titulo: string; hero_subtitulo: string; telefone: string | null; email: string | null };
-type Servico = { id: string; titulo: string; descricao: string | null; icone: string; ordem: number };
+type Servico = { id: string; titulo: string; descricao: string | null; icone: string; ordem: number; ativo: boolean };
 
 export default function SitePage() {
   const [settings, setSettings] = useState<SiteSettings | null>(null);
@@ -58,7 +58,13 @@ export default function SitePage() {
   }
 
   async function removerServico(id: string) {
+    if (!confirm('Eliminar definitivamente este serviço? Se só queres deixar de o mostrar por agora, usa antes o botão de olho para pôr offline.')) return;
     await supabase.from('servicos_site').delete().eq('id', id);
+    carregar();
+  }
+
+  async function alternarAtivo(s: Servico) {
+    await supabase.from('servicos_site').update({ ativo: !s.ativo }).eq('id', s.id);
     carregar();
   }
 
@@ -147,14 +153,20 @@ export default function SitePage() {
               );
             }
             return (
-              <div key={s.id} className="flex items-center gap-3 p-3 border border-sand-200 rounded-lg">
+              <div key={s.id} className={`flex items-center gap-3 p-3 border rounded-lg ${s.ativo ? 'border-sand-200' : 'border-sand-200 bg-sand-50 opacity-60'}`}>
                 <div className="flex flex-col text-ink-300">
                   <button type="button" onClick={() => moverServico(idx, -1)} disabled={idx === 0} className="disabled:opacity-30"><GripVertical size={14} className="rotate-90" /></button>
                 </div>
                 <Icon size={20} className="text-brand-500 shrink-0" />
                 <button type="button" onClick={() => iniciarEdicao(s)} className="flex-1 min-w-0 text-left hover:opacity-70">
-                  <p className="font-medium text-ink-800 text-sm">{s.titulo}</p>
+                  <p className="font-medium text-ink-800 text-sm flex items-center gap-1.5">
+                    {s.titulo}
+                    {!s.ativo && <span className="badge bg-sand-200 text-ink-500 text-[10px]">offline</span>}
+                  </p>
                   <p className="text-xs text-ink-400 truncate">{s.descricao}</p>
+                </button>
+                <button onClick={() => alternarAtivo(s)} title={s.ativo ? 'Pôr offline (deixa de aparecer no site)' : 'Reativar no site'} className={s.ativo ? 'text-ink-300 hover:text-brand-600' : 'text-brand-500 hover:text-brand-700'}>
+                  {s.ativo ? <Eye size={15} /> : <EyeOff size={15} />}
                 </button>
                 <button onClick={() => iniciarEdicao(s)} className="text-ink-300 hover:text-brand-600"><Pencil size={15} /></button>
                 <button onClick={() => removerServico(s.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={15} /></button>

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 
-type Item = { id: string; tipo: string; chave: string; descricao: string; unidade: string; preco: number; ordem: number };
+type Item = { id: string; tipo: string; chave: string; descricao: string; unidade: string; preco: number; ordem: number; fonte: string | null };
 
 export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: string; descricaoIntro: string }) {
   const [itens, setItens] = useState<Item[]>([]);
@@ -23,6 +23,11 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
     await supabase.from(tabela).update({ preco }).eq('id', id);
   }
 
+  async function atualizarFonte(id: string, fonte: string) {
+    setItens((prev) => prev.map((i) => (i.id === id ? { ...i, fonte: fonte || null } : i)));
+    await supabase.from(tabela).update({ fonte: fonte || null }).eq('id', id);
+  }
+
   if (loading) return <div className="text-center py-10 text-ink-300 text-sm">A carregar...</div>;
 
   const materiais = itens.filter((i) => i.tipo === 'material');
@@ -40,7 +45,8 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
               <tr>
                 <th className="p-3 font-medium">Descrição</th>
                 <th className="p-3 font-medium">Un</th>
-                <th className="p-3 font-medium text-right">Preço</th>
+                <th className="p-3 font-medium text-right">Preço (PVP)</th>
+                <th className="p-3 font-medium">Fonte</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-sand-100">
@@ -50,6 +56,9 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
                   <td className="p-3 text-ink-500">{i.unidade}</td>
                   <td className="p-3 text-right">
                     <input type="number" step="0.01" defaultValue={i.preco} onBlur={(e) => atualizarPreco(i.id, parseFloat(e.target.value) || 0)} className="input w-24 text-right py-1" />
+                  </td>
+                  <td className="p-3">
+                    <input type="text" placeholder="loja / produto / link" defaultValue={i.fonte || ''} onBlur={(e) => atualizarFonte(i.id, e.target.value)} className="input w-56 text-xs py-1" />
                   </td>
                 </tr>
               ))}
@@ -67,6 +76,7 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
                 <th className="p-3 font-medium">Trabalho</th>
                 <th className="p-3 font-medium">Un</th>
                 <th className="p-3 font-medium text-right">Preço</th>
+                <th className="p-3 font-medium">Nota</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-sand-100">
@@ -76,6 +86,9 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
                   <td className="p-3 text-ink-500">{i.unidade}</td>
                   <td className="p-3 text-right">
                     <input type="number" step="0.5" defaultValue={i.preco} onBlur={(e) => atualizarPreco(i.id, parseFloat(e.target.value) || 0)} className="input w-24 text-right py-1" />
+                  </td>
+                  <td className="p-3">
+                    <input type="text" placeholder="opcional" defaultValue={i.fonte || ''} onBlur={(e) => atualizarFonte(i.id, e.target.value)} className="input w-56 text-xs py-1" />
                   </td>
                 </tr>
               ))}

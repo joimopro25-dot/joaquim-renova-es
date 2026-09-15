@@ -74,7 +74,7 @@ export type AcabamentosConfig = {
   metrosLed?: number;
 };
 
-export type PrecoItem = { chave: string; descricao: string; unidade: string; preco: number; predefinido?: boolean };
+export type PrecoItem = { id: string; chave: string; descricao: string; unidade: string; preco: number; predefinido?: boolean };
 export type TabelaPrecos = Record<string, PrecoItem>;
 
 export type LinhaCalculada = {

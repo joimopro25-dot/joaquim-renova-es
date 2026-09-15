@@ -8,6 +8,7 @@ import {
   calcularOrcamentoPladur, tabelaPrecosParaMapa, PrecoItem, ResultadoPladur,
 } from '../lib/pladur';
 import PlantaPladur from './PlantaPladur';
+import { SeletorVariante, aplicarVariantes, Variantes } from './SeletorVariantes';
 import { ArrowLeft, ArrowRight, Plus, X, Loader2 } from 'lucide-react';
 
 function gerarId() {
@@ -23,7 +24,7 @@ const TETO_OPCOES: { value: TipoTeto; label: string }[] = [
   { value: 'sanca_led', label: 'Teto falso com sanca + iluminação LED' },
 ];
 
-export type PladurConfigCompleta = { espaco: EspacoConfig; teto: TetoConfig; paredes: ParedeConfig[]; acabamentos: AcabamentosConfig };
+export type PladurConfigCompleta = { espaco: EspacoConfig; teto: TetoConfig; paredes: ParedeConfig[]; acabamentos: AcabamentosConfig; variantes?: Variantes };
 
 const ESPACO_VAZIO: EspacoConfig = { nome: 'Divisão', comprimento: 4, largura: 3, peDireito: 2.6, comprimentoPlaca: 2.5 };
 const TETO_VAZIO: TetoConfig = { tipo: 'nenhum', remate: 'justificado', tipoSanca: 'simples', larguraSancaCm: 20, alturaSancaCm: 20, cobertura: 'toda', focosLedPosicoes: [] };
@@ -57,6 +58,7 @@ export default function PladurWizard({
   const [teto, setTeto] = useState<TetoConfig>(configInicial?.teto || TETO_VAZIO);
   const [paredes, setParedes] = useState<ParedeConfig[]>(configInicial?.paredes || []);
   const [acabamentos, setAcabamentos] = useState<AcabamentosConfig>(configInicial?.acabamentos || ACABAMENTOS_VAZIO);
+  const [variantes, setVariantes] = useState<Variantes>(configInicial?.variantes || {});
 
   useEffect(() => {
     async function carregar() {
@@ -67,7 +69,7 @@ export default function PladurWizard({
     carregar();
   }, []);
 
-  const tabelaPrecos = useMemo(() => tabelaPrecosParaMapa(precos), [precos]);
+  const tabelaPrecos = useMemo(() => aplicarVariantes(tabelaPrecosParaMapa(precos), precos, variantes), [precos, variantes]);
 
   const resultado = useMemo(() => {
     if (precos.length === 0) return null;
@@ -378,9 +380,12 @@ export default function PladurWizard({
                         <tbody className="divide-y divide-sand-100">
                           {resultado.materiais.map((l) => (
                             <tr key={l.chave}>
-                              <td className="p-2 text-ink-700">{l.descricao}</td>
-                              <td className="p-2 text-right text-ink-400">{l.quantidade} {l.unidade}</td>
-                              <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(l.valor)}</td>
+                              <td className="p-2 text-ink-700">
+                                {l.descricao}
+                                <SeletorVariante chave={l.chave} todos={precos} escolhas={variantes} onEscolher={(chave, id) => setVariantes((v) => ({ ...v, [chave]: id }))} />
+                              </td>
+                              <td className="p-2 text-right text-ink-400 align-top">{l.quantidade} {l.unidade}</td>
+                              <td className="p-2 text-right text-ink-800 font-medium align-top">{formatMoney(l.valor)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -428,7 +433,7 @@ export default function PladurWizard({
               <ArrowLeft size={16} /> Voltar
             </button>
             <button
-              onClick={() => onFinalizar(resultado, { espaco, teto, paredes, acabamentos })}
+              onClick={() => onFinalizar(resultado, { espaco, teto, paredes, acabamentos, variantes })}
               disabled={aGuardar}
               className="btn-primary flex-1 justify-center disabled:opacity-60"
             >

@@ -4,9 +4,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatMoney } from '../lib/format';
 import { calcularOrcamentoPavimento, tabelaPrecosParaMapa, PrecoItem, ResultadoPavimento, PavimentoConfig } from '../lib/pavimento';
+import { SeletorVariante, aplicarVariantes, Variantes } from './SeletorVariantes';
 import { Loader2 } from 'lucide-react';
 
-export type PavimentoConfigCompleta = { comprimento: number; largura: number; config: PavimentoConfig };
+export type PavimentoConfigCompleta = { comprimento: number; largura: number; config: PavimentoConfig; variantes?: Variantes };
 
 const CONFIG_VAZIA: PavimentoConfig = { tipo: 'laminado_flutuante', removerAntigo: false, incluirRodape: true };
 
@@ -29,6 +30,7 @@ export default function PavimentoWizard({
   const [comprimento, setComprimento] = useState(configInicial?.comprimento || espacoPartilhado?.comprimento || 4);
   const [largura, setLargura] = useState(configInicial?.largura || espacoPartilhado?.largura || 3);
   const [config, setConfig] = useState<PavimentoConfig>(configInicial?.config || CONFIG_VAZIA);
+  const [variantes, setVariantes] = useState<Variantes>(configInicial?.variantes || {});
 
   useEffect(() => {
     async function carregar() {
@@ -39,7 +41,7 @@ export default function PavimentoWizard({
     carregar();
   }, []);
 
-  const tabelaPrecos = useMemo(() => tabelaPrecosParaMapa(precos), [precos]);
+  const tabelaPrecos = useMemo(() => aplicarVariantes(tabelaPrecosParaMapa(precos), precos, variantes), [precos, variantes]);
   const resultado = useMemo(() => {
     if (precos.length === 0) return null;
     return calcularOrcamentoPavimento(comprimento, largura, config, tabelaPrecos);
@@ -92,9 +94,12 @@ export default function PavimentoWizard({
                         <tbody className="divide-y divide-sand-100">
                           {resultado.materiais.map((l) => (
                             <tr key={l.chave}>
-                              <td className="p-2 text-ink-700">{l.descricao}</td>
-                              <td className="p-2 text-right text-ink-400">{l.quantidade} {l.unidade}</td>
-                              <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(l.valor)}</td>
+                              <td className="p-2 text-ink-700">
+                                {l.descricao}
+                                <SeletorVariante chave={l.chave} todos={precos} escolhas={variantes} onEscolher={(chave, id) => setVariantes((v) => ({ ...v, [chave]: id }))} />
+                              </td>
+                              <td className="p-2 text-right text-ink-400 align-top">{l.quantidade} {l.unidade}</td>
+                              <td className="p-2 text-right text-ink-800 font-medium align-top">{formatMoney(l.valor)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -138,7 +143,7 @@ export default function PavimentoWizard({
           )}
 
           <button
-            onClick={() => onFinalizar(resultado, { comprimento, largura, config })}
+            onClick={() => onFinalizar(resultado, { comprimento, largura, config, variantes })}
             disabled={aGuardar}
             className="btn-primary w-full justify-center disabled:opacity-60"
           >

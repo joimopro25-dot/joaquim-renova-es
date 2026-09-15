@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { ImageOff, ExternalLink, Pencil, Loader2, X, Star, Trash2, Plus } from 'lucide-react';
+import { ImageOff, ExternalLink, Pencil, Loader2, X, Star, Trash2, Plus, Link2, Upload } from 'lucide-react';
 
 type Item = { id: string; tipo: string; chave: string; descricao: string; unidade: string; preco: number; ordem: number; fonte: string | null; imagem_url: string | null; predefinido: boolean };
 
@@ -44,6 +44,7 @@ function Miniatura({ chave, url, onChange }: { chave: string; url: string | null
   const [erro, setErro] = useState(false);
   const [aEnviar, setAEnviar] = useState(false);
   const [ampliar, setAmpliar] = useState(false);
+  const [aColarUrl, setAColarUrl] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function enviarFicheiro(ficheiro: File) {
@@ -58,6 +59,20 @@ function Miniatura({ chave, url, onChange }: { chave: string; url: string | null
     setAEnviar(false);
   }
 
+  if (aColarUrl) {
+    return (
+      <input
+        type="text"
+        autoFocus
+        placeholder="Cola aqui o link da imagem"
+        defaultValue={url || ''}
+        onBlur={(e) => { onChange(e.target.value); setAColarUrl(false); setErro(false); }}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setAColarUrl(false); }}
+        className="input w-36 text-[10px] py-1"
+      />
+    );
+  }
+
   return (
     <>
       <input
@@ -70,8 +85,8 @@ function Miniatura({ chave, url, onChange }: { chave: string; url: string | null
       <div className="relative w-10 h-10 group">
         <button
           type="button"
-          onClick={() => (url && !erro ? setAmpliar(true) : inputRef.current?.click())}
-          title={url && !erro ? 'Clica para ampliar' : 'Clica para carregar uma foto'}
+          onClick={() => (url && !erro ? setAmpliar(true) : setAColarUrl(true))}
+          title={url && !erro ? 'Clica para ampliar' : 'Clica para colar o link da imagem'}
           className="block w-10 h-10 rounded-md border border-sand-200 bg-white overflow-hidden flex items-center justify-center hover:border-brand-300"
         >
           {aEnviar ? (
@@ -82,15 +97,25 @@ function Miniatura({ chave, url, onChange }: { chave: string; url: string | null
             <ImageOff size={16} className="text-ink-200" />
           )}
         </button>
-        {url && !erro && !aEnviar && (
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            title="Substituir foto"
-            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-ink-700 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-          >
-            <Pencil size={9} />
-          </button>
+        {!aEnviar && (
+          <div className="absolute -top-1.5 -right-1.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={() => setAColarUrl(true)}
+              title="Colar link da imagem"
+              className="w-4 h-4 rounded-full bg-ink-700 text-white flex items-center justify-center"
+            >
+              <Link2 size={9} />
+            </button>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              title="Carregar ficheiro do computador"
+              className="w-4 h-4 rounded-full bg-ink-700 text-white flex items-center justify-center"
+            >
+              <Upload size={9} />
+            </button>
+          </div>
         )}
       </div>
 

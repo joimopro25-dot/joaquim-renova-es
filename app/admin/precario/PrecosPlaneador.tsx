@@ -98,6 +98,18 @@ function Miniatura({ chave, url, onChange }: { chave: string; url: string | null
   );
 }
 
+function DicaChave({ chave, existentes, conhecidas }: { chave: string; existentes: string[]; conhecidas: string[] }) {
+  const valor = chave.trim();
+  if (!valor) return null;
+  if (existentes.includes(valor)) {
+    return <p className="text-[10px] text-brand-600 mt-0.5">✓ junta-se aos artigos já existentes com esta chave</p>;
+  }
+  if (conhecidas.includes(valor)) {
+    return <p className="text-[10px] text-brand-600 mt-0.5">✓ chave reconhecida pelo planeador — vai contar no cálculo</p>;
+  }
+  return <p className="text-[10px] text-ink-300 mt-0.5">cria uma família nova (confirma que não é já usada com outro nome)</p>;
+}
+
 function novoItemVazio(tipo: 'material' | 'mao_obra') {
   return { chave: '', descricao: '', unidade: tipo === 'material' ? 'unid' : 'm²', preco: '0' };
 }
@@ -119,6 +131,10 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
   useEffect(() => { carregar(); }, [tabela]);
 
   const chavesExistentes = useMemo(() => Array.from(new Set(itens.map((i) => i.chave))), [itens]);
+  const todasAsChavesParaSugestao = useMemo(
+    () => Array.from(new Set([...chavesExistentes, ...chavesConhecidas])).sort(),
+    [chavesExistentes, chavesConhecidas]
+  );
 
   async function atualizarPreco(id: string, preco: number) {
     setItens((prev) => prev.map((i) => (i.id === id ? { ...i, preco } : i)));
@@ -251,9 +267,12 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
           </table>
           )}
           <form onSubmit={(e) => adicionarItem('material', e)} className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3 border-t border-sand-100">
-            <input type="text" list={`chaves-${tabela}`} placeholder="Chave (ex: foco_led)" value={novoMaterial.chave} onChange={(e) => setNovoMaterial({ ...novoMaterial, chave: e.target.value })} className="input text-sm" />
+            <div>
+              <input type="text" list={`chaves-${tabela}`} placeholder="Chave (ex: foco_led)" value={novoMaterial.chave} onChange={(e) => setNovoMaterial({ ...novoMaterial, chave: e.target.value })} className="input text-sm w-full" />
+              <DicaChave chave={novoMaterial.chave} existentes={chavesExistentes} conhecidas={chavesConhecidas} />
+            </div>
             <datalist id={`chaves-${tabela}`}>
-              {chavesConhecidas.map((c) => <option key={c} value={c} />)}
+              {todasAsChavesParaSugestao.map((c) => <option key={c} value={c} />)}
             </datalist>
             <input type="text" placeholder="Descrição do produto" value={novoMaterial.descricao} onChange={(e) => setNovoMaterial({ ...novoMaterial, descricao: e.target.value })} className="input text-sm md:col-span-2" />
             <input type="text" placeholder="Un" value={novoMaterial.unidade} onChange={(e) => setNovoMaterial({ ...novoMaterial, unidade: e.target.value })} className="input text-sm" />
@@ -322,7 +341,10 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
           </table>
           )}
           <form onSubmit={(e) => adicionarItem('mao_obra', e)} className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3 border-t border-sand-100">
-            <input type="text" list={`chaves-${tabela}`} placeholder="Chave (ex: teto_simples)" value={novaMaoObra.chave} onChange={(e) => setNovaMaoObra({ ...novaMaoObra, chave: e.target.value })} className="input text-sm" />
+            <div>
+              <input type="text" list={`chaves-${tabela}`} placeholder="Chave (ex: teto_simples)" value={novaMaoObra.chave} onChange={(e) => setNovaMaoObra({ ...novaMaoObra, chave: e.target.value })} className="input text-sm w-full" />
+              <DicaChave chave={novaMaoObra.chave} existentes={chavesExistentes} conhecidas={chavesConhecidas} />
+            </div>
             <input type="text" placeholder="Descrição do trabalho" value={novaMaoObra.descricao} onChange={(e) => setNovaMaoObra({ ...novaMaoObra, descricao: e.target.value })} className="input text-sm md:col-span-2" />
             <input type="text" placeholder="Un" value={novaMaoObra.unidade} onChange={(e) => setNovaMaoObra({ ...novaMaoObra, unidade: e.target.value })} className="input text-sm" />
             <input type="number" step="0.5" placeholder="Preço" value={novaMaoObra.preco} onChange={(e) => setNovaMaoObra({ ...novaMaoObra, preco: e.target.value })} className="input text-sm" />

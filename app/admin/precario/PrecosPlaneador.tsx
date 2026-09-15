@@ -157,6 +157,27 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
     await supabase.from(tabela).update({ imagem_url: imagem_url || null }).eq('id', id);
   }
 
+  async function atualizarDescricao(id: string, descricao: string) {
+    if (!descricao.trim()) return;
+    setItens((prev) => prev.map((i) => (i.id === id ? { ...i, descricao } : i)));
+    await supabase.from(tabela).update({ descricao }).eq('id', id);
+  }
+
+  async function atualizarUnidade(id: string, unidade: string) {
+    if (!unidade.trim()) return;
+    setItens((prev) => prev.map((i) => (i.id === id ? { ...i, unidade } : i)));
+    await supabase.from(tabela).update({ unidade }).eq('id', id);
+  }
+
+  async function atualizarChave(item: Item, chaveNova: string) {
+    const chave = chaveNova.trim();
+    if (!chave || chave === item.chave) return;
+    if (!confirm(`Mudar a chave de "${item.chave}" para "${chave}"? Isto muda a família a que este artigo pertence — se "${chave}" já existir, junta-se a essa família; senão cria uma nova.`)) return;
+    setItens((prev) => prev.map((i) => (i.id === item.id ? { ...i, chave } : i)));
+    await supabase.from(tabela).update({ chave }).eq('id', item.id);
+    carregar();
+  }
+
   async function marcarPredefinido(item: Item) {
     // Só uma variante por chave pode ficar marcada como a usada no cálculo.
     await Promise.all(
@@ -247,12 +268,20 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
                     <Miniatura chave={i.chave} url={i.imagem_url} onChange={(url) => atualizarImagem(i.id, url)} />
                   </td>
                   <td className="p-3 text-ink-800">
-                    {i.descricao}
-                    <span className="block text-[10px] text-ink-300">
-                      {i.chave}{chaveDesconhecida && ' — não usado por nenhum planeador'}
-                    </span>
+                    <input type="text" defaultValue={i.descricao} onBlur={(e) => atualizarDescricao(i.id, e.target.value)} className="input py-1 text-sm w-full min-w-[10rem]" />
+                    <input
+                      type="text"
+                      list={`chaves-${tabela}`}
+                      defaultValue={i.chave}
+                      onBlur={(e) => atualizarChave(i, e.target.value)}
+                      className={`block w-full mt-0.5 bg-transparent border-0 text-[10px] py-0 focus:outline-none focus:ring-0 ${chaveDesconhecida ? 'text-amber-600' : 'text-ink-300'}`}
+                      title="Chave (família) — editar com cuidado"
+                    />
+                    {chaveDesconhecida && <span className="block text-[10px] text-amber-600">não usado por nenhum planeador</span>}
                   </td>
-                  <td className="p-3 text-ink-500">{i.unidade}</td>
+                  <td className="p-3 text-ink-500">
+                    <input type="text" defaultValue={i.unidade} onBlur={(e) => atualizarUnidade(i.id, e.target.value)} className="input py-1 text-sm w-16" />
+                  </td>
                   <td className="p-3 text-right">
                     <input type="number" step="0.01" defaultValue={i.preco} onBlur={(e) => atualizarPreco(i.id, parseFloat(e.target.value) || 0)} className="input w-24 text-right py-1" />
                   </td>
@@ -323,12 +352,20 @@ export default function PrecosPlaneador({ tabela, descricaoIntro }: { tabela: st
                     </button>
                   </td>
                   <td className="p-3 text-ink-800">
-                    {i.descricao}
-                    <span className="block text-[10px] text-ink-300">
-                      {i.chave}{chaveDesconhecida && ' — não usado por nenhum planeador'}
-                    </span>
+                    <input type="text" defaultValue={i.descricao} onBlur={(e) => atualizarDescricao(i.id, e.target.value)} className="input py-1 text-sm w-full min-w-[10rem]" />
+                    <input
+                      type="text"
+                      list={`chaves-${tabela}`}
+                      defaultValue={i.chave}
+                      onBlur={(e) => atualizarChave(i, e.target.value)}
+                      className={`block w-full mt-0.5 bg-transparent border-0 text-[10px] py-0 focus:outline-none focus:ring-0 ${chaveDesconhecida ? 'text-amber-600' : 'text-ink-300'}`}
+                      title="Chave (família) — editar com cuidado"
+                    />
+                    {chaveDesconhecida && <span className="block text-[10px] text-amber-600">não usado por nenhum planeador</span>}
                   </td>
-                  <td className="p-3 text-ink-500">{i.unidade}</td>
+                  <td className="p-3 text-ink-500">
+                    <input type="text" defaultValue={i.unidade} onBlur={(e) => atualizarUnidade(i.id, e.target.value)} className="input py-1 text-sm w-16" />
+                  </td>
                   <td className="p-3 text-right">
                     <input type="number" step="0.5" defaultValue={i.preco} onBlur={(e) => atualizarPreco(i.id, parseFloat(e.target.value) || 0)} className="input w-24 text-right py-1" />
                   </td>

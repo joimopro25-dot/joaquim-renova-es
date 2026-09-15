@@ -98,12 +98,20 @@ export default function LeadsPage() {
       zonas.some((z) => z.pladur_config) ? supabase.from('pladur_precos').select('*') : Promise.resolve({ data: [] as PrecoItem[] }),
       zonas.some((z) => z.pintura_config) ? supabase.from('pintura_precos').select('*') : Promise.resolve({ data: [] as PrecoItem[] }),
       zonas.some((z) => z.pavimento_config) ? supabase.from('pavimento_precos').select('*') : Promise.resolve({ data: [] as PrecoItem[] }),
-      zonas.some((z) => z.eletrica_config) ? supabase.from('eletrica_precos').select('*') : Promise.resolve({ data: [] as PrecoItem[] }),
+      // Também precisa de correr quando há Pladur com LED — os materiais de
+      // foco/fita/transformador/módulo LED vivem na tabela da Elétrica.
+      zonas.some((z) => z.eletrica_config || z.pladur_config) ? supabase.from('eletrica_precos').select('*') : Promise.resolve({ data: [] as PrecoItem[] }),
     ]);
     const precosPladur = mapaPladur((precosPladurData as PrecoItem[]) || []);
     const precosPintura = mapaPintura((precosPinturaData as PrecoItem[]) || []);
     const precosPavimento = mapaPavimento((precosPavimentoData as PrecoItem[]) || []);
     const precosEletrica = mapaEletrica((precosEletricaData as PrecoItem[]) || []);
+    // Injeta os preços LED (da tabela da Elétrica) na tabela usada pelo
+    // cálculo do Pladur, para os focos/fita LED configurados no teto
+    // continuarem a ser calculados corretamente.
+    for (const chave of ['foco_led', 'fita_led', 'transformador_led', 'modulo_zigbee', 'foco_led_instalacao']) {
+      if (precosEletrica[chave]) precosPladur[chave] = precosEletrica[chave];
+    }
 
     async function inserirLinhas(capitulo: string, linhas: { tipo_linha: string; descricao: string; unidade: string; quantidade: number; precoUnitario: number }[]) {
       if (linhas.length === 0) return;

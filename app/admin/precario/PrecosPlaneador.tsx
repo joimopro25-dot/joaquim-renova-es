@@ -14,14 +14,20 @@ const CHAVES_CONHECIDAS: Record<string, string[]> = {
   pladur_precos: [
     'placa_normal', 'placa_hidrofuga', 'placa_cortafogo', 'perfil_primario', 'perfil_secundario', 'perfil_omega',
     'montante', 'calha_guia', 'banda_acustica', 'massa_juntas', 'fita_papel', 'parafusos', 'varao_roscado',
-    'perfil_angular', 'perfil_sombra', 'la_rocha', 'la_mineral', 'isolamento_bolha', 'foco_led', 'fita_led',
-    'transformador_led', 'modulo_zigbee', 'reforco_tv', 'perfil_canto_aluminio',
-    'teto_simples', 'teto_sanca_simples', 'teto_sanca_led', 'foco_led_instalacao', 'revestimento_parede',
+    'perfil_angular', 'perfil_sombra', 'la_rocha', 'la_mineral', 'isolamento_bolha', 'reforco_tv', 'perfil_canto_aluminio',
+    'teto_simples', 'teto_sanca_simples', 'teto_sanca_led', 'revestimento_parede',
     'tabique_divisoria', 'isolamento_acustico', 'reforco_tv_instalacao',
   ],
   pintura_precos: ['tinta_normal', 'tinta_normal_alta', 'tinta_extrema', 'acabamento_placa', 'primario', 'pintura_1demao', 'pintura_2demaos'],
   pavimento_precos: ['laminado_flutuante', 'vinilico', 'manta_subpiso', 'perfil_remate', 'rodape', 'aplicacao_flutuante', 'remocao_pavimento_antigo', 'aplicacao_rodape'],
-  eletrica_precos: ['ponto_luz', 'ponto_comando', 'ponto_tomada', 'quadro_eletrico', 'deteccao_incendio', 'notas_adicionais'],
+  // Todo o material/mão de obra elétrica vive aqui, incluindo o que é
+  // fisicamente instalado dentro de estruturas de outros planeadores (ex:
+  // focos/fita LED embutidos num teto de Pladur) — o Pladur só define as
+  // quantidades, o preço e o artigo concreto pertencem sempre à Elétrica.
+  eletrica_precos: [
+    'ponto_luz', 'ponto_comando', 'ponto_tomada', 'quadro_eletrico', 'deteccao_incendio', 'notas_adicionais',
+    'foco_led', 'fita_led', 'transformador_led', 'modulo_zigbee', 'foco_led_instalacao',
+  ],
 };
 
 // A "fonte" é texto livre (ex: "Maxmat - Placa Gesso ... - maxmat.pt/pt/...").

@@ -15,6 +15,12 @@ function gerarId() {
   return Math.random().toString(36).slice(2);
 }
 
+// Focos/fita/transformador/módulo LED e a instalação do foco vivem na
+// tabela de preços da Elétrica (são material/mão de obra elétrica, não de
+// pladur) — o Pladur só sabe as quantidades (posições dos focos, metros de
+// fita), o preço vem sempre de lá.
+const CHAVES_LED_DA_ELETRICA = ['foco_led', 'fita_led', 'transformador_led', 'modulo_zigbee', 'foco_led_instalacao'];
+
 const PASSOS = ['Espaço', 'Teto', 'Paredes', 'Acabamentos', 'Resultado'] as const;
 
 const TETO_OPCOES: { value: TipoTeto; label: string }[] = [
@@ -62,8 +68,11 @@ export default function PladurWizard({
 
   useEffect(() => {
     async function carregar() {
-      const { data } = await supabase.from('pladur_precos').select('*').order('ordem');
-      setPrecos(data || []);
+      const [{ data: precosPladur }, { data: precosLed }] = await Promise.all([
+        supabase.from('pladur_precos').select('*').order('ordem'),
+        supabase.from('eletrica_precos').select('*').in('chave', CHAVES_LED_DA_ELETRICA),
+      ]);
+      setPrecos([...(precosPladur || []), ...(precosLed || [])]);
       setACarregarPrecos(false);
     }
     carregar();

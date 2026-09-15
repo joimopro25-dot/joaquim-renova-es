@@ -16,7 +16,7 @@ export type EletricaConfig = {
   notasAdicionais: string;
 };
 
-export type PrecoItem = { chave: string; descricao: string; unidade: string; preco: number; predefinido?: boolean };
+export type PrecoItem = { id: string; chave: string; descricao: string; unidade: string; preco: number; predefinido?: boolean };
 export type TabelaPrecos = Record<string, PrecoItem>;
 
 export type LinhaCalculada = { chave: string; descricao: string; unidade: string; quantidade: number; precoUnitario: number; valor: number };

@@ -7,6 +7,7 @@ import { formatMoney } from '../../../../../lib/format';
 import { calcularTotaisSeguro } from '../../../../../lib/orcamento';
 import { Printer } from 'lucide-react';
 import PlantaPladur from '../../../../../components/PlantaPladur';
+import ElevacaoParede from '../../../../../components/ElevacaoParede';
 import type { PladurConfigCompleta } from '../../../../../components/PladurWizard';
 
 type Linha = {
@@ -160,9 +161,20 @@ export default function RelatorioOrcamento() {
       </div>
 
       {divisoes.map((d) => d.pladur_config && (
-        <div key={d.id} className="mb-8 break-inside-avoid flex flex-col items-center">
-          <h3 className="font-semibold text-ink-800 mb-3 text-sm uppercase tracking-wide self-start">Planta — {d.label}</h3>
-          <PlantaPladur espaco={d.pladur_config.espaco} paredes={d.pladur_config.paredes} teto={d.pladur_config.teto} />
+        <div key={d.id} className="mb-8 break-inside-avoid">
+          <h3 className="font-semibold text-ink-800 mb-3 text-sm uppercase tracking-wide text-center">Planta — {d.label}</h3>
+          <div className="flex justify-center mb-4">
+            <PlantaPladur espaco={d.pladur_config.espaco} paredes={d.pladur_config.paredes} teto={d.pladur_config.teto} />
+          </div>
+          {d.pladur_config.paredes.length > 0 && (
+            <div className="grid grid-cols-2 gap-3">
+              {d.pladur_config.paredes.map((p) => (
+                <div key={p.id} className="border border-sand-200 rounded-lg p-2">
+                  <ElevacaoParede espaco={d.pladur_config!.espaco} parede={p} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ))}
 

@@ -8,6 +8,7 @@ import {
   calcularOrcamentoPladur, tabelaPrecosParaMapa, PrecoItem, ResultadoPladur,
 } from '../lib/pladur';
 import PlantaPladur from './PlantaPladur';
+import ElevacaoParede from './ElevacaoParede';
 import { SeletorVariante, aplicarVariantes, Variantes } from './SeletorVariantes';
 import { ArrowLeft, ArrowRight, Plus, X, Loader2 } from 'lucide-react';
 
@@ -98,7 +99,7 @@ export default function PladurWizard({
   }
 
   function adicionarAbertura(paredeId: string, tipo: TipoAbertura) {
-    const nova: AberturaConfig = { id: gerarId(), tipo, larguraM: tipo === 'porta' ? 0.8 : 1.2, alturaM: tipo === 'porta' ? 2.1 : 1.2, posicaoM: 0 };
+    const nova: AberturaConfig = { id: gerarId(), tipo, larguraM: tipo === 'porta' ? 0.8 : 1.2, alturaM: tipo === 'porta' ? 2.1 : 1.2, posicaoM: 0, alturaPeitoril: tipo === 'janela' ? 1.0 : undefined };
     setParedes((prev) => prev.map((p) => (p.id === paredeId ? { ...p, aberturas: [...p.aberturas, nova] } : p)));
   }
 
@@ -331,6 +332,12 @@ export default function PladurWizard({
                       <label className="text-[10px] text-ink-400 block">Altura (m)</label>
                       <input type="number" onFocus={(e) => e.target.select()} step="0.01" value={a.alturaM} onChange={(e) => atualizarAbertura(p.id, a.id, { alturaM: parseFloat(e.target.value) || 0 })} className="input text-xs py-1 w-20" />
                     </div>
+                    {a.tipo === 'janela' && (
+                      <div>
+                        <label className="text-[10px] text-ink-400 block">Peitoril — altura ao chão (m)</label>
+                        <input type="number" onFocus={(e) => e.target.select()} step="0.01" min="0" value={a.alturaPeitoril ?? 1} onChange={(e) => atualizarAbertura(p.id, a.id, { alturaPeitoril: parseFloat(e.target.value) || 0 })} className="input text-xs py-1 w-24" />
+                      </div>
+                    )}
                     {p.lado && (
                       <div>
                         <label className="text-[10px] text-ink-400 block">Posição desde o início da parede (m)</label>
@@ -377,6 +384,19 @@ export default function PladurWizard({
           <div className="flex justify-center mb-6">
             <PlantaPladur espaco={espaco} paredes={paredes} teto={teto} />
           </div>
+
+          {paredes.length > 0 && (
+            <div className="mb-6">
+              <p className="text-xs font-medium text-ink-500 uppercase mb-2 text-center">Vista de cada parede</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {paredes.map((p) => (
+                  <div key={p.id} className="border border-sand-200 rounded-lg p-2 bg-sand-50">
+                    <ElevacaoParede espaco={espaco} parede={p} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {mostrarPrecos ? (
             <>

@@ -137,6 +137,30 @@ export default function PlantaPladur({
     return elementos;
   }
 
+  // Faixa da sanca perimetral (só existe em tetos com sanca) — desenhada
+  // como linha tracejada, afastada da parede pela largura da sanca.
+  function desenharSanca() {
+    if (teto.tipo !== 'sanca_simples' && teto.tipo !== 'sanca_led') return null;
+    const insetM = (teto.larguraSancaCm || 20) / 100;
+    const insetPx = insetM * escala;
+    const props = { stroke: '#d97706', strokeWidth: 1.5, strokeDasharray: '4 3', fill: 'none' } as const;
+
+    if (teto.cobertura === 'uma') {
+      return <line key="sanca" x1={offsetX} y1={offsetY + insetPx} x2={offsetX + retLargura} y2={offsetY + insetPx} {...props} />;
+    }
+    if (teto.cobertura === 'duas') {
+      return (
+        <>
+          <line key="sanca-1" x1={offsetX} y1={offsetY + insetPx} x2={offsetX + retLargura} y2={offsetY + insetPx} {...props} />
+          <line key="sanca-2" x1={offsetX + insetPx} y1={offsetY} x2={offsetX + insetPx} y2={offsetY + retAltura} {...props} />
+        </>
+      );
+    }
+    return (
+      <rect key="sanca" x={offsetX + insetPx} y={offsetY + insetPx} width={Math.max(0, retLargura - 2 * insetPx)} height={Math.max(0, retAltura - 2 * insetPx)} {...props} />
+    );
+  }
+
   return (
     <div>
       <svg
@@ -150,6 +174,7 @@ export default function PlantaPladur({
         className={editarFocos ? 'cursor-crosshair' : ''}
       >
         <rect x={offsetX} y={offsetY} width={retLargura} height={retAltura} fill="#fff" />
+        {desenharSanca()}
         {(['norte', 'sul', 'este', 'oeste'] as LadoParede[]).map((lado) => desenharParede(lado))}
 
         <text x={offsetX + retLargura / 2} y={offsetY - 8} textAnchor="middle" fontSize={10} className="fill-ink-500">{espaco.comprimento.toFixed(2)} m</text>
@@ -180,6 +205,9 @@ export default function PlantaPladur({
         <span className="flex items-center gap-1"><span className="w-3 h-1 bg-[#7c3aed] inline-block" /> Porta</span>
         <span className="flex items-center gap-1"><span className="w-3 h-1 bg-[#0ea5e9] inline-block" /> Janela</span>
         <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#fbbf24] border border-[#b45309] inline-block" /> Foco LED</span>
+        {(teto.tipo === 'sanca_simples' || teto.tipo === 'sanca_led') && (
+          <span className="flex items-center gap-1"><span className="w-3 h-0 border-t border-dashed border-[#d97706] inline-block" /> Sanca</span>
+        )}
       </div>
     </div>
   );

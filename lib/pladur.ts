@@ -36,6 +36,10 @@ export type AberturaConfig = {
   // Distância (m) do canto inicial da parede até ao início do vão — permite
   // desenhar a abertura na posição real na planta.
   posicaoM: number;
+  // Altura (m) do peitoril ao chão — só relevante para janelas (portas
+  // partem sempre do chão). Permite desenhar a janela na posição vertical
+  // real na elevação da parede.
+  alturaPeitoril?: number;
 };
 
 export type FocoLedPosicao = { id: string; x: number; y: number };

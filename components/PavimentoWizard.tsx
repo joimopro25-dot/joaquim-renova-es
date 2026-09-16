@@ -133,6 +133,12 @@ export default function PavimentoWizard({
                   <div className="flex justify-between"><span className="text-ink-500">Subtotal Mão de Obra</span><span>{formatMoney(resultado.totalMaoDeObra)}</span></div>
                   <div className="flex justify-between"><span className="text-ink-500">IVA (23%)</span><span>{formatMoney(resultado.iva)}</span></div>
                   <div className="flex justify-between font-semibold text-lg pt-1 border-t border-ink-800"><span>TOTAL</span><span>{formatMoney(resultado.total)}</span></div>
+                  {comprimento * largura > 0 && (
+                    <div className="flex justify-between text-xs text-ink-400 pt-1">
+                      <span>≈ €/m² (com IVA)</span>
+                      <span>{formatMoney(resultado.total / (comprimento * largura))}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </>

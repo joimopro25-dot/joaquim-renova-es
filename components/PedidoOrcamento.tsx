@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { DIVISOES, NOMES_DIVISOES } from '../lib/divisoes';
 import Link from 'next/link';
-import { CheckCircle2, Send, ArrowRight, ArrowLeft, Plus, X, LayoutPanelTop, PaintBucket, SquareStack, Zap } from 'lucide-react';
+import { CheckCircle2, Send, ArrowRight, ArrowLeft, Plus, X, LayoutPanelTop, PaintBucket, SquareStack, Zap, Phone, Mail, MessageCircle, Sliders } from 'lucide-react';
 import PladurWizard, { PladurConfigCompleta } from './PladurWizard';
 import PinturaWizard, { PinturaConfigCompleta } from './PinturaWizard';
 import PavimentoWizard, { PavimentoConfigCompleta } from './PavimentoWizard';
@@ -43,8 +43,19 @@ function gerarId() {
 }
 
 export default function PedidoOrcamento() {
-  const [passo, setPasso] = useState<1 | 2 | 3>(1);
+  const [passo, setPasso] = useState<0 | 1 | 2 | 3>(0);
   const [instancias, setInstancias] = useState<Instancia[]>([]);
+  const [contactoTelefone, setContactoTelefone] = useState<string | null>(null);
+  const [contactoEmail, setContactoEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function carregarContacto() {
+      const { data } = await supabase.from('site_settings').select('telefone, email').eq('id', 1).single();
+      setContactoTelefone(data?.telefone || null);
+      setContactoEmail(data?.email || null);
+    }
+    carregarContacto();
+  }, []);
 
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
@@ -156,19 +167,62 @@ export default function PedidoOrcamento() {
 
   const instanciaModal = modalAberto ? instancias.find((i) => i.id === modalAberto.instanciaId) : null;
 
+  const telefoneDigitos = (contactoTelefone || '').replace(/\D/g, '');
+  const whatsappHref = telefoneDigitos ? `https://wa.me/351${telefoneDigitos.replace(/^351/, '')}` : null;
+
   return (
     <div>
-      <div className="flex items-center gap-2 mb-6 text-xs text-ink-400">
-        {[1, 2, 3].map((n) => (
-          <React.Fragment key={n}>
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center font-medium ${passo >= n ? 'bg-brand-500 text-white' : 'bg-sand-100 text-ink-400'}`}>{n}</span>
-            {n < 3 && <span className={`flex-1 h-px ${passo > n ? 'bg-brand-500' : 'bg-sand-200'}`} />}
-          </React.Fragment>
-        ))}
-      </div>
+      {passo > 0 && (
+        <div className="flex items-center gap-2 mb-6 text-xs text-ink-400">
+          {[1, 2, 3].map((n) => (
+            <React.Fragment key={n}>
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center font-medium ${passo >= n ? 'bg-brand-500 text-white' : 'bg-sand-100 text-ink-400'}`}>{n}</span>
+              {n < 3 && <span className={`flex-1 h-px ${passo > n ? 'bg-brand-500' : 'bg-sand-200'}`} />}
+            </React.Fragment>
+          ))}
+        </div>
+      )}
+
+      {passo === 0 && (
+        <div>
+          <h3 className="font-semibold text-ink-800 mb-1">Como prefere pedir o orçamento?</h3>
+          <p className="text-sm text-ink-400 mb-5">Escolha o que for mais rápido para si — as duas opções chegam até nós.</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="border border-sand-200 rounded-lg p-4">
+              <p className="font-medium text-ink-800 mb-1 flex items-center gap-2"><Phone size={16} className="text-brand-500" /> Contacto direto</p>
+              <p className="text-xs text-ink-400 mb-3">Prefere falar ou escrever diretamente? Estamos aqui.</p>
+              <div className="space-y-2">
+                {contactoTelefone && (
+                  <a href={`tel:${telefoneDigitos}`} className="btn-primary w-full justify-center text-sm bg-ink-700 hover:bg-ink-800">
+                    <Phone size={15} /> Ligar — {contactoTelefone}
+                  </a>
+                )}
+                {whatsappHref && (
+                  <a href={whatsappHref} target="_blank" rel="noreferrer" className="btn-primary w-full justify-center text-sm bg-green-600 hover:bg-green-700">
+                    <MessageCircle size={15} /> WhatsApp
+                  </a>
+                )}
+                {contactoEmail && (
+                  <a href={`mailto:${contactoEmail}`} className="btn-primary w-full justify-center text-sm bg-sand-500 hover:bg-sand-600">
+                    <Mail size={15} /> {contactoEmail}
+                  </a>
+                )}
+              </div>
+            </div>
+
+            <button type="button" onClick={() => setPasso(1)} className="border border-brand-300 bg-brand-50 rounded-lg p-4 text-left hover:bg-brand-100 transition-colors flex flex-col">
+              <p className="font-medium text-brand-700 mb-1 flex items-center gap-2"><Sliders size={16} /> Simulador online</p>
+              <p className="text-xs text-ink-500 mb-3">Configure cada divisão ao detalhe (medidas, materiais, plano do espaço) em poucos passos.</p>
+              <span className="mt-auto btn-primary w-full justify-center text-sm">Começar <ArrowRight size={15} /></span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {passo === 1 && (
         <div>
+          <button type="button" onClick={() => setPasso(0)} className="flex items-center gap-1 text-xs text-ink-400 hover:text-ink-700 mb-3"><ArrowLeft size={13} /> Voltar</button>
           <h3 className="font-semibold text-ink-800 mb-1">Que divisões quer renovar?</h3>
           <p className="text-sm text-ink-400 mb-4">Clique tantas vezes quantas as divisões desse tipo (ex: 3 vezes em "Quarto" para 3 quartos).</p>
           <div className="grid grid-cols-2 gap-2 mb-4">

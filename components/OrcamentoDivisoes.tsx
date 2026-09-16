@@ -216,6 +216,7 @@ export default function OrcamentoDivisoes({ orcamentoId, editavel }: { orcamento
                   largura: divisaoModal.largura || undefined,
                   peDireito: divisaoModal.pe_direito || undefined,
                 }}
+                paredesPladur={divisaoModal.pladur_config?.paredes.map((p) => ({ larguraM: p.larguraM, lado: p.lado }))}
                 onFinalizar={(resultado, config) => guardarPlaneador(divisaoModal, 'pintura', resultado, config)}
               />
             )}

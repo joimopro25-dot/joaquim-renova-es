@@ -3,10 +3,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatMoney } from '../lib/format';
-import { calcularOrcamentoPintura, tabelaPrecosParaMapa, paredesPorDefeito, PrecoItem, ResultadoPintura, PinturaConfig, QualidadeTinta } from '../lib/pintura';
+import { calcularOrcamentoPintura, tabelaPrecosParaMapa, paredesPorDefeito, PrecoItem, ResultadoPintura, PinturaConfig, ParedePintura, QualidadeTinta } from '../lib/pintura';
 import { SeletorVariante, aplicarVariantes, Variantes } from './SeletorVariantes';
 import DiagramaCamadas, { Camada } from './DiagramaCamadas';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus, X } from 'lucide-react';
 
 export type PinturaConfigCompleta = {
   comprimento: number; largura: number; peDireito: number;
@@ -14,10 +14,15 @@ export type PinturaConfigCompleta = {
   variantes?: Variantes;
 };
 
-function configVazia(comprimento: number, largura: number): PinturaConfig {
-  return { paredes: paredesPorDefeito(comprimento, largura), pintarTeto: false, demaos: 2, qualidadeTinta: 'normal', areaAberturasM2: 0 };
+function gerarId() {
+  return Math.random().toString(36).slice(2);
 }
 
+function configVazia(comprimento: number, largura: number, base?: ParedePintura[]): PinturaConfig {
+  return { paredes: base && base.length > 0 ? base : paredesPorDefeito(comprimento, largura), pintarTeto: false, demaos: 2, qualidadeTinta: 'normal', areaAberturasM2: 0 };
+}
+
+const LABEL_LADO: Record<string, string> = { norte: 'Norte', sul: 'Sul', este: 'Este', oeste: 'Oeste' };
 const LABEL_GAMA: Record<QualidadeTinta, string> = { normal: 'Média Baixa', normal_alta: 'Média Alta', extrema: 'Extrema' };
 
 function camadasPintura(config: PinturaConfig): Camada[] {
@@ -33,12 +38,17 @@ export default function PinturaWizard({
   aGuardar,
   espacoPartilhado,
   configInicial,
+  paredesPladur,
   mostrarPrecos = true,
 }: {
   onFinalizar: (resultado: ResultadoPintura, config: PinturaConfigCompleta) => void;
   aGuardar?: boolean;
   espacoPartilhado?: { comprimento?: number; largura?: number; peDireito?: number };
   configInicial?: PinturaConfigCompleta | null;
+  // Paredes já configuradas no Planeador de Pladur da mesma divisão — se
+  // existirem, servem de ponto de partida (mesmas larguras/lados) em vez de
+  // 4 paredes genéricas, evitando repetir medidas já dadas.
+  paredesPladur?: { larguraM: number; lado?: string }[];
   mostrarPrecos?: boolean;
 }) {
   const [precos, setPrecos] = useState<PrecoItem[]>([]);
@@ -47,7 +57,13 @@ export default function PinturaWizard({
   const [comprimento, setComprimento] = useState(configInicial?.comprimento || espacoPartilhado?.comprimento || 4);
   const [largura, setLargura] = useState(configInicial?.largura || espacoPartilhado?.largura || 3);
   const [peDireito, setPeDireito] = useState(configInicial?.peDireito || espacoPartilhado?.peDireito || 2.6);
-  const [config, setConfig] = useState<PinturaConfig>(configInicial?.config || configVazia(comprimento, largura));
+  const [config, setConfig] = useState<PinturaConfig>(() => {
+    if (configInicial?.config) return configInicial.config;
+    const base = paredesPladur && paredesPladur.length > 0
+      ? paredesPladur.map((p, idx) => ({ id: p.lado || `pladur-${idx}`, larguraM: p.larguraM, pintar: true, lado: p.lado }))
+      : undefined;
+    return configVazia(comprimento, largura, base);
+  });
   const [variantes, setVariantes] = useState<Variantes>(configInicial?.variantes || {});
 
   useEffect(() => {
@@ -67,6 +83,14 @@ export default function PinturaWizard({
 
   function atualizarParede(id: string, campos: Partial<{ larguraM: number; pintar: boolean }>) {
     setConfig((prev) => ({ ...prev, paredes: prev.paredes.map((p) => (p.id === id ? { ...p, ...campos } : p)) }));
+  }
+
+  function adicionarParede() {
+    setConfig((prev) => ({ ...prev, paredes: [...prev.paredes, { id: gerarId(), larguraM: 3, pintar: true }] }));
+  }
+
+  function removerParede(id: string) {
+    setConfig((prev) => ({ ...prev, paredes: prev.paredes.filter((p) => p.id !== id) }));
   }
 
   if (aCarregarPrecos) {
@@ -90,22 +114,28 @@ export default function PinturaWizard({
         </div>
       </div>
 
-      <p className="text-xs text-ink-500 mb-2">Paredes a pintar — a divisão tem 4 paredes, escolhe quais e ajusta a largura de cada uma se forem diferentes</p>
-      <div className="border border-sand-200 rounded-lg divide-y divide-sand-100 mb-4">
+      <p className="text-xs text-ink-500 mb-2">
+        Paredes a pintar {paredesPladur && paredesPladur.length > 0 ? '— já trazidas do Planeador de Pladur desta divisão, ajusta ou adiciona mais' : '— escolhe quais e ajusta a largura de cada uma se forem diferentes'}
+      </p>
+      <div className="border border-sand-200 rounded-lg divide-y divide-sand-100 mb-2">
         {config.paredes.map((p, i) => (
-          <div key={p.id} className="flex items-center gap-3 p-2.5">
+          <div key={p.id} className="flex items-center gap-2 p-2.5">
             <label className="flex items-center gap-1.5 text-sm text-ink-600 w-24 shrink-0">
-              <input type="checkbox" checked={p.pintar} onChange={(e) => atualizarParede(p.id, { pintar: e.target.checked })} /> Parede {i + 1}
+              <input type="checkbox" checked={p.pintar} onChange={(e) => atualizarParede(p.id, { pintar: e.target.checked })} /> {p.lado ? LABEL_LADO[p.lado] || p.lado : `Parede ${i + 1}`}
             </label>
             <input
               type="number" step="0.01" value={p.larguraM}
               onChange={(e) => atualizarParede(p.id, { larguraM: parseFloat(e.target.value) || 0 })}
               className="input py-1 w-28 text-sm" disabled={!p.pintar}
             />
-            <span className="text-xs text-ink-400">m de largura</span>
+            <span className="text-xs text-ink-400 flex-1">m de largura</span>
+            <button type="button" onClick={() => removerParede(p.id)} className="text-ink-300 hover:text-red-600"><X size={14} /></button>
           </div>
         ))}
       </div>
+      <button type="button" onClick={adicionarParede} className="border border-sand-200 rounded-lg px-3 py-1.5 text-xs text-ink-600 hover:bg-sand-50 flex items-center gap-1.5 mb-4">
+        <Plus size={13} /> Adicionar parede
+      </button>
 
       <label className="flex items-center gap-1.5 text-sm text-ink-600 mb-4">
         <input type="checkbox" checked={config.pintarTeto} onChange={(e) => setConfig({ ...config, pintarTeto: e.target.checked })} /> Pintar teto

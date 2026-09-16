@@ -26,6 +26,12 @@ export default function ElevacaoParede({ espaco, parede }: { espaco: EspacoConfi
   const offsetY = PAD_Y + (alturaDisp - retAltura) / 2;
   const chaoY = offsetY + retAltura;
 
+  // A posição das aberturas é guardada "desde o início da parede" tal como
+  // aparece na planta de cima — mas ao ver a parede de frente (de dentro do
+  // espaço), o lado esquerdo/direito inverte-se para Sul e Oeste (é o
+  // mesmo efeito de olhar para trás vs. olhar em frente no mapa).
+  const inverter = parede.lado === 'sul' || parede.lado === 'oeste';
+
   return (
     <div>
       <p className="text-[11px] text-ink-500 mb-1 text-center">
@@ -38,7 +44,9 @@ export default function ElevacaoParede({ espaco, parede }: { espaco: EspacoConfi
           const alturaChao = a.tipo === 'porta' ? 0 : (a.alturaPeitoril ?? 1);
           const larguraPx = Math.min(a.larguraM, parede.larguraM) * escala;
           const alturaPx = Math.min(a.alturaM, espaco.peDireito - alturaChao) * escala;
-          const x = offsetX + Math.max(0, Math.min(a.posicaoM, parede.larguraM - a.larguraM)) * escala;
+          const posicaoBase = Math.max(0, Math.min(a.posicaoM, parede.larguraM - a.larguraM));
+          const posicaoVista = inverter ? parede.larguraM - posicaoBase - a.larguraM : posicaoBase;
+          const x = offsetX + posicaoVista * escala;
           const y = chaoY - alturaChao * escala - alturaPx;
           const cor = a.tipo === 'porta' ? '#7c3aed' : '#0ea5e9';
           return (

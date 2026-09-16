@@ -67,6 +67,42 @@ export default function PedidoOrcamento() {
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState('');
   const [modalAberto, setModalAberto] = useState<{ tipo: TipoPlaneador; instanciaId: string } | null>(null);
+  const [rascunho, setRascunho] = useState<any>(null);
+
+  // Guarda automaticamente o que o cliente vai preenchendo, para não se
+  // perder nada se sair da página sem querer (fecha o separador, recarrega,
+  // etc.) — só no browser, e só depois de decidir sobre um rascunho antigo.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('pc_pedido_rascunho');
+      if (raw) setRascunho(JSON.parse(raw));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (rascunho) return;
+    if (passo === 0 && instancias.length === 0 && !nome && !email && !telefone) return;
+    try {
+      localStorage.setItem('pc_pedido_rascunho', JSON.stringify({ passo, instancias, nome, email, telefone, localidade, mensagem }));
+    } catch {}
+  }, [passo, instancias, nome, email, telefone, localidade, mensagem, rascunho]);
+
+  function retomarRascunho() {
+    if (!rascunho) return;
+    setPasso(rascunho.passo ?? 1);
+    setInstancias(rascunho.instancias || []);
+    setNome(rascunho.nome || '');
+    setEmail(rascunho.email || '');
+    setTelefone(rascunho.telefone || '');
+    setLocalidade(rascunho.localidade || '');
+    setMensagem(rascunho.mensagem || '');
+    setRascunho(null);
+  }
+
+  function descartarRascunho() {
+    try { localStorage.removeItem('pc_pedido_rascunho'); } catch {}
+    setRascunho(null);
+  }
 
   function adicionarInstancia(tipo: string) {
     setInstancias((prev) => {
@@ -152,6 +188,7 @@ export default function PedidoOrcamento() {
     const { error } = await supabase.from('leads').insert([{ nome, email, telefone, localidade, tipo_obra: tipoObra, mensagem, zonas }]);
     setEnviando(false);
     if (error) { setErro('Não foi possível enviar. Tente novamente ou contacte-nos diretamente.'); return; }
+    try { localStorage.removeItem('pc_pedido_rascunho'); } catch {}
     setEnviado(true);
   }
 
@@ -172,6 +209,16 @@ export default function PedidoOrcamento() {
 
   return (
     <div>
+      {rascunho && (
+        <div className="border border-brand-300 bg-brand-50 rounded-lg p-3 mb-5 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-brand-700">Tem um pedido a meio por terminar. Quer continuar de onde ficou?</p>
+          <div className="flex gap-2 shrink-0">
+            <button type="button" onClick={descartarRascunho} className="text-xs text-ink-500 hover:text-ink-700 px-2 py-1.5">Começar de novo</button>
+            <button type="button" onClick={retomarRascunho} className="btn-primary text-xs py-1.5">Continuar</button>
+          </div>
+        </div>
+      )}
+
       {passo > 0 && (
         <div className="flex items-center gap-2 mb-6 text-xs text-ink-400">
           {[1, 2, 3].map((n) => (
@@ -363,6 +410,7 @@ export default function PedidoOrcamento() {
                   largura: parseFloat(instanciaModal.largura || '') || undefined,
                   peDireito: parseFloat(instanciaModal.peDireito || '') || undefined,
                 }}
+                paredesPladur={instanciaModal.pladurConfig?.paredes.map((p) => ({ larguraM: p.larguraM, lado: p.lado }))}
                 onFinalizar={(resultado, config) => guardarPintura(instanciaModal.id, resultado, config)}
                 mostrarPrecos={false}
               />

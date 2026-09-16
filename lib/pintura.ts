@@ -6,6 +6,9 @@ export type ParedePintura = {
   id: string;
   larguraM: number;
   pintar: boolean;
+  // Lado do espaço, quando esta parede vem herdada do Planeador de Pladur
+  // da mesma divisão — só para etiqueta (Norte/Sul/...), não afeta o cálculo.
+  lado?: string;
 };
 
 export type PinturaConfig = {
@@ -100,9 +103,9 @@ export function tabelaPrecosParaMapa(itens: PrecoItem[]): TabelaPrecos {
 
 export function paredesPorDefeito(comprimento: number, largura: number): ParedePintura[] {
   return [
-    { id: 'norte', larguraM: comprimento, pintar: true },
-    { id: 'sul', larguraM: comprimento, pintar: true },
-    { id: 'este', larguraM: largura, pintar: true },
-    { id: 'oeste', larguraM: largura, pintar: true },
+    { id: 'norte', larguraM: comprimento, pintar: true, lado: 'norte' },
+    { id: 'sul', larguraM: comprimento, pintar: true, lado: 'sul' },
+    { id: 'este', larguraM: largura, pintar: true, lado: 'este' },
+    { id: 'oeste', larguraM: largura, pintar: true, lado: 'oeste' },
   ];
 }

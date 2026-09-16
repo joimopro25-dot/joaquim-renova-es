@@ -185,10 +185,17 @@ export default function PedidoOrcamento() {
 
     const tipoObra = instancias.map((i) => i.label).join(', ');
 
-    const { error } = await supabase.from('leads').insert([{ nome, email, telefone, localidade, tipo_obra: tipoObra, mensagem, zonas }]);
+    // Gera o id no browser (em vez de pedir de volta com .select()) — o
+    // anon não tem permissão para "ver" leads (só para criar), e pedir a
+    // linha de volta faria a inserção inteira falhar por causa disso.
+    const leadId = crypto.randomUUID();
+    const { error } = await supabase.from('leads').insert([{ id: leadId, nome, email, telefone, localidade, tipo_obra: tipoObra, mensagem, zonas }]);
     setEnviando(false);
     if (error) { setErro('Não foi possível enviar. Tente novamente ou contacte-nos diretamente.'); return; }
     try { localStorage.removeItem('pc_pedido_rascunho'); } catch {}
+    // Avisa o Joaquim por email — falha aqui não deve impedir a confirmação
+    // ao cliente, o pedido já está guardado de qualquer forma.
+    fetch('/api/leads/notificar', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ leadId }) }).catch(() => {});
     setEnviado(true);
   }
 

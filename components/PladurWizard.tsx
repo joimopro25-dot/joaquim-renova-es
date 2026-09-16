@@ -71,7 +71,7 @@ const TETO_OPCOES: { value: TipoTeto; label: string }[] = [
 export type PladurConfigCompleta = { espaco: EspacoConfig; teto: TetoConfig; paredes: ParedeConfig[]; acabamentos: AcabamentosConfig; variantes?: Variantes };
 
 const ESPACO_VAZIO: EspacoConfig = { nome: 'Divisão', comprimento: 4, largura: 3, peDireito: 2.6, comprimentoPlaca: 2.5 };
-const TETO_VAZIO: TetoConfig = { tipo: 'nenhum', remate: 'justificado', tipoSanca: 'simples', larguraSancaCm: 20, alturaSancaCm: 20, cobertura: 'toda', focosLedPosicoes: [] };
+const TETO_VAZIO: TetoConfig = { tipo: 'nenhum', remate: 'justificado', tipoSanca: 'simples', larguraSancaCm: 20, alturaSancaCm: 20, sancaLados: ['norte', 'sul', 'este', 'oeste'], focosLedPosicoes: [] };
 const ACABAMENTOS_VAZIO: AcabamentosConfig = { led: 'nao', metrosLed: 0 };
 
 export default function PladurWizard({
@@ -253,13 +253,28 @@ export default function PladurWizard({
                   {[15, 20, 25].map((v) => <option key={v} value={v}>{v} cm</option>)}
                 </select>
               </div>
-              <div>
-                <label className="text-xs text-ink-500 block mb-1">Cobertura</label>
-                <select value={teto.cobertura} onChange={(e) => setTeto({ ...teto, cobertura: e.target.value as any })} className="input w-full">
-                  <option value="toda">Toda a divisão</option>
-                  <option value="uma">Só uma parede</option>
-                  <option value="duas">Duas paredes</option>
-                </select>
+              <div className="sm:col-span-3">
+                <label className="text-xs text-ink-500 block mb-1">Em que lados fica a sanca</label>
+                <div className="flex flex-wrap gap-2">
+                  {(['norte', 'sul', 'este', 'oeste'] as LadoParede[]).map((lado) => {
+                    const ativos = teto.sancaLados && teto.sancaLados.length > 0 ? teto.sancaLados : (['norte', 'sul', 'este', 'oeste'] as LadoParede[]);
+                    const ativo = ativos.includes(lado);
+                    return (
+                      <button
+                        key={lado}
+                        type="button"
+                        onClick={() => {
+                          const atuais = teto.sancaLados && teto.sancaLados.length > 0 ? teto.sancaLados : (['norte', 'sul', 'este', 'oeste'] as LadoParede[]);
+                          const novos = ativo ? atuais.filter((l) => l !== lado) : [...atuais, lado];
+                          setTeto({ ...teto, sancaLados: novos.length > 0 ? novos : atuais });
+                        }}
+                        className={`px-3 py-1.5 rounded-lg border text-xs capitalize transition-colors ${ativo ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-sand-200 text-ink-500 hover:bg-sand-50'}`}
+                      >
+                        {lado}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}

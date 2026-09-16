@@ -50,7 +50,9 @@ export type TetoConfig = {
   tipoSanca?: TipoSanca;
   larguraSancaCm?: number;
   alturaSancaCm?: number;
-  cobertura?: Cobertura;
+  // Em que lados do espaço a sanca é aplicada — escolha direta, tal como
+  // nas paredes (por defeito, todos os lados).
+  sancaLados?: LadoParede[];
   focosLedPosicoes: FocoLedPosicao[];
 };
 
@@ -112,11 +114,11 @@ function arred(n: number, casas = 2) {
   return Math.round(n * f) / f;
 }
 
-function perimetroSanca(espaco: EspacoConfig, cobertura: Cobertura | undefined): number {
-  const perimetroTotal = (espaco.comprimento + espaco.largura) * 2;
-  if (cobertura === 'uma') return espaco.comprimento;
-  if (cobertura === 'duas') return espaco.comprimento + espaco.largura;
-  return perimetroTotal;
+const LADOS_TODOS: LadoParede[] = ['norte', 'sul', 'este', 'oeste'];
+
+function perimetroSanca(espaco: EspacoConfig, sancaLados: LadoParede[] | undefined): number {
+  const lados = sancaLados && sancaLados.length > 0 ? sancaLados : LADOS_TODOS;
+  return lados.reduce((s, lado) => s + (lado === 'norte' || lado === 'sul' ? espaco.comprimento : espaco.largura), 0);
 }
 
 function addLinha(mapa: Map<string, LinhaCalculada>, precos: TabelaPrecos, chave: string, quantidade: number) {
@@ -193,7 +195,7 @@ export function calcularOrcamentoPladur(
     addLinha(materiaisMapa, precos, chaveRemate, Math.ceil(perimetroSala / 3));
 
     if (teto.tipo === 'sanca_simples' || teto.tipo === 'sanca_led') {
-      const perimetro = perimetroSanca(espaco, teto.cobertura);
+      const perimetro = perimetroSanca(espaco, teto.sancaLados);
       const alturaSancaM = (teto.alturaSancaCm || 20) / 100;
       const placasSanca = (perimetro * alturaSancaM * 1.15) / areaPlaca;
       const perfisSanca = perimetro * 2.5;

@@ -291,7 +291,7 @@ export default function PladurWizard({
       {passo === 2 && (
         <div className="space-y-3">
           {paredes.some((p) => p.lado) && (
-            <div className="border border-sand-200 rounded-lg p-3 bg-sand-50 flex justify-center">
+            <div className="sticky top-0 z-10 border border-sand-200 rounded-lg p-3 bg-sand-50/95 backdrop-blur-sm flex justify-center shadow-sm">
               <PlantaPladur espaco={espaco} paredes={paredes} teto={teto} />
             </div>
           )}

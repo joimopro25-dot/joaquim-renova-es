@@ -9,11 +9,48 @@ import {
 } from '../lib/pladur';
 import PlantaPladur from './PlantaPladur';
 import ElevacaoParede from './ElevacaoParede';
+import DiagramaCamadas, { Camada } from './DiagramaCamadas';
 import { SeletorVariante, aplicarVariantes, Variantes } from './SeletorVariantes';
 import { ArrowLeft, ArrowRight, Plus, X, Loader2 } from 'lucide-react';
 
 function gerarId() {
   return Math.random().toString(36).slice(2);
+}
+
+const LABEL_ISOLAMENTO: Record<string, string> = { nenhum: '', la_rocha: 'Lã de rocha', la_mineral: 'Lã mineral', bolha: 'Plástico bolha' };
+const LABEL_PLACA: Record<TipoPlaca, string> = { normal: 'Placa normal', hidrofuga: 'Placa hidrófuga', cortafogo: 'Placa corta-fogo' };
+
+// Monta a sequência de camadas da parede, da existente (se houver) até ao
+// acabamento em pladur, consoante o tipo de trabalho/sistema escolhidos —
+// atualiza-se sozinha à medida que a configuração muda.
+function camadasParede(p: ParedeConfig): Camada[] {
+  const isolamento: Camada | null = p.tipoIsolamento !== 'nenhum'
+    ? { label: LABEL_ISOLAMENTO[p.tipoIsolamento], descricao: 'Isolamento', cor: '#fde68a' }
+    : null;
+  const nPlacas = p.estrutura === 'dupla' ? 2 : 1;
+  const placaBase: Camada = { label: LABEL_PLACA[p.tipoPlaca], descricao: 'Pladur', cor: '#86efac' };
+  const placas = (): Camada[] => Array.from({ length: nPlacas }, (_, i) => ({ ...placaBase, label: nPlacas > 1 ? `${placaBase.label} (${i + 1}ª)` : placaBase.label }));
+
+  if (p.tipoTrabalho === 'revestimento') {
+    const estrutura: Camada = p.sistemaFixacao === 'omega'
+      ? { label: 'Perfil ómega', descricao: 'Fixado à parede existente', cor: '#a1a1aa' }
+      : { label: 'Montante + guia', descricao: 'Estrutura autoportante', cor: '#a1a1aa' };
+    return [
+      { label: 'Parede existente', descricao: 'Alvenaria', cor: '#c2683c' },
+      ...(isolamento ? [isolamento] : []),
+      estrutura,
+      ...placas(),
+    ];
+  }
+
+  // Tabique/divisória — sanduíche com placa dos dois lados da estrutura,
+  // não há parede existente.
+  return [
+    ...placas(),
+    ...(isolamento ? [isolamento] : []),
+    { label: 'Montante + guia', descricao: 'Estrutura autoportante', cor: '#a1a1aa' },
+    ...placas(),
+  ];
 }
 
 // Focos/fita/transformador/módulo LED e a instalação do foco vivem na
@@ -317,6 +354,10 @@ export default function PladurWizard({
               </button>
 
               <div className="sm:col-span-4 border-t border-sand-100 pt-2 mt-1">
+                <DiagramaCamadas titulo="Parede em corte (atualiza com as escolhas acima)" camadas={camadasParede(p)} />
+              </div>
+
+              <div className="sm:col-span-4 border-t border-sand-100 pt-2 mt-1">
                 <p className="text-xs text-ink-500 mb-1.5">Portas / janelas nesta parede (desconta área e conta reforços automaticamente)</p>
                 {p.aberturas.map((a) => (
                   <div key={a.id} className="flex flex-wrap items-end gap-2 mb-1.5">
@@ -392,6 +433,13 @@ export default function PladurWizard({
                 {paredes.map((p) => (
                   <div key={p.id} className="border border-sand-200 rounded-lg p-2 bg-sand-50">
                     <ElevacaoParede espaco={espaco} parede={p} />
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                {paredes.map((p) => (
+                  <div key={p.id} className="border border-sand-200 rounded-lg p-2">
+                    <DiagramaCamadas titulo={`${p.lado ? p.lado.charAt(0).toUpperCase() + p.lado.slice(1) : 'Parede'} — corte`} camadas={camadasParede(p)} />
                   </div>
                 ))}
               </div>

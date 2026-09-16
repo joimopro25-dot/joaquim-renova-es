@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatMoney } from '../lib/format';
-import { calcularOrcamentoPintura, tabelaPrecosParaMapa, paredesPorDefeito, PrecoItem, ResultadoPintura, PinturaConfig } from '../lib/pintura';
+import { calcularOrcamentoPintura, tabelaPrecosParaMapa, paredesPorDefeito, PrecoItem, ResultadoPintura, PinturaConfig, QualidadeTinta } from '../lib/pintura';
 import { SeletorVariante, aplicarVariantes, Variantes } from './SeletorVariantes';
+import DiagramaCamadas, { Camada } from './DiagramaCamadas';
 import { Loader2 } from 'lucide-react';
 
 export type PinturaConfigCompleta = {
@@ -15,6 +16,16 @@ export type PinturaConfigCompleta = {
 
 function configVazia(comprimento: number, largura: number): PinturaConfig {
   return { paredes: paredesPorDefeito(comprimento, largura), pintarTeto: false, demaos: 2, qualidadeTinta: 'normal', areaAberturasM2: 0 };
+}
+
+const LABEL_GAMA: Record<QualidadeTinta, string> = { normal: 'Média Baixa', normal_alta: 'Média Alta', extrema: 'Extrema' };
+
+function camadasPintura(config: PinturaConfig): Camada[] {
+  return [
+    { label: 'Massa fina / acabamento', descricao: 'Nivelamento da superfície', cor: '#e5e7eb' },
+    { label: 'Primário', descricao: 'Fundo preparador', cor: '#fef3c7' },
+    { label: `Tinta — gama ${LABEL_GAMA[config.qualidadeTinta]}`, descricao: `${config.demaos} demão${config.demaos > 1 ? 's' : ''}`, cor: '#93c5fd' },
+  ];
 }
 
 export default function PinturaWizard({
@@ -118,12 +129,18 @@ export default function PinturaWizard({
         <div>
           <label className="text-xs text-ink-500 block mb-1">Qualidade da tinta</label>
           <select value={config.qualidadeTinta} onChange={(e) => setConfig({ ...config, qualidadeTinta: e.target.value as any })} className="input w-full">
-            <option value="normal">Normal</option>
-            <option value="normal_alta">Normal Alta</option>
+            <option value="normal">Média Baixa</option>
+            <option value="normal_alta">Média Alta</option>
             <option value="extrema">Extrema (lavável)</option>
           </select>
         </div>
       </div>
+
+      {(config.paredes.some((p) => p.pintar) || config.pintarTeto) && (
+        <div className="mb-6 border border-sand-200 rounded-lg p-3">
+          <DiagramaCamadas titulo="Acabamento em corte (atualiza com as escolhas acima)" camadas={camadasPintura(config)} />
+        </div>
+      )}
 
       {resultado && (
         <div>

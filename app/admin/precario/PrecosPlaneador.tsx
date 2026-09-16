@@ -18,7 +18,11 @@ const CHAVES_CONHECIDAS: Record<string, string[]> = {
     'teto_simples', 'teto_sanca_simples', 'teto_sanca_led', 'revestimento_parede',
     'tabique_divisoria', 'isolamento_acustico', 'reforco_tv_instalacao',
   ],
-  pintura_precos: ['tinta_normal', 'tinta_normal_alta', 'tinta_extrema', 'acabamento_placa', 'primario', 'pintura_1demao', 'pintura_2demaos'],
+  pintura_precos: [
+    'tinta_parede_normal', 'tinta_parede_normal_alta', 'tinta_parede_extrema',
+    'tinta_teto_normal', 'tinta_teto_normal_alta', 'tinta_teto_extrema',
+    'primario_material', 'acabamento_placa', 'primario', 'pintura_1demao', 'pintura_2demaos',
+  ],
   pavimento_precos: ['laminado_flutuante', 'vinilico', 'manta_subpiso', 'perfil_remate', 'rodape', 'aplicacao_flutuante', 'remocao_pavimento_antigo', 'aplicacao_rodape'],
   // Todo o material/mão de obra elétrica vive aqui, incluindo o que é
   // fisicamente instalado dentro de estruturas de outros planeadores (ex:

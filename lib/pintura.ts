@@ -30,6 +30,8 @@ export type ResultadoPintura = {
   iva: number;
   total: number;
   m2Total: number;
+  m2Paredes: number;
+  m2Teto: number;
 };
 
 const IVA_PERCENTAGEM = 0.23;
@@ -56,24 +58,27 @@ export function calcularOrcamentoPintura(
   const materiais: LinhaCalculada[] = [];
   const maoDeObra: LinhaCalculada[] = [];
 
-  let m2Total = 0;
+  let m2Paredes = 0;
   const paredesAPintar = config.paredes.filter((p) => p.pintar);
   if (paredesAPintar.length > 0) {
     const m2ParedesBruto = paredesAPintar.reduce((s, p) => s + p.larguraM * peDireito, 0);
-    const m2Paredes = Math.max(0, arred(m2ParedesBruto - (config.areaAberturasM2 || 0), 2));
-    m2Total += m2Paredes;
+    m2Paredes = Math.max(0, arred(m2ParedesBruto - (config.areaAberturasM2 || 0), 2));
   }
-  if (config.pintarTeto) {
-    m2Total += arred(comprimento * largura, 2);
-  }
+  const m2Teto = config.pintarTeto ? arred(comprimento * largura, 2) : 0;
+  const m2Total = arred(m2Paredes + m2Teto, 2);
 
   if (m2Total > 0) {
     addLinha(maoDeObra, precos, 'acabamento_placa', m2Total);
     addLinha(maoDeObra, precos, 'primario', m2Total);
+    addLinha(materiais, precos, 'primario_material', m2Total);
     addLinha(maoDeObra, precos, config.demaos === 2 ? 'pintura_2demaos' : 'pintura_1demao', m2Total);
 
-    const chaveTinta = config.qualidadeTinta === 'extrema' ? 'tinta_extrema' : config.qualidadeTinta === 'normal_alta' ? 'tinta_normal_alta' : 'tinta_normal';
-    addLinha(materiais, precos, chaveTinta, arred(m2Total * config.demaos, 2));
+    // Parede e teto usam produtos diferentes mesmo dentro da mesma gama de
+    // qualidade (ex: tinta lisa na parede, tinta específica de teto), por
+    // isso têm chaves de material próprias.
+    const sufixo = config.qualidadeTinta === 'extrema' ? 'extrema' : config.qualidadeTinta === 'normal_alta' ? 'normal_alta' : 'normal';
+    if (m2Paredes > 0) addLinha(materiais, precos, `tinta_parede_${sufixo}`, arred(m2Paredes * config.demaos, 2));
+    if (m2Teto > 0) addLinha(materiais, precos, `tinta_teto_${sufixo}`, arred(m2Teto * config.demaos, 2));
   }
 
   const totalMateriais = arred(materiais.reduce((s, m) => s + m.valor, 0));
@@ -82,7 +87,7 @@ export function calcularOrcamentoPintura(
   const iva = arred(subtotal * IVA_PERCENTAGEM);
   const total = arred(subtotal + iva);
 
-  return { materiais, maoDeObra, totalMateriais, totalMaoDeObra, subtotal, iva, total, m2Total };
+  return { materiais, maoDeObra, totalMateriais, totalMaoDeObra, subtotal, iva, total, m2Total, m2Paredes, m2Teto };
 }
 
 export function tabelaPrecosParaMapa(itens: PrecoItem[]): TabelaPrecos {

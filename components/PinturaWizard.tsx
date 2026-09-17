@@ -19,7 +19,7 @@ function gerarId() {
 }
 
 function configVazia(comprimento: number, largura: number, base?: ParedePintura[]): PinturaConfig {
-  return { paredes: base && base.length > 0 ? base : paredesPorDefeito(comprimento, largura), pintarTeto: false, demaos: 2, qualidadeTinta: 'normal', areaAberturasM2: 0 };
+  return { paredes: base && base.length > 0 ? base : paredesPorDefeito(comprimento, largura), pintarTeto: false, demaos: 2, qualidadeTinta: 'normal', areaAberturasM2: 0, precisaNivelamento: true };
 }
 
 const LABEL_LADO: Record<string, string> = { norte: 'Norte', sul: 'Sul', este: 'Este', oeste: 'Oeste' };
@@ -27,7 +27,7 @@ const LABEL_GAMA: Record<QualidadeTinta, string> = { normal: 'Média Baixa', nor
 
 function camadasPintura(config: PinturaConfig): Camada[] {
   return [
-    { label: 'Massa fina / acabamento', descricao: 'Nivelamento da superfície', cor: '#e5e7eb' },
+    ...(config.precisaNivelamento ? [{ label: 'Massa fina / acabamento', descricao: 'Nivelamento da superfície', cor: '#e5e7eb' }] : []),
     { label: 'Primário', descricao: 'Fundo preparador', cor: '#fef3c7' },
     { label: `Tinta — gama ${LABEL_GAMA[config.qualidadeTinta]}`, descricao: `${config.demaos} demão${config.demaos > 1 ? 's' : ''}`, cor: '#93c5fd' },
   ];
@@ -58,7 +58,11 @@ export default function PinturaWizard({
   const [largura, setLargura] = useState(configInicial?.largura || espacoPartilhado?.largura || 3);
   const [peDireito, setPeDireito] = useState(configInicial?.peDireito || espacoPartilhado?.peDireito || 2.6);
   const [config, setConfig] = useState<PinturaConfig>(() => {
-    if (configInicial?.config) return configInicial.config;
+    if (configInicial?.config) {
+      // Configs guardadas antes deste campo existir assumem o comportamento
+      // antigo (cobrava sempre), para não mudar o preço de orçamentos já feitos.
+      return { ...configInicial.config, precisaNivelamento: configInicial.config.precisaNivelamento ?? true };
+    }
     const base = paredesPladur && paredesPladur.length > 0
       ? paredesPladur.map((p, idx) => ({ id: p.lado || `pladur-${idx}`, larguraM: p.larguraM, pintar: true, lado: p.lado }))
       : undefined;
@@ -137,8 +141,16 @@ export default function PinturaWizard({
         <Plus size={13} /> Adicionar parede
       </button>
 
-      <label className="flex items-center gap-1.5 text-sm text-ink-600 mb-4">
+      <label className="flex items-center gap-1.5 text-sm text-ink-600 mb-2">
         <input type="checkbox" checked={config.pintarTeto} onChange={(e) => setConfig({ ...config, pintarTeto: e.target.checked })} /> Pintar teto
+      </label>
+
+      <label className="flex items-start gap-1.5 text-sm text-ink-600 mb-4">
+        <input type="checkbox" checked={config.precisaNivelamento} onChange={(e) => setConfig({ ...config, precisaNivelamento: e.target.checked })} className="mt-0.5" />
+        <span>
+          Precisa de massa de nivelamento antes de pintar
+          <span className="block text-xs text-ink-400">Pladur novo ou parede/teto degradado — desmarca se a superfície já está lisa e só precisa de repintar</span>
+        </span>
       </label>
 
       {config.paredes.some((p) => p.pintar) && (

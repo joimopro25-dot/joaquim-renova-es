@@ -17,6 +17,10 @@ export type PinturaConfig = {
   demaos: 1 | 2;
   qualidadeTinta: QualidadeTinta;
   areaAberturasM2: number; // descontado da área total de paredes (portas/janelas), opcional
+  // Nem toda a pintura precisa de massa fina/nivelamento antes — só quando a
+  // superfície é pladur novo OU uma parede antiga degradada/irregular. Uma
+  // parede já em bom estado só precisa de primário + tinta.
+  precisaNivelamento: boolean;
 };
 
 export type PrecoItem = { id: string; chave: string; descricao: string; unidade: string; preco: number; predefinido?: boolean };
@@ -71,7 +75,10 @@ export function calcularOrcamentoPintura(
   const m2Total = arred(m2Paredes + m2Teto, 2);
 
   if (m2Total > 0) {
-    addLinha(maoDeObra, precos, 'acabamento_placa', m2Total);
+    // Configs antigas (guardadas antes deste campo existir) mantêm o
+    // comportamento anterior — cobrar sempre — só passa a ser opcional daqui
+    // para a frente.
+    if (config.precisaNivelamento !== false) addLinha(maoDeObra, precos, 'acabamento_placa', m2Total);
     addLinha(maoDeObra, precos, 'primario', m2Total);
     addLinha(materiais, precos, 'primario_material', m2Total);
     addLinha(maoDeObra, precos, config.demaos === 2 ? 'pintura_2demaos' : 'pintura_1demao', m2Total);

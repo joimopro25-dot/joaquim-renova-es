@@ -40,12 +40,6 @@ type DivisaoPlanta = {
   pladur_config: PladurConfigCompleta | null;
 };
 
-const SECCOES: { tipo: string; label: string }[] = [
-  { tipo: 'material', label: 'Material' },
-  { tipo: 'mao_obra', label: 'Mão de Obra' },
-  { tipo: 'subcontratada', label: 'Especialidades Subcontratadas' },
-];
-
 export default function RelatorioOrcamento() {
   const { id } = useParams<{ id: string }>();
   const [orcamento, setOrcamento] = useState<Orcamento | null>(null);
@@ -71,9 +65,14 @@ export default function RelatorioOrcamento() {
     carregar();
   }, [id]);
 
-  const linhasPorSeccao = useMemo(() => {
+  // Agrupado por capítulo (não por material/mão de obra) — o cliente vê um
+  // preço único por trabalho, não a decomposição de custos. Evita que o
+  // cliente compare preços de material item a item ou calcule o valor da
+  // mão de obra à hora, o que corrói a margem de negociação e a perceção
+  // de profissionalismo.
+  const linhasPorCapitulo = useMemo(() => {
     const grupos: Record<string, Linha[]> = {};
-    for (const l of linhas) (grupos[l.tipo_linha] ||= []).push(l);
+    for (const l of linhas) (grupos[l.capitulo || 'Geral'] ||= []).push(l);
     return grupos;
   }, [linhas]);
 
@@ -109,43 +108,28 @@ export default function RelatorioOrcamento() {
       <h2 className="font-semibold text-ink-800 mb-1">{orcamento.titulo}</h2>
       {orcamento.descricao && <p className="text-sm text-ink-500 mb-4">{orcamento.descricao}</p>}
 
-      <div className="space-y-6 mb-6">
-        {SECCOES.map(({ tipo, label }) => {
-          const itens = linhasPorSeccao[tipo] || [];
-          if (itens.length === 0) return null;
-          const subtotalSec = itens.reduce((s, l) => s + l.preco_total, 0);
-          return (
-            <div key={tipo}>
-              <div className="bg-ink-800 text-white text-sm font-semibold px-3 py-1.5 rounded-t-lg">{label}</div>
-              <table className="w-full text-left text-sm border border-t-0 border-sand-200 rounded-b-lg overflow-hidden">
-                <thead className="bg-sand-50 text-ink-500">
-                  <tr>
-                    <th className="p-2 border-b border-sand-200">Descrição</th>
-                    <th className="p-2 border-b border-sand-200 text-right">Un</th>
-                    <th className="p-2 border-b border-sand-200 text-right">Qtd</th>
-                    <th className="p-2 border-b border-sand-200 text-right">Preço Un.</th>
-                    <th className="p-2 border-b border-sand-200 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {itens.map((l) => (
-                    <tr key={l.id} className="border-b border-sand-100">
-                      <td className="p-2">{l.descricao}</td>
-                      <td className="p-2 text-right text-ink-500">{l.unidade}</td>
-                      <td className="p-2 text-right text-ink-500">{l.quantidade}</td>
-                      <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario_final)}</td>
-                      <td className="p-2 text-right font-medium">{formatMoney(l.preco_total)}</td>
-                    </tr>
-                  ))}
-                  <tr className="bg-sand-50 font-medium">
-                    <td colSpan={4} className="p-2 text-right text-ink-600">Subtotal {label}</td>
-                    <td className="p-2 text-right">{formatMoney(subtotalSec)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          );
-        })}
+      <div className="mb-6">
+        <div className="bg-ink-800 text-white text-sm font-semibold px-3 py-1.5 rounded-t-lg">Trabalhos a Realizar</div>
+        <table className="w-full text-left text-sm border border-t-0 border-sand-200 rounded-b-lg overflow-hidden">
+          <thead className="bg-sand-50 text-ink-500">
+            <tr>
+              <th className="p-2 border-b border-sand-200">Descrição</th>
+              <th className="p-2 border-b border-sand-200 text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(linhasPorCapitulo).map(([capitulo, itens]) => {
+              const totalCapitulo = itens.reduce((s, l) => s + l.preco_total, 0);
+              const label = capitulo === 'Geral' ? orcamento.titulo : capitulo.replace(' · ', ' — ');
+              return (
+                <tr key={capitulo} className="border-b border-sand-100">
+                  <td className="p-2">{label}</td>
+                  <td className="p-2 text-right font-medium">{formatMoney(totalCapitulo)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       <div className="flex justify-end mb-8">

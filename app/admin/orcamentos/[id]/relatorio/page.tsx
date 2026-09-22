@@ -46,20 +46,25 @@ export default function RelatorioOrcamento() {
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [divisoes, setDivisoes] = useState<DivisaoPlanta[]>([]);
+  const [descricoesCapitulos, setDescricoesCapitulos] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function carregar() {
-      const [{ data: orc }, { data: linhasData }, { data: fotosData }, { data: divisoesData }] = await Promise.all([
+      const [{ data: orc }, { data: linhasData }, { data: fotosData }, { data: divisoesData }, { data: capitulosData }] = await Promise.all([
         supabase.from('orcamentos').select('titulo, descricao, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem, criado_em, clientes(nome, nif, morada)').eq('id', id).single(),
         supabase.from('orcamento_linhas_cliente').select('*').eq('orcamento_id', id).order('criado_em'),
         supabase.from('orcamento_fotos').select('id, url, legenda').eq('orcamento_id', id).order('criado_em', { ascending: false }),
         supabase.from('orcamento_divisoes').select('id, label, pladur_config').eq('orcamento_id', id).order('criado_em'),
+        supabase.from('orcamento_capitulos').select('capitulo, descricao').eq('orcamento_id', id),
       ]);
       setOrcamento(orc as any);
       setLinhas(linhasData || []);
       setFotos(fotosData || []);
       setDivisoes(((divisoesData as any) || []).filter((d: DivisaoPlanta) => d.pladur_config));
+      const mapaDescricoes: Record<string, string> = {};
+      for (const c of (capitulosData as any) || []) if (c.descricao) mapaDescricoes[c.capitulo] = c.descricao;
+      setDescricoesCapitulos(mapaDescricoes);
       setLoading(false);
     }
     carregar();
@@ -121,9 +126,13 @@ export default function RelatorioOrcamento() {
             {Object.entries(linhasPorCapitulo).map(([capitulo, itens]) => {
               const totalCapitulo = itens.reduce((s, l) => s + l.preco_total, 0);
               const label = capitulo === 'Geral' ? orcamento.titulo : capitulo.replace(' · ', ' — ');
+              const descricaoCapitulo = descricoesCapitulos[capitulo];
               return (
-                <tr key={capitulo} className="border-b border-sand-100">
-                  <td className="p-2">{label}</td>
+                <tr key={capitulo} className="border-b border-sand-100 align-top">
+                  <td className="p-2">
+                    <p className="font-medium text-ink-800">{label}</p>
+                    {descricaoCapitulo && <p className="text-ink-500 mt-1">{descricaoCapitulo}</p>}
+                  </td>
                   <td className="p-2 text-right font-medium">{formatMoney(totalCapitulo)}</td>
                 </tr>
               );

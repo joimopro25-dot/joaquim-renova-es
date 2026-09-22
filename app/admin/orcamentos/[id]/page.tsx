@@ -17,6 +17,7 @@ import { EletricaConfig } from '../../../../lib/eletrica';
 type Linha = {
   id: string;
   descricao: string;
+  capitulo: string;
   unidade: string;
   quantidade: number;
   tipo_linha: string; // 'material' | 'mao_obra' | 'subcontratada'
@@ -128,15 +129,23 @@ export default function OrcamentoDetalhePage() {
   const [temAcessoPortal, setTemAcessoPortal] = useState<boolean | null>(null);
   const [aConvidar, setAConvidar] = useState(false);
 
+  const [descricoesCapitulos, setDescricoesCapitulos] = useState<Record<string, string>>({});
+  const [capituloAGerar, setCapituloAGerar] = useState<string | null>(null);
+  const [capituloAGuardar, setCapituloAGuardar] = useState<string | null>(null);
+
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: orc }, { data: linhasData }, { data: fotosData }, { data: fornecedoresData }] = await Promise.all([
+    const [{ data: orc }, { data: linhasData }, { data: fotosData }, { data: fornecedoresData }, { data: capitulosData }] = await Promise.all([
       supabase.from('orcamentos').select('*, clientes(nome, email)').eq('id', id).single(),
       supabase.from('orcamento_linhas').select('*, fornecedores(nome)').eq('orcamento_id', id).order('criado_em'),
       supabase.from('orcamento_fotos').select('*').eq('orcamento_id', id).order('criado_em', { ascending: false }),
       supabase.from('fornecedores').select('id, nome').order('nome'),
+      supabase.from('orcamento_capitulos').select('capitulo, descricao').eq('orcamento_id', id),
     ]);
     setOrcamento(orc as any);
+    const mapaDescricoes: Record<string, string> = {};
+    for (const c of (capitulosData as any) || []) mapaDescricoes[c.capitulo] = c.descricao || '';
+    setDescricoesCapitulos(mapaDescricoes);
     if ((orc as any)?.cliente_id) {
       const { data: perfil } = await supabase.from('perfis').select('id').eq('cliente_id', (orc as any).cliente_id).maybeSingle();
       setTemAcessoPortal(!!perfil);
@@ -308,6 +317,33 @@ export default function OrcamentoDetalhePage() {
     carregar();
   }
 
+  async function gerarDescricaoCapitulo(capitulo: string, itens: Linha[]) {
+    setCapituloAGerar(capitulo);
+    const { data: sessao } = await supabase.auth.getSession();
+    const resp = await fetch('/api/orcamentos/resumir-capitulo', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${sessao.session?.access_token}` },
+      body: JSON.stringify({
+        capitulo,
+        itens: itens.map((l) => ({ descricao: l.descricao, unidade: l.unidade, quantidade: l.quantidade })),
+      }),
+    });
+    const json = await resp.json();
+    setCapituloAGerar(null);
+    if (!resp.ok) { alert('Erro ao gerar descrição: ' + json.error); return; }
+    setDescricoesCapitulos((prev) => ({ ...prev, [capitulo]: json.descricao }));
+  }
+
+  async function guardarDescricaoCapitulo(capitulo: string) {
+    setCapituloAGuardar(capitulo);
+    const { error } = await supabase.from('orcamento_capitulos').upsert(
+      [{ orcamento_id: id, capitulo, descricao: descricoesCapitulos[capitulo] || '' }],
+      { onConflict: 'orcamento_id,capitulo' }
+    );
+    setCapituloAGuardar(null);
+    if (error) alert('Erro ao guardar: ' + error.message);
+  }
+
   async function removerLinha(linhaId: string) {
     await supabase.from('orcamento_linhas').delete().eq('id', linhaId);
     carregar();
@@ -414,6 +450,9 @@ export default function OrcamentoDetalhePage() {
   const linhasMaterial = linhas.filter((l) => l.tipo_linha === 'material');
   const linhasMaoObra = linhas.filter((l) => l.tipo_linha === 'mao_obra');
   const linhasSubcontratadas = linhas.filter((l) => l.tipo_linha === 'subcontratada');
+
+  const linhasPorCapitulo: Record<string, Linha[]> = {};
+  for (const l of linhas) (linhasPorCapitulo[l.capitulo || 'Geral'] ||= []).push(l);
 
   if (loading) return <div className="p-8 text-center text-ink-300 text-sm">A carregar...</div>;
   if (!orcamento) return <div className="p-8 text-center text-ink-400 text-sm">Orçamento não encontrado.</div>;
@@ -578,6 +617,43 @@ export default function OrcamentoDetalhePage() {
           <button onClick={() => setShowImportar(true)} className="btn-primary bg-purple-600 hover:bg-purple-700 text-sm py-1.5">
             <Upload size={15} /> Importar Documento
           </button>
+        </div>
+      )}
+
+      {Object.keys(linhasPorCapitulo).length > 0 && (
+        <div className="card p-6 mb-6">
+          <h3 className="font-semibold text-ink-700 mb-1">Descrições para o Cliente</h3>
+          <p className="text-xs text-ink-400 mb-4">O cliente vê um preço único por trabalho (sem discriminação de material/mão de obra). Usa este texto para explicar o âmbito técnico de cada trabalho — gera um rascunho com IA e ajusta como quiseres.</p>
+          <div className="space-y-4">
+            {Object.entries(linhasPorCapitulo).map(([capitulo, itens]) => (
+              <div key={capitulo} className="border border-sand-200 rounded-lg p-3">
+                <p className="text-sm font-medium text-ink-700 mb-2">{capitulo}</p>
+                <textarea
+                  value={descricoesCapitulos[capitulo] || ''}
+                  onChange={(e) => setDescricoesCapitulos((prev) => ({ ...prev, [capitulo]: e.target.value }))}
+                  rows={3}
+                  placeholder="Ex: Execução de muro em blocos de cimento com duas fiadas, incluindo amarração ao muro existente, chapeleira com pingadeira e acabamento em barramento com rede de fibra de vidro e raiado."
+                  className="input w-full text-sm"
+                />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => gerarDescricaoCapitulo(capitulo, itens)}
+                    disabled={capituloAGerar === capitulo}
+                    className="btn-primary bg-purple-600 hover:bg-purple-700 text-xs py-1.5"
+                  >
+                    <Sparkles size={14} /> {capituloAGerar === capitulo ? 'A gerar...' : 'Gerar com IA'}
+                  </button>
+                  <button
+                    onClick={() => guardarDescricaoCapitulo(capitulo)}
+                    disabled={capituloAGuardar === capitulo}
+                    className="btn-primary bg-ink-700 hover:bg-ink-800 text-xs py-1.5"
+                  >
+                    {capituloAGuardar === capitulo ? 'A guardar...' : 'Guardar'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

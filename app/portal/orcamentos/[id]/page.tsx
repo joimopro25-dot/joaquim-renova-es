@@ -39,30 +39,29 @@ const ESTADOS: Record<string, { label: string; color: string }> = {
   convertido: { label: 'Convertido em Obra', color: 'bg-purple-100 text-purple-700' },
 };
 
-const SECCOES: { tipo: string; label: string }[] = [
-  { tipo: 'material', label: 'Material' },
-  { tipo: 'mao_obra', label: 'Mão de Obra' },
-  { tipo: 'subcontratada', label: 'Especialidades Subcontratadas' },
-];
-
 export default function PortalOrcamentoDetalhe() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [orcamento, setOrcamento] = useState<Orcamento | null>(null);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [fotos, setFotos] = useState<Foto[]>([]);
+  const [descricoesCapitulos, setDescricoesCapitulos] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [processando, setProcessando] = useState(false);
 
   async function carregar() {
-    const [{ data: orc }, { data: linhasData }, { data: fotosData }] = await Promise.all([
+    const [{ data: orc }, { data: linhasData }, { data: fotosData }, { data: capitulosData }] = await Promise.all([
       supabase.from('orcamentos').select('id, titulo, descricao, status, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem, precos_libertados').eq('id', id).single(),
       supabase.from('orcamento_linhas_cliente').select('*').eq('orcamento_id', id).order('criado_em'),
       supabase.from('orcamento_fotos').select('id, url, legenda').eq('orcamento_id', id).order('criado_em', { ascending: false }),
+      supabase.from('orcamento_capitulos').select('capitulo, descricao').eq('orcamento_id', id),
     ]);
     setOrcamento(orc as any);
     setLinhas(linhasData || []);
     setFotos(fotosData || []);
+    const mapaDescricoes: Record<string, string> = {};
+    for (const c of (capitulosData as any) || []) if (c.descricao) mapaDescricoes[c.capitulo] = c.descricao;
+    setDescricoesCapitulos(mapaDescricoes);
     setLoading(false);
   }
 
@@ -76,9 +75,9 @@ export default function PortalOrcamentoDetalhe() {
     carregar();
   }
 
-  const linhasPorSeccao = useMemo(() => {
+  const linhasPorCapitulo = useMemo(() => {
     const grupos: Record<string, Linha[]> = {};
-    for (const l of linhas) (grupos[l.tipo_linha] ||= []).push(l);
+    for (const l of linhas) (grupos[l.capitulo || 'Geral'] ||= []).push(l);
     return grupos;
   }, [linhas]);
 
@@ -122,45 +121,32 @@ export default function PortalOrcamentoDetalhe() {
         </div>
       )}
 
-      <div className="card p-6 mb-6 space-y-6">
-        {SECCOES.map(({ tipo, label }) => {
-          const itens = linhasPorSeccao[tipo] || [];
-          if (itens.length === 0) return null;
-          const subtotalSec = itens.reduce((s, l) => s + l.preco_total, 0);
-          return (
-            <div key={tipo} className="overflow-x-auto">
-              <div className="bg-ink-800 text-copper-200 text-sm font-semibold px-3 py-1.5 rounded-t-lg">{label}</div>
-              <table className="w-full text-left text-sm border border-t-0 border-sand-200 rounded-b-lg overflow-hidden">
-                <thead className="text-ink-400 text-xs uppercase bg-sand-50">
-                  <tr>
-                    <th className="p-2 font-medium">Descrição</th>
-                    <th className="p-2 font-medium text-right">Un</th>
-                    <th className="p-2 font-medium text-right">Qtd</th>
-                    {orcamento.precos_libertados && <th className="p-2 font-medium text-right">Preço un.</th>}
-                    {orcamento.precos_libertados && <th className="p-2 font-medium text-right">Total</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-sand-100">
-                  {itens.map((l) => (
-                    <tr key={l.id}>
-                      <td className="p-2 text-ink-800">{l.descricao}</td>
-                      <td className="p-2 text-right text-ink-500">{l.unidade}</td>
-                      <td className="p-2 text-right text-ink-500">{l.quantidade}</td>
-                      {orcamento.precos_libertados && <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario_final)}</td>}
-                      {orcamento.precos_libertados && <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(l.preco_total)}</td>}
-                    </tr>
-                  ))}
-                  {orcamento.precos_libertados && (
-                    <tr className="bg-sand-50 font-medium">
-                      <td colSpan={4} className="p-2 text-right text-ink-600">Subtotal {label}</td>
-                      <td className="p-2 text-right text-ink-800">{formatMoney(subtotalSec)}</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          );
-        })}
+      <div className="card p-6 mb-6 overflow-x-auto">
+        <div className="bg-ink-800 text-copper-200 text-sm font-semibold px-3 py-1.5 rounded-t-lg">Trabalhos a Realizar</div>
+        <table className="w-full text-left text-sm border border-t-0 border-sand-200 rounded-b-lg overflow-hidden">
+          <thead className="text-ink-400 text-xs uppercase bg-sand-50">
+            <tr>
+              <th className="p-2 font-medium">Descrição</th>
+              {orcamento.precos_libertados && <th className="p-2 font-medium text-right">Total</th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-sand-100">
+            {Object.entries(linhasPorCapitulo).map(([capitulo, itens]) => {
+              const totalCapitulo = itens.reduce((s, l) => s + l.preco_total, 0);
+              const label = capitulo === 'Geral' ? orcamento.titulo : capitulo.replace(' · ', ' — ');
+              const descricaoCapitulo = descricoesCapitulos[capitulo];
+              return (
+                <tr key={capitulo} className="align-top">
+                  <td className="p-2">
+                    <p className="text-ink-800 font-medium">{label}</p>
+                    {descricaoCapitulo && <p className="text-ink-500 mt-1">{descricaoCapitulo}</p>}
+                  </td>
+                  {orcamento.precos_libertados && <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(totalCapitulo)}</td>}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       {fotos.length > 0 && (

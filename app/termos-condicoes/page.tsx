@@ -22,10 +22,10 @@ export default function TermosCondicoes() {
               <h2 className="font-semibold text-ink-800 mb-2">1. Identificação</h2>
               <p>
                 O presente site e plataforma (projetarconforto.pt, incluindo o Portal do Cliente e o Backoffice) são
-                explorados por <strong>[Nome legal / firma completa a preencher]</strong>, com o NIPC/NIF{' '}
-                <strong>[a preencher]</strong>, com sede/domicílio profissional em <strong>[morada a preencher]</strong>,
-                doravante designada por "Projetar Conforto", "nós" ou "a Empresa". Contacto:{' '}
-                <strong>[email de contacto a preencher]</strong>.
+                explorados por <strong>Gomes de Oliveira & Oliveira, Lda.</strong> (marca comercial "Projetar Conforto"),
+                com o NIPC/NIF <strong>519645847</strong>, com sede/domicílio profissional em{' '}
+                <strong>Rua Poça do Pisco, 265, Vila Nova de Famalicão</strong>, doravante designada por "Projetar
+                Conforto", "nós" ou "a Empresa". Contacto: <strong>geral@projetarconforto.pt</strong>.
               </p>
             </section>
 

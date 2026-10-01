@@ -21,10 +21,11 @@ export default function PoliticaPrivacidade() {
             <section>
               <h2 className="font-semibold text-ink-800 mb-2">1. Responsável pelo Tratamento</h2>
               <p>
-                <strong>[Nome legal / firma completa a preencher]</strong>, NIPC/NIF <strong>[a preencher]</strong>,
-                com sede/domicílio profissional em <strong>[morada a preencher]</strong>, é a responsável pelo
-                tratamento dos dados pessoais recolhidos através de projetarconforto.pt e do Portal do Cliente.
-                Contacto para assuntos de privacidade: <strong>[email de contacto a preencher]</strong>.
+                <strong>Gomes de Oliveira & Oliveira, Lda.</strong> (marca comercial "Projetar Conforto"), NIPC/NIF{' '}
+                <strong>519645847</strong>, com sede/domicílio profissional em{' '}
+                <strong>Rua Poça do Pisco, 265, Vila Nova de Famalicão</strong>, é a responsável pelo tratamento dos
+                dados pessoais recolhidos através de projetarconforto.pt e do Portal do Cliente. Contacto para
+                assuntos de privacidade: <strong>geral@projetarconforto.pt</strong>.
               </p>
             </section>
 
@@ -74,7 +75,7 @@ export default function PoliticaPrivacidade() {
               <p>
                 Nos termos do RGPD, tem direito a aceder, retificar, apagar ou limitar o tratamento dos seus dados,
                 a opor-se ao tratamento, e à portabilidade dos dados, nos casos e termos previstos na lei. Pode
-                exercer estes direitos contactando-nos através de <strong>[email de contacto a preencher]</strong>.
+                exercer estes direitos contactando-nos através de <strong>geral@projetarconforto.pt</strong>.
                 Tem ainda o direito de apresentar reclamação junto da Comissão Nacional de Proteção de Dados (CNPD) —{' '}
                 <a href="https://www.cnpd.pt" target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">www.cnpd.pt</a>.
               </p>

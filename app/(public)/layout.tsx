@@ -46,6 +46,8 @@ const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'HomeAndConstructionBusiness',
   name: 'Projetar Conforto',
+  legalName: 'Gomes de Oliveira & Oliveira, Lda.',
+  taxID: '519645847',
   description: DESCRIPTION,
   url: SITE_URL,
   image: `${SITE_URL}/og-image.png`,

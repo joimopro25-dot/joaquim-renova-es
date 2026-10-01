@@ -176,6 +176,10 @@ export default function PortalOrcamentoDetalhe() {
           </div>
         </div>
       )}
+
+      <p className="text-xs text-ink-400 mt-6 text-center">
+        Projetar Conforto — Gomes de Oliveira &amp; Oliveira, Lda. · NIPC 519645847 · Rua Poça do Pisco, 265, Vila Nova de Famalicão · geral@projetarconforto.pt · 911 918 796 / 914 905 104
+      </p>
     </div>
   );
 }

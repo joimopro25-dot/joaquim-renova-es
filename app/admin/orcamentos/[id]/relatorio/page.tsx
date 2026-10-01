@@ -95,6 +95,9 @@ export default function RelatorioOrcamento() {
       <div className="border-b-2 border-ink-800 pb-4 mb-6">
         <h1 className="text-2xl font-heading font-bold text-ink-800">Projetar Conforto</h1>
         <p className="text-sm text-ink-500">Orçamento de obra</p>
+        <p className="text-xs text-ink-400 mt-1">
+          Gomes de Oliveira & Oliveira, Lda. · NIPC 519645847 · Rua Poça do Pisco, 265, Vila Nova de Famalicão · geral@projetarconforto.pt · 911 918 796 / 914 905 104
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-6 text-sm">

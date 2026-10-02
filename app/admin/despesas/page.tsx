@@ -10,10 +10,12 @@ import ScanFatura from './ScanFatura';
 type Obra = { id: string; titulo: string };
 type Subempreitada = { id: string; descricao: string };
 type Fornecedor = { id: string; nome: string };
+type AreaNegocio = { id: string; nome: string };
 type Despesa = {
   id: string;
   obra_id: string | null;
   subempreitada_id: string | null;
+  area_negocio_id: string | null;
   tipo_imputacao: string;
   descricao: string;
   categoria: string;
@@ -27,6 +29,7 @@ type Despesa = {
   obras: { titulo: string } | null;
   subempreitadas: { descricao: string } | null;
   fornecedores: { nome: string } | null;
+  areas_negocio: { nome: string } | null;
   despesa_itens: DespesaItem[];
 };
 
@@ -132,6 +135,10 @@ export default function DespesasPage() {
   const [dividir, setDividir] = useState(false);
 
   const [destino, setDestino] = useState('');
+  const [areaNegocioId, setAreaNegocioId] = useState('');
+  const [novaAreaNegocioNome, setNovaAreaNegocioNome] = useState('');
+  const [aCriarAreaNegocio, setACriarAreaNegocio] = useState(false);
+  const [areasNegocio, setAreasNegocio] = useState<AreaNegocio[]>([]);
   const [descricao, setDescricao] = useState('');
   const [categoria, setCategoria] = useState('material');
   const [valor, setValor] = useState('');
@@ -167,7 +174,7 @@ export default function DespesasPage() {
 
   async function carregar() {
     setLoading(true);
-    let query = supabase.from('despesas').select('*, obras(titulo), subempreitadas(descricao), fornecedores(nome), despesa_itens(id, descricao, quantidade, preco_unitario, desconto_percentagem, iva_percentagem)').order('data_despesa', { ascending: false });
+    let query = supabase.from('despesas').select('*, obras(titulo), subempreitadas(descricao), fornecedores(nome), areas_negocio(nome), despesa_itens(id, descricao, quantidade, preco_unitario, desconto_percentagem, iva_percentagem)').order('data_despesa', { ascending: false });
 
     if (filtroDestino === OPCAO_GERAL) query = query.is('obra_id', null).is('subempreitada_id', null);
     else if (filtroDestino.startsWith('obra:')) query = query.eq('obra_id', filtroDestino.split(':')[1]);
@@ -181,16 +188,18 @@ export default function DespesasPage() {
     if (inicio) query = query.gte('data_despesa', inicio);
     if (fim) query = query.lte('data_despesa', fim);
 
-    const [{ data: despesasData }, { data: obrasData }, { data: subsData }, { data: fornecedoresData }] = await Promise.all([
+    const [{ data: despesasData }, { data: obrasData }, { data: subsData }, { data: fornecedoresData }, { data: areasData }] = await Promise.all([
       query,
       supabase.from('obras').select('id, titulo').order('titulo'),
       supabase.from('subempreitadas').select('id, descricao').order('descricao'),
       supabase.from('fornecedores').select('id, nome').order('nome'),
+      supabase.from('areas_negocio').select('id, nome').order('nome'),
     ]);
     setDespesas((despesasData as any) || []);
     setObras(obrasData || []);
     setSubs(subsData || []);
     setFornecedores(fornecedoresData || []);
+    setAreasNegocio(areasData || []);
     setLoading(false);
   }
 
@@ -217,6 +226,17 @@ export default function DespesasPage() {
     setNovoFornecedorNome('');
   }
 
+  async function criarAreaNegocioRapido() {
+    if (!novaAreaNegocioNome.trim()) return;
+    setACriarAreaNegocio(true);
+    const { data, error } = await supabase.from('areas_negocio').insert([{ nome: novaAreaNegocioNome.trim() }]).select().single();
+    setACriarAreaNegocio(false);
+    if (error) { alert('Erro: ' + error.message); return; }
+    setAreasNegocio((prev) => [...prev, data].sort((a, b) => a.nome.localeCompare(b.nome)));
+    setAreaNegocioId(data.id);
+    setNovaAreaNegocioNome('');
+  }
+
   function toggleMes(chave: string) {
     setMesesColapsados((prev) => {
       const next = new Set(prev);
@@ -226,7 +246,7 @@ export default function DespesasPage() {
   }
 
   function resetForm() {
-    setDestino(''); setDescricao(''); setCategoria('material'); setValor(''); setFornecedorId(''); setNovoFornecedorNome('');
+    setDestino(''); setAreaNegocioId(''); setNovaAreaNegocioNome(''); setDescricao(''); setCategoria('material'); setValor(''); setFornecedorId(''); setNovoFornecedorNome('');
     setDataDespesa(new Date().toISOString().slice(0, 10)); setFicheiro(null); setTipoImputacao('custo');
     setEstadoPagamento('pago'); setDataPagamento(new Date().toISOString().slice(0, 10));
     setLinhas([
@@ -241,6 +261,7 @@ export default function DespesasPage() {
   function abrirEditar(d: Despesa) {
     setEditandoId(d.id);
     setDestino(d.subempreitada_id ? `sub:${d.subempreitada_id}` : d.obra_id ? `obra:${d.obra_id}` : OPCAO_GERAL);
+    setAreaNegocioId(d.area_negocio_id || '');
     setDescricao(d.descricao);
     setCategoria(d.categoria);
     setValor(String(d.valor));
@@ -283,6 +304,7 @@ export default function DespesasPage() {
         if (!destino) { alert('Escolhe uma obra, subempreitada ou "Despesa Geral".'); setUploading(false); return; }
         const update: Record<string, any> = {
           ...parseDestino(destino),
+          area_negocio_id: destino === OPCAO_GERAL ? (areaNegocioId || null) : null,
           descricao,
           categoria,
           valor: parseFloat(valor) || 0,
@@ -309,6 +331,7 @@ export default function DespesasPage() {
           const valorGrupo = itensGrupo.reduce((s, l) => s + subtotalLinhaItem(l), 0);
           const { data: despesaGrupo, error: erroGrupo } = await supabase.from('despesas').insert([{
             ...parseDestino(dest),
+            area_negocio_id: dest === OPCAO_GERAL ? (areaNegocioId || null) : null,
             descricao,
             categoria,
             valor: valorGrupo,
@@ -339,6 +362,7 @@ export default function DespesasPage() {
 
         const { error } = await supabase.from('despesas').insert([{
           ...parseDestino(destino),
+          area_negocio_id: destino === OPCAO_GERAL ? (areaNegocioId || null) : null,
           descricao,
           categoria,
           valor: parseFloat(valor) || 0,
@@ -389,6 +413,7 @@ export default function DespesasPage() {
     const { error } = await supabase.from('despesas').insert([{
       obra_id: duplicando.obra_id,
       subempreitada_id: duplicando.subempreitada_id,
+      area_negocio_id: duplicando.area_negocio_id,
       descricao: duplicando.descricao,
       categoria: duplicando.categoria,
       valor: duplicando.valor,
@@ -412,7 +437,7 @@ export default function DespesasPage() {
   function destinoLabel(d: Despesa) {
     if (d.subempreitada_id) return d.subempreitadas?.descricao || '—';
     if (d.obra_id) return d.obras?.titulo || '—';
-    return 'Geral';
+    return d.areas_negocio?.nome ? `Geral · ${d.areas_negocio.nome}` : 'Geral';
   }
 
   return (
@@ -557,6 +582,19 @@ export default function DespesasPage() {
                   )}
                 </select>
                 <input type="number" step="0.01" placeholder="Valor (€)" value={valor} onChange={(e) => setValor(e.target.value)} className="input" required />
+
+                {destino === OPCAO_GERAL && (
+                  <div className="md:col-span-3 flex items-center gap-2">
+                    <select value={areaNegocioId} onChange={(e) => setAreaNegocioId(e.target.value)} className="input flex-1">
+                      <option value="">Sem área de negócio definida</option>
+                      {areasNegocio.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                    </select>
+                    <input type="text" placeholder="Ou cria uma nova área (ex: Imobiliário)" value={novaAreaNegocioNome} onChange={(e) => setNovaAreaNegocioNome(e.target.value)} className="input flex-1 text-sm" />
+                    <button type="button" onClick={criarAreaNegocioRapido} disabled={!novaAreaNegocioNome.trim() || aCriarAreaNegocio} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 text-sm py-1.5 disabled:opacity-50 shrink-0">
+                      {aCriarAreaNegocio ? 'A criar...' : '+ Área'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

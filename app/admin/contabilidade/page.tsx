@@ -148,6 +148,12 @@ export default function ContabilidadePage() {
   const [resumo, setResumo] = useState<{ totalDespesas: number; totalReceitas: number; numDespesas: number; numReceitas: number } | null>(null);
   const [aEnviarEmail, setAEnviarEmail] = useState(false);
   const [enviado, setEnviado] = useState(false);
+  const [aCarregarPreview, setACarregarPreview] = useState(false);
+  const [erroPreview, setErroPreview] = useState('');
+  const [preview, setPreview] = useState<{
+    totalDespesas: number; numDespesas: number; totalReceitas: number; numReceitas: number;
+    documentos: { nome: string; origem: string }[]; extratos: { nome: string }[];
+  } | null>(null);
 
   const [resumoTrimestre, setResumoTrimestre] = useState<{ totalDespesas: number; totalReceitas: number } | null>(null);
   const [resumoAno, setResumoAno] = useState<DadosTrimestre[] | null>(null);
@@ -251,8 +257,22 @@ export default function ContabilidadePage() {
     if (error) alert('Erro ao guardar: ' + error.message);
   }
 
-  async function enviarAoContabilista() {
-    if (!confirm(`Enviar o resumo de ${labelMes(mes)} (despesas, receitas e extratos anexados) para a contabilista?`)) return;
+  async function prepararPreview() {
+    setACarregarPreview(true);
+    setErroPreview('');
+    const { data: sessao } = await supabase.auth.getSession();
+    const resp = await fetch('/api/contabilidade/enviar-mensal', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${sessao.session?.access_token}` },
+      body: JSON.stringify({ mes, modo: 'preview' }),
+    });
+    const json = await resp.json();
+    setACarregarPreview(false);
+    if (!resp.ok) { setErroPreview(json.error || 'Erro ao preparar a pré-visualização.'); return; }
+    setPreview(json);
+  }
+
+  async function confirmarEnvio() {
     setAEnviarEmail(true);
     const { data: sessao } = await supabase.auth.getSession();
     const resp = await fetch('/api/contabilidade/enviar-mensal', {
@@ -263,6 +283,7 @@ export default function ContabilidadePage() {
     const json = await resp.json();
     setAEnviarEmail(false);
     if (!resp.ok) { alert('Erro ao enviar: ' + json.error); return; }
+    setPreview(null);
     setEnviado(true);
   }
 
@@ -291,11 +312,65 @@ export default function ContabilidadePage() {
             </div>
           </div>
         )}
-        <button onClick={enviarAoContabilista} disabled={aEnviarEmail} className="btn-primary bg-blue-600 hover:bg-blue-700 disabled:opacity-60">
-          <Send size={16} /> {aEnviarEmail ? 'A enviar...' : enviado ? 'Enviado — reenviar?' : 'Enviar ao Contabilista'}
+        <button onClick={prepararPreview} disabled={aCarregarPreview} className="btn-primary bg-blue-600 hover:bg-blue-700 disabled:opacity-60">
+          <Send size={16} /> {aCarregarPreview ? 'A preparar...' : enviado ? 'Enviado — rever e reenviar?' : 'Rever e Enviar ao Contabilista'}
         </button>
+        {erroPreview && <p className="text-xs text-red-600 mt-2">{erroPreview}</p>}
         {enviado && <p className="text-xs text-green-600 mt-2">Email enviado com sucesso para a contabilista (com cópia para ti).</p>}
       </div>
+
+      {preview && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 max-h-[85vh] overflow-y-auto">
+            <h3 className="font-semibold text-ink-800 mb-1">Confirmar envio — {labelMes(mes)}</h3>
+            <p className="text-xs text-ink-400 mb-4">Revê exatamente o que vai ser enviado à contabilista antes de confirmares.</p>
+
+            <div className="grid grid-cols-2 gap-3 text-sm mb-4">
+              <div className="p-3 bg-sand-50 rounded-lg">
+                <p className="text-ink-400 text-xs uppercase">Despesas</p>
+                <p className="font-semibold text-ink-800">{formatMoney(preview.totalDespesas)}</p>
+                <p className="text-ink-400 text-xs">{preview.numDespesas} registo{preview.numDespesas !== 1 ? 's' : ''}</p>
+              </div>
+              <div className="p-3 bg-sand-50 rounded-lg">
+                <p className="text-ink-400 text-xs uppercase">Receitas</p>
+                <p className="font-semibold text-ink-800">{formatMoney(preview.totalReceitas)}</p>
+                <p className="text-ink-400 text-xs">{preview.numReceitas} registo{preview.numReceitas !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+
+            <p className="text-sm font-medium text-ink-700 mb-1">Documentos oficiais anexados ({preview.documentos.length})</p>
+            {preview.documentos.length === 0 ? (
+              <p className="text-xs text-amber-600 mb-3">Nenhum documento anexado às despesas/receitas deste mês — considera anexar faturas/recibos antes de enviar.</p>
+            ) : (
+              <ul className="text-xs text-ink-600 mb-3 space-y-1 max-h-32 overflow-y-auto">
+                {preview.documentos.map((d, i) => (
+                  <li key={i} className="flex items-center gap-1.5"><Paperclip size={11} className="text-ink-300 shrink-0" /> {d.nome} <span className="text-ink-400">— {d.origem}</span></li>
+                ))}
+              </ul>
+            )}
+
+            <p className="text-sm font-medium text-ink-700 mb-1">Extratos bancários ({preview.extratos.length})</p>
+            {preview.extratos.length === 0 ? (
+              <p className="text-xs text-amber-600 mb-4">Nenhum extrato carregado para este mês.</p>
+            ) : (
+              <ul className="text-xs text-ink-600 mb-4 space-y-1">
+                {preview.extratos.map((e, i) => (
+                  <li key={i} className="flex items-center gap-1.5"><Paperclip size={11} className="text-ink-300 shrink-0" /> {e.nome}</li>
+                ))}
+              </ul>
+            )}
+
+            <p className="text-xs text-ink-400 mb-4">Também vão 2 ficheiros CSV (despesas e receitas) com o detalhe linha a linha.</p>
+
+            <div className="flex gap-2">
+              <button onClick={() => setPreview(null)} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 flex-1 justify-center">Cancelar</button>
+              <button onClick={confirmarEnvio} disabled={aEnviarEmail} className="btn-primary bg-blue-600 hover:bg-blue-700 flex-1 justify-center disabled:opacity-60">
+                {aEnviarEmail ? 'A enviar...' : 'Confirmar e Enviar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {resumoTrimestre && (() => {
         const [ano, mesNum] = mes.split('-').map(Number);

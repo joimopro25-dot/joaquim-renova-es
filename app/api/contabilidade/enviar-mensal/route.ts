@@ -25,7 +25,6 @@ export async function POST(req: NextRequest) {
   const resendKey = process.env.RESEND_API_KEY;
 
   if (!serviceRoleKey) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY não configurada no servidor.' }, { status: 500 });
-  if (!resendKey) return NextResponse.json({ error: 'RESEND_API_KEY não configurada no servidor.' }, { status: 500 });
 
   const authHeader = req.headers.get('authorization') || '';
   const token = authHeader.replace('Bearer ', '');
@@ -39,8 +38,9 @@ export async function POST(req: NextRequest) {
   const { data: perfil } = await adminClient.from('perfis').select('tipo').eq('id', userData.user.id).single();
   if (perfil?.tipo !== 'admin') return NextResponse.json({ error: 'Sem permissão.' }, { status: 403 });
 
-  const { mes } = await req.json();
+  const { mes, modo } = await req.json();
   if (!mes || !/^\d{4}-\d{2}$/.test(mes)) return NextResponse.json({ error: 'Mês inválido.' }, { status: 400 });
+  const apenasPreview = modo === 'preview';
 
   const [ano, mesNum] = mes.split('-').map(Number);
   const inicio = `${mes}-01`;
@@ -48,8 +48,8 @@ export async function POST(req: NextRequest) {
   const fim = `${ano}-${String(mesNum).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
 
   const [{ data: despesas }, { data: receitas }, { data: extratos }] = await Promise.all([
-    adminClient.from('despesas').select('data_despesa, descricao, categoria, valor, estado_pagamento, obras(titulo), areas_negocio(nome), fornecedores(nome)').gte('data_despesa', inicio).lte('data_despesa', fim).order('data_despesa'),
-    adminClient.from('receitas').select('data_receita, descricao, categoria, valor, estado_recebimento, cliente_nome, obras(titulo), areas_negocio(nome)').gte('data_receita', inicio).lte('data_receita', fim).order('data_receita'),
+    adminClient.from('despesas').select('data_despesa, descricao, categoria, valor, estado_pagamento, obras(titulo), areas_negocio(nome), fornecedores(nome), despesa_anexos(tipo, nome_ficheiro, url)').gte('data_despesa', inicio).lte('data_despesa', fim).order('data_despesa'),
+    adminClient.from('receitas').select('data_receita, descricao, categoria, valor, estado_recebimento, cliente_nome, obras(titulo), areas_negocio(nome), receita_anexos(tipo, nome_ficheiro, url)').gte('data_receita', inicio).lte('data_receita', fim).order('data_receita'),
     adminClient.from('extratos_bancarios').select('nome_ficheiro, ficheiro_url').eq('mes', inicio),
   ]);
 
@@ -59,6 +59,27 @@ export async function POST(req: NextRequest) {
 
   const totalDespesas = listaDespesas.reduce((s, d) => s + d.valor, 0);
   const totalReceitas = listaReceitas.reduce((s, r) => s + r.valor, 0);
+
+  const documentos: { nome: string; url: string; origem: string }[] = [];
+  for (const d of listaDespesas) {
+    for (const a of d.despesa_anexos || []) documentos.push({ nome: a.nome_ficheiro, url: a.url, origem: `Despesa: ${d.descricao}` });
+  }
+  for (const r of listaReceitas) {
+    for (const a of r.receita_anexos || []) documentos.push({ nome: a.nome_ficheiro, url: a.url, origem: `Receita: ${r.descricao}` });
+  }
+
+  if (apenasPreview) {
+    return NextResponse.json({
+      totalDespesas,
+      numDespesas: listaDespesas.length,
+      totalReceitas,
+      numReceitas: listaReceitas.length,
+      documentos: documentos.map((d) => ({ nome: d.nome, origem: d.origem })),
+      extratos: listaExtratos.map((e) => ({ nome: e.nome_ficheiro })),
+    });
+  }
+
+  if (!resendKey) return NextResponse.json({ error: 'RESEND_API_KEY não configurada no servidor.' }, { status: 500 });
 
   const csvDespesas = paraCsv(
     listaDespesas.map((d) => ({
@@ -117,13 +138,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  for (const doc of documentos) {
+    try {
+      const resp = await fetch(doc.url);
+      const buf = await resp.arrayBuffer();
+      anexos.push({ filename: doc.nome, content: Buffer.from(buf).toString('base64') });
+    } catch {
+      // ignora falha a anexar um documento individual — não bloqueia o envio dos restantes
+    }
+  }
+
   const mesLabel = new Date(ano, mesNum - 1, 1).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
 
   const corpoHtml = `
     <h2>Contabilidade — ${mesLabel}</h2>
     <p><b>Total de Despesas:</b> ${totalDespesas.toFixed(2)} € (${listaDespesas.length} registos)</p>
     <p><b>Total de Receitas:</b> ${totalReceitas.toFixed(2)} € (${listaReceitas.length} registos)</p>
-    <p>Em anexo: CSV de despesas, CSV de receitas${listaExtratos.length ? `, e ${listaExtratos.length} extrato(s) bancário(s)` : ''}.</p>
+    <p>Em anexo: CSV de despesas, CSV de receitas, ${documentos.length} documento(s) oficial(ais) (faturas/recibos/comprovativos)${listaExtratos.length ? `, e ${listaExtratos.length} extrato(s) bancário(s)` : ''}.</p>
     <p style="color:#888;font-size:12px">Gomes de Oliveira & Oliveira, Lda. · NIPC 519645847 · Projetar Conforto</p>
   `;
 

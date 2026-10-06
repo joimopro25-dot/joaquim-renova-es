@@ -31,7 +31,8 @@ export default function ContabilidadePage() {
     setLoading(true);
     const inicio = `${mes}-01`;
     const [ano, mesNum] = mes.split('-').map(Number);
-    const fim = new Date(ano, mesNum, 0).toISOString().slice(0, 10);
+    const ultimoDia = new Date(ano, mesNum, 0).getDate();
+    const fim = `${ano}-${String(mesNum).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
 
     const [{ data: extratosData }, { data: despesasData }, { data: receitasData }] = await Promise.all([
       supabase.from('extratos_bancarios').select('*').eq('mes', inicio).order('criado_em', { ascending: false }),

@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
 
   const [ano, mesNum] = mes.split('-').map(Number);
   const inicio = `${mes}-01`;
-  const fim = new Date(ano, mesNum, 0).toISOString().slice(0, 10);
+  const ultimoDia = new Date(ano, mesNum, 0).getDate();
+  const fim = `${ano}-${String(mesNum).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
 
   const [{ data: despesas }, { data: receitas }, { data: extratos }] = await Promise.all([
     adminClient.from('despesas').select('data_despesa, descricao, categoria, valor, estado_pagamento, obras(titulo), areas_negocio(nome), fornecedores(nome)').gte('data_despesa', inicio).lte('data_despesa', fim).order('data_despesa'),

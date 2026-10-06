@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
-import { Plus, Wrench, Package, Trash2, ArrowUpCircle, ArrowDownCircle, AlertTriangle } from 'lucide-react';
+import { Plus, Wrench, Package, Trash2, ArrowUpCircle, ArrowDownCircle, AlertTriangle, Paperclip } from 'lucide-react';
 
 type Ferramenta = {
   id: string;
@@ -13,6 +13,9 @@ type Ferramenta = {
   estado: string;
   localizacao: string | null;
   atribuida_a: string | null;
+  preco_compra: number | null;
+  data_compra: string | null;
+  comprovativo_url: string | null;
 };
 
 type Material = {
@@ -132,6 +135,7 @@ function FerramentasTab() {
               <tr>
                 <th className="p-4 font-medium">Ferramenta</th>
                 <th className="p-4 font-medium">Marca/Modelo</th>
+                <th className="p-4 font-medium">Compra</th>
                 <th className="p-4 font-medium">Localização</th>
                 <th className="p-4 font-medium">Atribuída a</th>
                 <th className="p-4 font-medium">Estado</th>
@@ -140,14 +144,26 @@ function FerramentasTab() {
             </thead>
             <tbody className="divide-y divide-sand-100">
               {loading ? (
-                <tr><td colSpan={6} className="p-10 text-center text-ink-300 text-sm">A carregar...</td></tr>
+                <tr><td colSpan={7} className="p-10 text-center text-ink-300 text-sm">A carregar...</td></tr>
               ) : ferramentas.length === 0 ? (
-                <tr><td colSpan={6} className="p-10 text-center text-ink-400 text-sm"><Wrench size={28} className="mx-auto mb-2 text-ink-200" />Nenhuma ferramenta registada.</td></tr>
+                <tr><td colSpan={7} className="p-10 text-center text-ink-400 text-sm"><Wrench size={28} className="mx-auto mb-2 text-ink-200" />Nenhuma ferramenta registada.</td></tr>
               ) : (
                 ferramentas.map((f) => (
                   <tr key={f.id} className="hover:bg-sand-50 transition-colors">
                     <td className="p-4 font-medium text-ink-800">{f.nome}{f.codigo_interno && <span className="text-ink-300 font-normal"> · {f.codigo_interno}</span>}</td>
                     <td className="p-4 text-ink-500">{f.marca_modelo || '—'}</td>
+                    <td className="p-4 text-ink-500">
+                      {f.data_compra ? (
+                        <div className="flex items-center gap-1.5">
+                          <span>{new Date(f.data_compra).toLocaleDateString('pt-PT')}{f.preco_compra ? ` · ${formatMoney(f.preco_compra)}` : ''}</span>
+                          {f.comprovativo_url && (
+                            <a href={f.comprovativo_url} target="_blank" rel="noreferrer" className="text-ink-300 hover:text-brand-600" title="Ver fatura (prova de garantia)">
+                              <Paperclip size={14} />
+                            </a>
+                          )}
+                        </div>
+                      ) : '—'}
+                    </td>
                     <td className="p-4 text-ink-500">{f.localizacao || '—'}</td>
                     <td className="p-4 text-ink-500">{f.atribuida_a || '—'}</td>
                     <td className="p-4">

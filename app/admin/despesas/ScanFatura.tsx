@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { Camera, X, Loader2, Check, Trash2, PackagePlus, FileText, RefreshCw } from 'lucide-react';
+import { Camera, X, Loader2, Check, Trash2, PackagePlus, FileText, RefreshCw, Wrench } from 'lucide-react';
 
 type Obra = { id: string; titulo: string };
 type Subempreitada = { id: string; descricao: string };
@@ -14,6 +14,7 @@ type Item = {
   desconto_percentagem: number;
   iva_percentagem: number;
   adicionarStock: boolean;
+  isFerramenta: boolean;
   materialNome: string;
   incluir: boolean;
   destino: string;
@@ -109,6 +110,7 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
         desconto_percentagem: it.desconto_percentagem ?? 0,
         iva_percentagem: it.iva_percentagem ?? 23,
         adicionarStock: false,
+        isFerramenta: false,
         materialNome: it.descricao || '',
         incluir: true,
         destino: '',
@@ -198,6 +200,17 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
 
       for (const item of grupo.itens) {
         let materialId: string | null = null;
+
+        if (item.isFerramenta) {
+          await supabase.from('ferramentas').insert([{
+            nome: item.descricao || 'Ferramenta sem nome',
+            preco_compra: item.preco_unitario,
+            data_compra: data || new Date().toISOString().slice(0, 10),
+            comprovativo_url: comprovativoUrl,
+            despesa_id: despesa.id,
+            estado: 'disponivel',
+          }]);
+        }
 
         if (item.adicionarStock && item.materialNome.trim()) {
           const { data: existente } = await supabase.from('materiais').select('id, stock_atual').ilike('nome', item.materialNome.trim()).maybeSingle();
@@ -313,7 +326,8 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
                       <th className="p-2 font-medium w-16">Desc %</th>
                       <th className="p-2 font-medium w-16">IVA %</th>
                       <th className="p-2 font-medium w-40">Destino</th>
-                      <th className="p-2 font-medium w-24">Stock?</th>
+                      <th className="p-2 font-medium w-20">Stock?</th>
+                      <th className="p-2 font-medium w-24">Ferramenta?</th>
                       <th className="p-2"></th>
                     </tr>
                   </thead>
@@ -347,6 +361,17 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
                             disabled={!it.incluir}
                           >
                             <PackagePlus size={15} />
+                          </button>
+                        </td>
+                        <td className="p-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => atualizarItem(idx, 'isFerramenta', !it.isFerramenta)}
+                            className={`p-1.5 rounded-md ${it.isFerramenta ? 'bg-brand-100 text-brand-700' : 'bg-sand-100 text-ink-300'}`}
+                            title="Marcar como ferramenta da empresa — fica ligada a esta fatura como prova de garantia"
+                            disabled={!it.incluir}
+                          >
+                            <Wrench size={15} />
                           </button>
                         </td>
                         <td className="p-2">

@@ -263,7 +263,7 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-sand-100 sticky top-0 bg-white">
           <h2 className="font-semibold text-ink-800 flex items-center gap-2"><Camera size={18} /> Digitalizar Fatura</h2>
           <button onClick={onClose} className="text-ink-400 hover:text-ink-700"><X size={20} /></button>
@@ -320,14 +320,14 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
                   <thead className="bg-sand-50 text-ink-400 text-xs uppercase">
                     <tr>
                       <th className="p-2 font-medium w-10">Incl.</th>
-                      <th className="p-2 font-medium">Artigo</th>
-                      <th className="p-2 font-medium w-16">Qtd</th>
-                      <th className="p-2 font-medium w-20">P. Unit.</th>
-                      <th className="p-2 font-medium w-16">Desc %</th>
-                      <th className="p-2 font-medium w-16">IVA %</th>
-                      <th className="p-2 font-medium w-40">Destino</th>
-                      <th className="p-2 font-medium w-20">Stock?</th>
-                      <th className="p-2 font-medium w-24">Ferramenta?</th>
+                      <th className="p-2 font-medium min-w-[220px]">Artigo</th>
+                      <th className="p-2 font-medium min-w-[70px]">Qtd</th>
+                      <th className="p-2 font-medium min-w-[100px]">P. Unit.</th>
+                      <th className="p-2 font-medium min-w-[80px]">Desc %</th>
+                      <th className="p-2 font-medium min-w-[80px]">IVA %</th>
+                      <th className="p-2 font-medium min-w-[190px]">Destino</th>
+                      <th className="p-2 font-medium w-20 text-center">Stock?</th>
+                      <th className="p-2 font-medium w-24 text-center">Ferramenta?</th>
                       <th className="p-2"></th>
                     </tr>
                   </thead>
@@ -345,7 +345,7 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
                         <td className="p-2"><input type="number" step="0.01" value={it.desconto_percentagem} onChange={(e) => atualizarItem(idx, 'desconto_percentagem', parseFloat(e.target.value) || 0)} className="input py-1 w-full" disabled={!it.incluir} /></td>
                         <td className="p-2"><input type="number" step="0.01" value={it.iva_percentagem} onChange={(e) => atualizarItem(idx, 'iva_percentagem', parseFloat(e.target.value) || 0)} className="input py-1 w-full" disabled={!it.incluir} /></td>
                         <td className="p-2">
-                          <select value={it.destino} onChange={(e) => atualizarItem(idx, 'destino', e.target.value)} className="input py-1 w-full text-xs" disabled={!it.incluir}>
+                          <select value={it.destino} onChange={(e) => atualizarItem(idx, 'destino', e.target.value)} className="input py-1 w-full text-sm" disabled={!it.incluir}>
                             <option value="">Escolher...</option>
                             <option value={OPCAO_GERAL}>Despesa Geral</option>
                             {obras.map((o) => <option key={o.id} value={`obra:${o.id}`}>{o.titulo}</option>)}

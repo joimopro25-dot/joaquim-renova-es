@@ -26,6 +26,8 @@ type Despesa = {
   estado_pagamento: string;
   data_pagamento: string | null;
   comprovativo_url: string | null;
+  metodo_pagamento: string | null;
+  comprovativo_pagamento_url: string | null;
   obras: { titulo: string } | null;
   subempreitadas: { descricao: string } | null;
   fornecedores: { nome: string } | null;
@@ -150,6 +152,9 @@ export default function DespesasPage() {
   const [tipoImputacao, setTipoImputacao] = useState('custo');
   const [estadoPagamento, setEstadoPagamento] = useState('pago');
   const [dataPagamento, setDataPagamento] = useState(() => new Date().toISOString().slice(0, 10));
+  const [mostrarMaisOpcoes, setMostrarMaisOpcoes] = useState(false);
+  const [metodoPagamento, setMetodoPagamento] = useState('');
+  const [ficheiroPagamento, setFicheiroPagamento] = useState<File | null>(null);
 
   const [linhas, setLinhas] = useState<LinhaItem[]>([
     { descricao: '', quantidade: '1', precoUnitario: '', desconto: '0', iva: '23', destino: '' },
@@ -249,6 +254,7 @@ export default function DespesasPage() {
     setDestino(''); setAreaNegocioId(''); setNovaAreaNegocioNome(''); setDescricao(''); setCategoria('material'); setValor(''); setFornecedorId(''); setNovoFornecedorNome('');
     setDataDespesa(new Date().toISOString().slice(0, 10)); setFicheiro(null); setTipoImputacao('custo');
     setEstadoPagamento('pago'); setDataPagamento(new Date().toISOString().slice(0, 10));
+    setMostrarMaisOpcoes(false); setMetodoPagamento(''); setFicheiroPagamento(null);
     setLinhas([
       { descricao: '', quantidade: '1', precoUnitario: '', desconto: '0', iva: '23', destino: '' },
       { descricao: '', quantidade: '1', precoUnitario: '', desconto: '0', iva: '23', destino: OPCAO_GERAL },
@@ -271,6 +277,9 @@ export default function DespesasPage() {
     setTipoImputacao(d.tipo_imputacao);
     setEstadoPagamento(d.estado_pagamento || 'pago');
     setDataPagamento(d.data_pagamento || new Date().toISOString().slice(0, 10));
+    setMetodoPagamento(d.metodo_pagamento || '');
+    setFicheiroPagamento(null);
+    setMostrarMaisOpcoes(!!(d.area_negocio_id || d.metodo_pagamento));
     setDividir(false);
     setShowForm(true);
   }
@@ -295,6 +304,14 @@ export default function DespesasPage() {
     return supabase.storage.from('comprovativos').getPublicUrl(path).data.publicUrl;
   }
 
+  async function enviarComprovativoPagamento(pasta: string): Promise<string | null> {
+    if (!ficheiroPagamento) return null;
+    const path = `${pasta}/pagamento-${Date.now()}-${ficheiroPagamento.name}`;
+    const { error: uploadError } = await supabase.storage.from('comprovativos').upload(path, ficheiroPagamento);
+    if (uploadError) throw new Error(uploadError.message);
+    return supabase.storage.from('comprovativos').getPublicUrl(path).data.publicUrl;
+  }
+
   async function adicionarDespesa(e: React.FormEvent) {
     e.preventDefault();
     setUploading(true);
@@ -313,9 +330,13 @@ export default function DespesasPage() {
           tipo_imputacao: tipoImputacao,
           estado_pagamento: estadoPagamento,
           data_pagamento: estadoPagamento === 'pago' ? dataPagamento : null,
+          metodo_pagamento: metodoPagamento || null,
         };
         if (ficheiro) {
           update.comprovativo_url = await enviarComprovativo(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1]);
+        }
+        if (ficheiroPagamento) {
+          update.comprovativo_pagamento_url = await enviarComprovativoPagamento(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1]);
         }
         const { error } = await supabase.from('despesas').update(update).eq('id', editandoId);
         if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
@@ -359,6 +380,7 @@ export default function DespesasPage() {
       } else {
         if (!destino) { alert('Escolhe uma obra, subempreitada ou "Despesa Geral".'); setUploading(false); return; }
         const comprovativoUrl = await enviarComprovativo(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1]);
+        const comprovativoPagamentoUrl = await enviarComprovativoPagamento(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1]);
 
         const { error } = await supabase.from('despesas').insert([{
           ...parseDestino(destino),
@@ -369,6 +391,8 @@ export default function DespesasPage() {
           fornecedor_id: fornecedorId || null,
           data_despesa: dataDespesa,
           comprovativo_url: comprovativoUrl,
+          comprovativo_pagamento_url: comprovativoPagamentoUrl,
+          metodo_pagamento: metodoPagamento || null,
           tipo_imputacao: tipoImputacao,
           estado_pagamento: estadoPagamento,
           data_pagamento: estadoPagamento === 'pago' ? dataPagamento : null,
@@ -582,19 +606,6 @@ export default function DespesasPage() {
                   )}
                 </select>
                 <input type="number" step="0.01" placeholder="Valor (€)" value={valor} onChange={(e) => setValor(e.target.value)} className="input" required />
-
-                {destino === OPCAO_GERAL && (
-                  <div className="md:col-span-3 flex items-center gap-2">
-                    <select value={areaNegocioId} onChange={(e) => setAreaNegocioId(e.target.value)} className="input flex-1">
-                      <option value="">Sem área de negócio definida</option>
-                      {areasNegocio.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
-                    </select>
-                    <input type="text" placeholder="Ou cria uma nova área (ex: Imobiliário)" value={novaAreaNegocioNome} onChange={(e) => setNovaAreaNegocioNome(e.target.value)} className="input flex-1 text-sm" />
-                    <button type="button" onClick={criarAreaNegocioRapido} disabled={!novaAreaNegocioNome.trim() || aCriarAreaNegocio} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 text-sm py-1.5 disabled:opacity-50 shrink-0">
-                      {aCriarAreaNegocio ? 'A criar...' : '+ Área'}
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 
@@ -618,6 +629,52 @@ export default function DespesasPage() {
                 </div>
               </div>
             </div>
+
+            <button type="button" onClick={() => setMostrarMaisOpcoes((v) => !v)} className="text-sm text-brand-600 hover:text-brand-700">
+              {mostrarMaisOpcoes ? '− Menos opções' : '+ Mais opções (área de negócio, método de pagamento)'}
+            </button>
+
+            {mostrarMaisOpcoes && (
+              <div className="space-y-3 pt-2 border-t border-sand-100">
+                {destino === OPCAO_GERAL && (
+                  <div>
+                    <label className="block text-sm text-ink-600 mb-1">Área de Negócio (só para despesas gerais de outra atividade, ex: Imobiliário)</label>
+                    <div className="flex items-center gap-2">
+                      <select value={areaNegocioId} onChange={(e) => setAreaNegocioId(e.target.value)} className="input flex-1">
+                        <option value="">Sem área de negócio definida</option>
+                        {areasNegocio.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                      </select>
+                      <input type="text" placeholder="Ou cria uma nova área" value={novaAreaNegocioNome} onChange={(e) => setNovaAreaNegocioNome(e.target.value)} className="input flex-1 text-sm" />
+                      <button type="button" onClick={criarAreaNegocioRapido} disabled={!novaAreaNegocioNome.trim() || aCriarAreaNegocio} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 text-sm py-1.5 disabled:opacity-50 shrink-0">
+                        {aCriarAreaNegocio ? 'A criar...' : '+ Área'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm text-ink-600 mb-1">Método de pagamento (opcional)</label>
+                  <select value={metodoPagamento} onChange={(e) => setMetodoPagamento(e.target.value)} className="input w-full">
+                    <option value="">Não especificado</option>
+                    <option value="transferencia">Transferência Bancária</option>
+                    <option value="numerario">Numerário</option>
+                    <option value="mbway">MB WAY</option>
+                    <option value="cartao">Cartão</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="outro">Outro</option>
+                  </select>
+                  {metodoPagamento === 'numerario' && (
+                    <>
+                      <p className="text-xs text-amber-600 mt-1">Pagamento em numerário não aparece no extrato bancário — anexa um recibo/comprovativo à parte, se tiveres.</p>
+                      <label className="input flex items-center gap-2 cursor-pointer text-ink-500 mt-1">
+                        <Paperclip size={16} className="shrink-0" />
+                        {ficheiroPagamento ? ficheiroPagamento.name : 'Anexar comprovativo de pagamento (opcional)'}
+                        <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setFicheiroPagamento(e.target.files?.[0] || null)} />
+                      </label>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-2">
               {editandoId && (

@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
-import { Plus, TrendingUp, Paperclip, Trash2, Pencil, Filter, CheckCircle2, Clock } from 'lucide-react';
+import { Plus, TrendingUp, Paperclip, Trash2, Pencil, Filter, CheckCircle2, Clock, X } from 'lucide-react';
 
 type Obra = { id: string; titulo: string };
 type AreaNegocio = { id: string; nome: string };
+type Anexo = { id: string; tipo: string; nome_ficheiro: string; url: string };
 type Receita = {
   id: string;
   obra_id: string | null;
@@ -21,9 +22,17 @@ type Receita = {
   comprovativo_url: string | null;
   obras: { titulo: string } | null;
   areas_negocio: { nome: string } | null;
+  receita_anexos: Anexo[];
 };
 
 const OPCAO_GERAL = 'geral';
+
+const TIPOS_ANEXO = [
+  { value: 'fatura', label: 'Fatura' },
+  { value: 'recibo', label: 'Recibo' },
+  { value: 'comprovativo_pagamento', label: 'Comprovativo de Pagamento' },
+  { value: 'outro', label: 'Outro' },
+];
 
 const CATEGORIAS = [
   { value: 'obra', label: 'Pagamento de Obra' },
@@ -72,7 +81,10 @@ export default function ReceitasPage() {
   const [valor, setValor] = useState('');
   const [clienteNome, setClienteNome] = useState('');
   const [dataReceita, setDataReceita] = useState(() => new Date().toISOString().slice(0, 10));
-  const [ficheiro, setFicheiro] = useState<File | null>(null);
+  const [anexosExistentes, setAnexosExistentes] = useState<Anexo[]>([]);
+  const [anexosPendentes, setAnexosPendentes] = useState<{ tipo: string; ficheiro: File }[]>([]);
+  const [novoAnexoTipo, setNovoAnexoTipo] = useState('fatura');
+  const [novoAnexoFicheiro, setNovoAnexoFicheiro] = useState<File | null>(null);
   const [estadoRecebimento, setEstadoRecebimento] = useState('recebido');
   const [dataRecebimento, setDataRecebimento] = useState(() => new Date().toISOString().slice(0, 10));
 
@@ -83,7 +95,7 @@ export default function ReceitasPage() {
 
   async function carregar() {
     setLoading(true);
-    let query = supabase.from('receitas').select('*, obras(titulo), areas_negocio(nome)').order('data_receita', { ascending: false });
+    let query = supabase.from('receitas').select('*, obras(titulo), areas_negocio(nome), receita_anexos(id, tipo, nome_ficheiro, url)').order('data_receita', { ascending: false });
     const { inicio, fim } = calcularPeriodo(filtroPeriodo);
     if (inicio) query = query.gte('data_receita', inicio);
     if (fim) query = query.lte('data_receita', fim);
@@ -115,7 +127,8 @@ export default function ReceitasPage() {
 
   function resetForm() {
     setDestino(''); setAreaNegocioId(''); setNovaAreaNegocioNome(''); setDescricao(''); setCategoria('obra');
-    setValor(''); setClienteNome(''); setDataReceita(new Date().toISOString().slice(0, 10)); setFicheiro(null);
+    setValor(''); setClienteNome(''); setDataReceita(new Date().toISOString().slice(0, 10));
+    setAnexosExistentes([]); setAnexosPendentes([]); setNovoAnexoTipo('fatura'); setNovoAnexoFicheiro(null);
     setEstadoRecebimento('recebido'); setDataRecebimento(new Date().toISOString().slice(0, 10));
     setEditandoId(null); setShowForm(false);
   }
@@ -129,14 +142,30 @@ export default function ReceitasPage() {
     setValor(String(r.valor));
     setClienteNome(r.cliente_nome || '');
     setDataReceita(r.data_receita);
-    setFicheiro(null);
+    setAnexosExistentes(r.receita_anexos || []);
+    setAnexosPendentes([]); setNovoAnexoTipo('fatura'); setNovoAnexoFicheiro(null);
     setEstadoRecebimento(r.estado_recebimento);
     setDataRecebimento(r.data_recebimento || new Date().toISOString().slice(0, 10));
     setShowForm(true);
   }
 
-  async function enviarComprovativo(): Promise<string | null> {
-    if (!ficheiro) return null;
+  function adicionarAnexoPendente() {
+    if (!novoAnexoFicheiro) return;
+    setAnexosPendentes((prev) => [...prev, { tipo: novoAnexoTipo, ficheiro: novoAnexoFicheiro }]);
+    setNovoAnexoFicheiro(null);
+  }
+
+  function removerAnexoPendente(idx: number) {
+    setAnexosPendentes((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function removerAnexoExistente(anexoId: string) {
+    if (!confirm('Remover este documento?')) return;
+    await supabase.from('receita_anexos').delete().eq('id', anexoId);
+    setAnexosExistentes((prev) => prev.filter((a) => a.id !== anexoId));
+  }
+
+  async function enviarAnexo(ficheiro: File): Promise<string> {
     const path = `receitas/${Date.now()}-${ficheiro.name}`;
     const { error: uploadError } = await supabase.storage.from('comprovativos').upload(path, ficheiro);
     if (uploadError) throw new Error(uploadError.message);
@@ -159,17 +188,23 @@ export default function ReceitasPage() {
         estado_recebimento: estadoRecebimento,
         data_recebimento: estadoRecebimento === 'recebido' ? dataRecebimento : null,
       };
-      if (ficheiro) payload.comprovativo_url = await enviarComprovativo();
 
+      let receitaId = editandoId;
       if (editandoId) {
         const { error } = await supabase.from('receitas').update(payload).eq('id', editandoId);
         if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
       } else {
-        const { error } = await supabase.from('receitas').insert([payload]);
+        const { data, error } = await supabase.from('receitas').insert([payload]).select().single();
         if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
+        receitaId = data.id;
+      }
+
+      for (const pendente of anexosPendentes) {
+        const url = await enviarAnexo(pendente.ficheiro);
+        await supabase.from('receita_anexos').insert([{ receita_id: receitaId, tipo: pendente.tipo, nome_ficheiro: pendente.ficheiro.name, url }]);
       }
     } catch (err: any) {
-      alert('Erro ao enviar o comprovativo: ' + err.message);
+      alert('Erro ao enviar anexo: ' + err.message);
       setUploading(false);
       return;
     }
@@ -274,11 +309,54 @@ export default function ReceitasPage() {
                   )}
                 </div>
               </div>
-              <label className="input flex items-center gap-2 cursor-pointer text-ink-500">
-                <Paperclip size={16} className="shrink-0" />
-                {ficheiro ? ficheiro.name : 'Anexar fatura/recibo (opcional)'}
-                <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setFicheiro(e.target.files?.[0] || null)} />
-              </label>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-sand-100">
+              <label className="block text-sm text-ink-600">Documentos (fatura, recibo, comprovativo de pagamento — podes anexar vários)</label>
+
+              {anexosExistentes.length > 0 && (
+                <ul className="space-y-1">
+                  {anexosExistentes.map((a) => (
+                    <li key={a.id} className="flex items-center justify-between text-sm bg-sand-50 rounded-lg px-3 py-1.5">
+                      <a href={a.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-ink-700 hover:text-brand-600">
+                        <Paperclip size={13} className="text-ink-300" />
+                        <span className="badge bg-sand-200 text-ink-600 text-[10px]">{TIPOS_ANEXO.find((t) => t.value === a.tipo)?.label || a.tipo}</span>
+                        {a.nome_ficheiro}
+                      </a>
+                      <button type="button" onClick={() => removerAnexoExistente(a.id)} className="text-ink-300 hover:text-red-600"><X size={14} /></button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {anexosPendentes.length > 0 && (
+                <ul className="space-y-1">
+                  {anexosPendentes.map((p, idx) => (
+                    <li key={idx} className="flex items-center justify-between text-sm bg-brand-50/40 rounded-lg px-3 py-1.5">
+                      <span className="flex items-center gap-2 text-ink-700">
+                        <Paperclip size={13} className="text-ink-300" />
+                        <span className="badge bg-sand-200 text-ink-600 text-[10px]">{TIPOS_ANEXO.find((t) => t.value === p.tipo)?.label || p.tipo}</span>
+                        {p.ficheiro.name} <span className="text-ink-400 text-xs">(por guardar)</span>
+                      </span>
+                      <button type="button" onClick={() => removerAnexoPendente(idx)} className="text-ink-300 hover:text-red-600"><X size={14} /></button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="flex items-center gap-2">
+                <select value={novoAnexoTipo} onChange={(e) => setNovoAnexoTipo(e.target.value)} className="input w-56">
+                  {TIPOS_ANEXO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+                <label className="input flex-1 flex items-center gap-2 cursor-pointer text-ink-500">
+                  <Paperclip size={16} className="shrink-0" />
+                  {novoAnexoFicheiro ? novoAnexoFicheiro.name : 'Escolher ficheiro'}
+                  <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setNovoAnexoFicheiro(e.target.files?.[0] || null)} />
+                </label>
+                <button type="button" onClick={adicionarAnexoPendente} disabled={!novoAnexoFicheiro} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 text-sm py-1.5 disabled:opacity-50 shrink-0">
+                  + Anexar
+                </button>
+              </div>
             </div>
 
             <div className="flex gap-2">
@@ -338,11 +416,12 @@ export default function ReceitasPage() {
                   <tr key={r.id} className="hover:bg-sand-50 transition-colors">
                     <td className="p-4 text-ink-500 whitespace-nowrap">{new Date(r.data_receita).toLocaleDateString('pt-PT')}</td>
                     <td className="p-4 text-ink-800 font-medium">
-                      {r.comprovativo_url ? (
-                        <a href={r.comprovativo_url} target="_blank" rel="noreferrer" className="hover:text-brand-600 flex items-center gap-1.5">
-                          <Paperclip size={13} className="text-ink-300" /> {r.descricao}
-                        </a>
-                      ) : r.descricao}
+                      {r.descricao}
+                      {r.receita_anexos && r.receita_anexos.length > 0 && (
+                        <span className="badge bg-sand-100 text-ink-500 text-[10px] ml-2">
+                          <Paperclip size={11} className="inline mr-0.5" />{r.receita_anexos.length}
+                        </span>
+                      )}
                     </td>
                     <td className="p-4 text-ink-500">{destinoLabel(r)}</td>
                     <td className="p-4 text-ink-500">{r.cliente_nome || '—'}</td>

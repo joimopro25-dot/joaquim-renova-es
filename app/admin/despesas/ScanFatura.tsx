@@ -156,7 +156,7 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
   const destinosUsados = Array.from(new Set(itensIncluidos.map((it) => it.destino)));
 
   function labelDestino(destino: string) {
-    if (destino === OPCAO_GERAL) return 'Stock / Despesa Geral';
+    if (destino === OPCAO_GERAL) return 'Despesa Geral (sem obra)';
     if (!destino) return '';
     const [tipo, valorId] = destino.split(':');
     if (tipo === 'obra') return obras.find((o) => o.id === valorId)?.titulo || 'Obra';
@@ -309,7 +309,7 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
                 <span className="text-xs text-ink-500">Podes comprar para várias obras na mesma fatura — escolhe o destino de cada artigo abaixo. Atalho: aplicar a todos:</span>
                 <select onChange={(e) => { if (e.target.value) { aplicarDestinoATodos(e.target.value); e.target.value = ''; } }} defaultValue="" className="input text-xs py-1 w-auto">
                   <option value="" disabled>Escolher destino para todos...</option>
-                  <option value={OPCAO_GERAL}>Stock / Despesa Geral</option>
+                  <option value={OPCAO_GERAL}>Despesa Geral (sem obra)</option>
                   {obras.map((o) => <option key={o.id} value={`obra:${o.id}`}>{o.titulo}</option>)}
                   {subs.map((s) => <option key={s.id} value={`sub:${s.id}`}>{s.descricao}</option>)}
                 </select>
@@ -347,7 +347,7 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
                         <td className="p-2">
                           <select value={it.destino} onChange={(e) => atualizarItem(idx, 'destino', e.target.value)} className="input py-1 w-full text-xs" disabled={!it.incluir}>
                             <option value="">Escolher...</option>
-                            <option value={OPCAO_GERAL}>Stock / Geral</option>
+                            <option value={OPCAO_GERAL}>Despesa Geral</option>
                             {obras.map((o) => <option key={o.id} value={`obra:${o.id}`}>{o.titulo}</option>)}
                             {subs.map((s) => <option key={s.id} value={`sub:${s.id}`}>{s.descricao}</option>)}
                           </select>

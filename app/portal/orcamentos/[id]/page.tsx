@@ -127,12 +127,10 @@ export default function PortalOrcamentoDetalhe() {
           <thead className="text-ink-400 text-xs uppercase bg-sand-50">
             <tr>
               <th className="p-2 font-medium">Descrição</th>
-              {orcamento.precos_libertados && <th className="p-2 font-medium text-right">Total</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-sand-100">
             {Object.entries(linhasPorCapitulo).map(([capitulo, itens]) => {
-              const totalCapitulo = itens.reduce((s, l) => s + l.preco_total, 0);
               const label = capitulo === 'Geral' ? orcamento.titulo : capitulo.replace(' · ', ' — ');
               const descricaoCapitulo = descricoesCapitulos[capitulo];
               return (
@@ -141,7 +139,6 @@ export default function PortalOrcamentoDetalhe() {
                     <p className="text-ink-800 font-medium">{label}</p>
                     {descricaoCapitulo && <p className="text-ink-500 mt-1">{descricaoCapitulo}</p>}
                   </td>
-                  {orcamento.precos_libertados && <td className="p-2 text-right text-ink-800 font-medium">{formatMoney(totalCapitulo)}</td>}
                 </tr>
               );
             })}

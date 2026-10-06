@@ -125,12 +125,10 @@ export default function RelatorioOrcamento() {
           <thead className="bg-sand-50 text-ink-500">
             <tr>
               <th className="p-2 border-b border-sand-200">Descrição</th>
-              <th className="p-2 border-b border-sand-200 text-right">Total</th>
             </tr>
           </thead>
           <tbody>
             {Object.entries(linhasPorCapitulo).map(([capitulo, itens]) => {
-              const totalCapitulo = itens.reduce((s, l) => s + l.preco_total, 0);
               const label = capitulo === 'Geral' ? orcamento.titulo : capitulo.replace(' · ', ' — ');
               const descricaoCapitulo = descricoesCapitulos[capitulo];
               return (
@@ -139,7 +137,6 @@ export default function RelatorioOrcamento() {
                     <p className="font-medium text-ink-800">{label}</p>
                     {descricaoCapitulo && <p className="text-ink-500 mt-1">{descricaoCapitulo}</p>}
                   </td>
-                  <td className="p-2 text-right font-medium">{formatMoney(totalCapitulo)}</td>
                 </tr>
               );
             })}

@@ -31,6 +31,115 @@ function intervaloTrimestre(ano: number, trimestre: number) {
   return { inicio, fim };
 }
 
+function arredondarEixo(valor: number) {
+  if (valor <= 0) return 100;
+  const grandeza = Math.pow(10, Math.floor(Math.log10(valor)));
+  const normalizado = valor / grandeza;
+  let passo: number;
+  if (normalizado <= 1) passo = 1;
+  else if (normalizado <= 2) passo = 2;
+  else if (normalizado <= 5) passo = 5;
+  else passo = 10;
+  return passo * grandeza;
+}
+
+const COR_DESPESAS = '#b06d3e';
+const COR_RECEITAS = '#2563eb';
+
+type DadosTrimestre = { trimestre: number; despesas: number; receitas: number };
+
+function GraficoTrimestres({ dados, ano }: { dados: DadosTrimestre[]; ano: number }) {
+  const [hover, setHover] = useState<{ xPct: number; yPct: number; label: string; valor: number; cor: string } | null>(null);
+
+  const W = 560;
+  const H = 220;
+  const margemEsq = 48;
+  const margemBaixo = 28;
+  const margemCima = 12;
+  const plotW = W - margemEsq - 16;
+  const plotH = H - margemBaixo - margemCima;
+
+  const maiorValor = Math.max(1, ...dados.flatMap((d) => [d.despesas, d.receitas]));
+  const eixoMax = arredondarEixo(maiorValor * 1.1);
+  const passosEixo = 4;
+
+  const grupoW = plotW / 4;
+  const barraW = 22;
+  const gap = 2;
+
+  function y(valor: number) {
+    return margemCima + plotH - (valor / eixoMax) * plotH;
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-4 mb-2 text-xs">
+        <span className="flex items-center gap-1.5 text-ink-600"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: COR_DESPESAS }} /> Despesas</span>
+        <span className="flex items-center gap-1.5 text-ink-600"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: COR_RECEITAS }} /> Receitas</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={`Despesas e receitas por trimestre de ${ano}`}>
+        {Array.from({ length: passosEixo + 1 }).map((_, i) => {
+          const valor = (eixoMax / passosEixo) * i;
+          const yPos = y(valor);
+          return (
+            <g key={i}>
+              <line x1={margemEsq} x2={W - 16} y1={yPos} y2={yPos} stroke="#e8e8ea" strokeWidth={1} />
+              <text x={margemEsq - 8} y={yPos + 3} textAnchor="end" fontSize={10} fill="#a2a4a9">
+                {valor >= 1000 ? `${(valor / 1000).toFixed(valor % 1000 === 0 ? 0 : 1)}k` : Math.round(valor)}
+              </text>
+            </g>
+          );
+        })}
+
+        {dados.map((d, i) => {
+          const cxGrupo = margemEsq + grupoW * i + grupoW / 2;
+          const xDespesas = cxGrupo - gap / 2 - barraW;
+          const xReceitas = cxGrupo + gap / 2;
+          const baseline = margemCima + plotH;
+
+          return (
+            <g key={d.trimestre}>
+              <rect
+                x={xDespesas} y={y(d.despesas)} width={barraW} height={Math.max(0, baseline - y(d.despesas))}
+                rx={4} ry={4} fill={COR_DESPESAS}
+                onMouseEnter={() => setHover({ xPct: (xDespesas + barraW / 2) / W * 100, yPct: y(d.despesas) / H * 100, label: `${d.trimestre}º Trim. — Despesas`, valor: d.despesas, cor: COR_DESPESAS })}
+                onMouseLeave={() => setHover(null)}
+              />
+              {d.despesas > 0 && (
+                <text x={xDespesas + barraW / 2} y={y(d.despesas) - 5} textAnchor="middle" fontSize={9} fill="#71747b">
+                  {formatMoney(d.despesas)}
+                </text>
+              )}
+              <rect
+                x={xReceitas} y={y(d.receitas)} width={barraW} height={Math.max(0, baseline - y(d.receitas))}
+                rx={4} ry={4} fill={COR_RECEITAS}
+                onMouseEnter={() => setHover({ xPct: (xReceitas + barraW / 2) / W * 100, yPct: y(d.receitas) / H * 100, label: `${d.trimestre}º Trim. — Receitas`, valor: d.receitas, cor: COR_RECEITAS })}
+                onMouseLeave={() => setHover(null)}
+              />
+              {d.receitas > 0 && (
+                <text x={xReceitas + barraW / 2} y={y(d.receitas) - 5} textAnchor="middle" fontSize={9} fill="#71747b">
+                  {formatMoney(d.receitas)}
+                </text>
+              )}
+              <text x={cxGrupo} y={H - 8} textAnchor="middle" fontSize={11} fill="#565962">{d.trimestre}º Trim.</text>
+            </g>
+          );
+        })}
+      </svg>
+
+      {hover && (
+        <div
+          className="absolute pointer-events-none bg-ink-800 text-white text-xs rounded-md px-2 py-1 shadow-lg whitespace-nowrap"
+          style={{ left: `${hover.xPct}%`, top: `${hover.yPct}%`, transform: 'translate(-50%, -130%)' }}
+        >
+          <span className="inline-block w-2 h-2 rounded-sm mr-1 align-middle" style={{ background: hover.cor }} />
+          {hover.label}: {formatMoney(hover.valor)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ContabilidadePage() {
   const [mes, setMes] = useState(mesAtual());
   const [extratos, setExtratos] = useState<Extrato[]>([]);
@@ -41,6 +150,7 @@ export default function ContabilidadePage() {
   const [enviado, setEnviado] = useState(false);
 
   const [resumoTrimestre, setResumoTrimestre] = useState<{ totalDespesas: number; totalReceitas: number } | null>(null);
+  const [resumoAno, setResumoAno] = useState<DadosTrimestre[] | null>(null);
   const [ivaValor, setIvaValor] = useState('');
   const [ivaPago, setIvaPago] = useState(false);
   const [ivaDataPagamento, setIvaDataPagamento] = useState(() => new Date().toISOString().slice(0, 10));
@@ -87,6 +197,21 @@ export default function ContabilidadePage() {
       setIvaPago(false);
       setIvaDataPagamento(new Date().toISOString().slice(0, 10));
     }
+
+    const [{ data: despesasAno }, { data: receitasAno }] = await Promise.all([
+      supabase.from('despesas').select('valor, data_despesa').gte('data_despesa', `${ano}-01-01`).lte('data_despesa', `${ano}-12-31`),
+      supabase.from('receitas').select('valor, data_receita').gte('data_receita', `${ano}-01-01`).lte('data_receita', `${ano}-12-31`),
+    ]);
+    const anoBuckets: DadosTrimestre[] = [1, 2, 3, 4].map((t) => ({ trimestre: t, despesas: 0, receitas: 0 }));
+    for (const d of despesasAno || []) {
+      const m = Number(d.data_despesa.slice(5, 7));
+      anoBuckets[trimestreDoMes(m) - 1].despesas += d.valor;
+    }
+    for (const r of receitasAno || []) {
+      const m = Number(r.data_receita.slice(5, 7));
+      anoBuckets[trimestreDoMes(m) - 1].receitas += r.valor;
+    }
+    setResumoAno(anoBuckets);
 
     setLoading(false);
   }
@@ -142,7 +267,7 @@ export default function ContabilidadePage() {
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-3xl">
+    <div className="p-4 md:p-8 max-w-4xl">
       <div className="flex items-center gap-3 mb-6">
         <label className="text-sm text-ink-600">Mês:</label>
         <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="input w-48" />
@@ -204,6 +329,16 @@ export default function ContabilidadePage() {
                 <Check size={16} /> {aGuardarIva ? 'A guardar...' : 'Guardar'}
               </button>
             </div>
+          </div>
+        );
+      })()}
+
+      {resumoAno && (() => {
+        const [ano] = mes.split('-').map(Number);
+        return (
+          <div className="card p-6 mb-6">
+            <h2 className="font-semibold text-ink-700 mb-4">Despesas e Receitas por Trimestre — {ano}</h2>
+            <GraficoTrimestres dados={resumoAno} ano={ano} />
           </div>
         );
       })()}

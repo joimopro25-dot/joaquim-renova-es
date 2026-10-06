@@ -11,6 +11,7 @@ type Obra = { id: string; titulo: string };
 type Subempreitada = { id: string; descricao: string };
 type Fornecedor = { id: string; nome: string };
 type AreaNegocio = { id: string; nome: string };
+type Anexo = { id: string; tipo: string; nome_ficheiro: string; url: string };
 type Despesa = {
   id: string;
   obra_id: string | null;
@@ -33,7 +34,15 @@ type Despesa = {
   fornecedores: { nome: string } | null;
   areas_negocio: { nome: string } | null;
   despesa_itens: DespesaItem[];
+  despesa_anexos: Anexo[];
 };
+
+const TIPOS_ANEXO = [
+  { value: 'fatura', label: 'Fatura' },
+  { value: 'recibo', label: 'Recibo' },
+  { value: 'comprovativo_pagamento', label: 'Comprovativo de Pagamento' },
+  { value: 'outro', label: 'Outro' },
+];
 
 type DespesaItem = {
   id: string;
@@ -148,13 +157,16 @@ export default function DespesasPage() {
   const [novoFornecedorNome, setNovoFornecedorNome] = useState('');
   const [aCriarFornecedor, setACriarFornecedor] = useState(false);
   const [dataDespesa, setDataDespesa] = useState(() => new Date().toISOString().slice(0, 10));
-  const [ficheiro, setFicheiro] = useState<File | null>(null);
+  const [ficheiroDividir, setFicheiroDividir] = useState<File | null>(null);
+  const [anexosExistentes, setAnexosExistentes] = useState<Anexo[]>([]);
+  const [anexosPendentes, setAnexosPendentes] = useState<{ tipo: string; ficheiro: File }[]>([]);
+  const [novoAnexoTipo, setNovoAnexoTipo] = useState('fatura');
+  const [novoAnexoFicheiro, setNovoAnexoFicheiro] = useState<File | null>(null);
   const [tipoImputacao, setTipoImputacao] = useState('custo');
   const [estadoPagamento, setEstadoPagamento] = useState('pago');
   const [dataPagamento, setDataPagamento] = useState(() => new Date().toISOString().slice(0, 10));
   const [mostrarMaisOpcoes, setMostrarMaisOpcoes] = useState(false);
   const [metodoPagamento, setMetodoPagamento] = useState('');
-  const [ficheiroPagamento, setFicheiroPagamento] = useState<File | null>(null);
 
   const [linhas, setLinhas] = useState<LinhaItem[]>([
     { descricao: '', quantidade: '1', precoUnitario: '', desconto: '0', iva: '23', destino: '' },
@@ -179,7 +191,7 @@ export default function DespesasPage() {
 
   async function carregar() {
     setLoading(true);
-    let query = supabase.from('despesas').select('*, obras(titulo), subempreitadas(descricao), fornecedores(nome), areas_negocio(nome), despesa_itens(id, descricao, quantidade, preco_unitario, desconto_percentagem, iva_percentagem)').order('data_despesa', { ascending: false });
+    let query = supabase.from('despesas').select('*, obras(titulo), subempreitadas(descricao), fornecedores(nome), areas_negocio(nome), despesa_itens(id, descricao, quantidade, preco_unitario, desconto_percentagem, iva_percentagem), despesa_anexos(id, tipo, nome_ficheiro, url)').order('data_despesa', { ascending: false });
 
     if (filtroDestino === OPCAO_GERAL) query = query.is('obra_id', null).is('subempreitada_id', null);
     else if (filtroDestino.startsWith('obra:')) query = query.eq('obra_id', filtroDestino.split(':')[1]);
@@ -252,9 +264,10 @@ export default function DespesasPage() {
 
   function resetForm() {
     setDestino(''); setAreaNegocioId(''); setNovaAreaNegocioNome(''); setDescricao(''); setCategoria('material'); setValor(''); setFornecedorId(''); setNovoFornecedorNome('');
-    setDataDespesa(new Date().toISOString().slice(0, 10)); setFicheiro(null); setTipoImputacao('custo');
+    setDataDespesa(new Date().toISOString().slice(0, 10)); setFicheiroDividir(null); setTipoImputacao('custo');
     setEstadoPagamento('pago'); setDataPagamento(new Date().toISOString().slice(0, 10));
-    setMostrarMaisOpcoes(false); setMetodoPagamento(''); setFicheiroPagamento(null);
+    setMostrarMaisOpcoes(false); setMetodoPagamento('');
+    setAnexosExistentes([]); setAnexosPendentes([]); setNovoAnexoTipo('fatura'); setNovoAnexoFicheiro(null);
     setLinhas([
       { descricao: '', quantidade: '1', precoUnitario: '', desconto: '0', iva: '23', destino: '' },
       { descricao: '', quantidade: '1', precoUnitario: '', desconto: '0', iva: '23', destino: OPCAO_GERAL },
@@ -273,15 +286,32 @@ export default function DespesasPage() {
     setValor(String(d.valor));
     setFornecedorId(d.fornecedor_id || '');
     setDataDespesa(d.data_despesa);
-    setFicheiro(null);
+    setFicheiroDividir(null);
     setTipoImputacao(d.tipo_imputacao);
     setEstadoPagamento(d.estado_pagamento || 'pago');
     setDataPagamento(d.data_pagamento || new Date().toISOString().slice(0, 10));
     setMetodoPagamento(d.metodo_pagamento || '');
-    setFicheiroPagamento(null);
+    setAnexosExistentes(d.despesa_anexos || []);
+    setAnexosPendentes([]); setNovoAnexoTipo('fatura'); setNovoAnexoFicheiro(null);
     setMostrarMaisOpcoes(!!(d.area_negocio_id || d.metodo_pagamento));
     setDividir(false);
     setShowForm(true);
+  }
+
+  function adicionarAnexoPendente() {
+    if (!novoAnexoFicheiro) return;
+    setAnexosPendentes((prev) => [...prev, { tipo: novoAnexoTipo, ficheiro: novoAnexoFicheiro }]);
+    setNovoAnexoFicheiro(null);
+  }
+
+  function removerAnexoPendente(idx: number) {
+    setAnexosPendentes((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function removerAnexoExistente(anexoId: string) {
+    if (!confirm('Remover este documento?')) return;
+    await supabase.from('despesa_anexos').delete().eq('id', anexoId);
+    setAnexosExistentes((prev) => prev.filter((a) => a.id !== anexoId));
   }
 
   function atualizarLinha(idx: number, campo: keyof LinhaItem, val: string) {
@@ -296,18 +326,9 @@ export default function DespesasPage() {
     setLinhas((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  async function enviarComprovativo(pasta: string): Promise<string | null> {
-    if (!ficheiro) return null;
+  async function enviarComprovativo(pasta: string, ficheiro: File): Promise<string> {
     const path = `${pasta}/${Date.now()}-${ficheiro.name}`;
     const { error: uploadError } = await supabase.storage.from('comprovativos').upload(path, ficheiro);
-    if (uploadError) throw new Error(uploadError.message);
-    return supabase.storage.from('comprovativos').getPublicUrl(path).data.publicUrl;
-  }
-
-  async function enviarComprovativoPagamento(pasta: string): Promise<string | null> {
-    if (!ficheiroPagamento) return null;
-    const path = `${pasta}/pagamento-${Date.now()}-${ficheiroPagamento.name}`;
-    const { error: uploadError } = await supabase.storage.from('comprovativos').upload(path, ficheiroPagamento);
     if (uploadError) throw new Error(uploadError.message);
     return supabase.storage.from('comprovativos').getPublicUrl(path).data.publicUrl;
   }
@@ -332,19 +353,18 @@ export default function DespesasPage() {
           data_pagamento: estadoPagamento === 'pago' ? dataPagamento : null,
           metodo_pagamento: metodoPagamento || null,
         };
-        if (ficheiro) {
-          update.comprovativo_url = await enviarComprovativo(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1]);
-        }
-        if (ficheiroPagamento) {
-          update.comprovativo_pagamento_url = await enviarComprovativoPagamento(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1]);
-        }
         const { error } = await supabase.from('despesas').update(update).eq('id', editandoId);
         if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
+
+        for (const pendente of anexosPendentes) {
+          const url = await enviarComprovativo(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1], pendente.ficheiro);
+          await supabase.from('despesa_anexos').insert([{ despesa_id: editandoId, tipo: pendente.tipo, nome_ficheiro: pendente.ficheiro.name, url }]);
+        }
       } else if (dividir) {
         const validas = linhas.filter((l) => l.destino && l.descricao.trim() && (parseFloat(l.precoUnitario) || 0) > 0);
         if (validas.length === 0) { alert('Adiciona pelo menos um artigo com descrição, preço e destino.'); setUploading(false); return; }
 
-        const comprovativoUrl = await enviarComprovativo('geral');
+        const comprovativoUrl = ficheiroDividir ? await enviarComprovativo('geral', ficheiroDividir) : null;
         const destinosUsados = Array.from(new Set(validas.map((l) => l.destino)));
 
         for (const dest of destinosUsados) {
@@ -379,10 +399,8 @@ export default function DespesasPage() {
         }
       } else {
         if (!destino) { alert('Escolhe uma obra, subempreitada ou "Despesa Geral".'); setUploading(false); return; }
-        const comprovativoUrl = await enviarComprovativo(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1]);
-        const comprovativoPagamentoUrl = await enviarComprovativoPagamento(destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1]);
 
-        const { error } = await supabase.from('despesas').insert([{
+        const { data: novaDespesa, error } = await supabase.from('despesas').insert([{
           ...parseDestino(destino),
           area_negocio_id: destino === OPCAO_GERAL ? (areaNegocioId || null) : null,
           descricao,
@@ -390,14 +408,18 @@ export default function DespesasPage() {
           valor: parseFloat(valor) || 0,
           fornecedor_id: fornecedorId || null,
           data_despesa: dataDespesa,
-          comprovativo_url: comprovativoUrl,
-          comprovativo_pagamento_url: comprovativoPagamentoUrl,
           metodo_pagamento: metodoPagamento || null,
           tipo_imputacao: tipoImputacao,
           estado_pagamento: estadoPagamento,
           data_pagamento: estadoPagamento === 'pago' ? dataPagamento : null,
-        }]);
+        }]).select().single();
         if (error) { alert('Erro: ' + error.message); setUploading(false); return; }
+
+        const pasta = destino === OPCAO_GERAL ? 'geral' : destino.split(':')[1];
+        for (const pendente of anexosPendentes) {
+          const url = await enviarComprovativo(pasta, pendente.ficheiro);
+          await supabase.from('despesa_anexos').insert([{ despesa_id: novaDespesa.id, tipo: pendente.tipo, nome_ficheiro: pendente.ficheiro.name, url }]);
+        }
       }
     } catch (err: any) {
       alert('Erro ao enviar o comprovativo: ' + err.message);
@@ -518,15 +540,13 @@ export default function DespesasPage() {
                 </select>
               </div>
               <input type="date" value={dataDespesa} onChange={(e) => setDataDespesa(e.target.value)} className="input" />
-              <label className="input flex items-center gap-2 cursor-pointer md:col-span-2 text-ink-500">
-                <Paperclip size={16} className="shrink-0" />
-                {ficheiro
-                  ? ficheiro.name
-                  : editandoId && despesas.find((d) => d.id === editandoId)?.comprovativo_url
-                    ? 'Já tem comprovativo — escolhe um ficheiro para substituir (opcional)'
-                    : 'Anexar foto/PDF do comprovativo (opcional)'}
-                <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setFicheiro(e.target.files?.[0] || null)} />
-              </label>
+              {dividir && (
+                <label className="input flex items-center gap-2 cursor-pointer md:col-span-2 text-ink-500">
+                  <Paperclip size={16} className="shrink-0" />
+                  {ficheiroDividir ? ficheiroDividir.name : 'Anexar foto/PDF da fatura (opcional, partilhado por todos os destinos)'}
+                  <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setFicheiroDividir(e.target.files?.[0] || null)} />
+                </label>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -663,15 +683,58 @@ export default function DespesasPage() {
                     <option value="outro">Outro</option>
                   </select>
                   {metodoPagamento === 'numerario' && (
-                    <>
-                      <p className="text-xs text-amber-600 mt-1">Pagamento em numerário não aparece no extrato bancário — anexa um recibo/comprovativo à parte, se tiveres.</p>
-                      <label className="input flex items-center gap-2 cursor-pointer text-ink-500 mt-1">
-                        <Paperclip size={16} className="shrink-0" />
-                        {ficheiroPagamento ? ficheiroPagamento.name : 'Anexar comprovativo de pagamento (opcional)'}
-                        <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setFicheiroPagamento(e.target.files?.[0] || null)} />
-                      </label>
-                    </>
+                    <p className="text-xs text-amber-600 mt-1">Pagamento em numerário não aparece no extrato bancário — anexa um comprovativo de pagamento em baixo, se tiveres.</p>
                   )}
+                </div>
+              </div>
+            )}
+
+            {!dividir && (
+              <div className="space-y-2 pt-2 border-t border-sand-100">
+                <label className="block text-sm text-ink-600">Documentos (fatura, recibo, comprovativo de pagamento — podes anexar vários)</label>
+
+                {anexosExistentes.length > 0 && (
+                  <ul className="space-y-1">
+                    {anexosExistentes.map((a) => (
+                      <li key={a.id} className="flex items-center justify-between text-sm bg-sand-50 rounded-lg px-3 py-1.5">
+                        <a href={a.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-ink-700 hover:text-brand-600">
+                          <Paperclip size={13} className="text-ink-300" />
+                          <span className="badge bg-sand-200 text-ink-600 text-[10px]">{TIPOS_ANEXO.find((t) => t.value === a.tipo)?.label || a.tipo}</span>
+                          {a.nome_ficheiro}
+                        </a>
+                        <button type="button" onClick={() => removerAnexoExistente(a.id)} className="text-ink-300 hover:text-red-600"><X size={14} /></button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {anexosPendentes.length > 0 && (
+                  <ul className="space-y-1">
+                    {anexosPendentes.map((p, idx) => (
+                      <li key={idx} className="flex items-center justify-between text-sm bg-brand-50/40 rounded-lg px-3 py-1.5">
+                        <span className="flex items-center gap-2 text-ink-700">
+                          <Paperclip size={13} className="text-ink-300" />
+                          <span className="badge bg-sand-200 text-ink-600 text-[10px]">{TIPOS_ANEXO.find((t) => t.value === p.tipo)?.label || p.tipo}</span>
+                          {p.ficheiro.name} <span className="text-ink-400 text-xs">(por guardar)</span>
+                        </span>
+                        <button type="button" onClick={() => removerAnexoPendente(idx)} className="text-ink-300 hover:text-red-600"><X size={14} /></button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <select value={novoAnexoTipo} onChange={(e) => setNovoAnexoTipo(e.target.value)} className="input w-56">
+                    {TIPOS_ANEXO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                  <label className="input flex-1 flex items-center gap-2 cursor-pointer text-ink-500">
+                    <Paperclip size={16} className="shrink-0" />
+                    {novoAnexoFicheiro ? novoAnexoFicheiro.name : 'Escolher ficheiro'}
+                    <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setNovoAnexoFicheiro(e.target.files?.[0] || null)} />
+                  </label>
+                  <button type="button" onClick={adicionarAnexoPendente} disabled={!novoAnexoFicheiro} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 text-sm py-1.5 disabled:opacity-50 shrink-0">
+                    + Anexar
+                  </button>
                 </div>
               </div>
             )}
@@ -794,6 +857,11 @@ export default function DespesasPage() {
                                 <Paperclip size={13} className="text-ink-300" /> {d.descricao}
                               </a>
                             ) : d.descricao}
+                            {d.despesa_anexos && d.despesa_anexos.length > 0 && (
+                              <span className="badge bg-sand-100 text-ink-500 text-[10px] ml-2">
+                                <Paperclip size={11} className="inline mr-0.5" />{d.despesa_anexos.length}
+                              </span>
+                            )}
                             {d.tipo_imputacao === 'cliente' && <span className="badge bg-blue-100 text-blue-700 ml-2 text-[10px]">a cobrar ao cliente</span>}
                             {d.tipo_imputacao === 'registo' && <span className="badge bg-sand-100 text-ink-400 ml-2 text-[10px]">só registo</span>}
                           </td>

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { formatMoney } from '../../../lib/format';
-import { Upload, Trash2, Paperclip, Send, FileSpreadsheet } from 'lucide-react';
+import { Upload, Trash2, Paperclip, Send, FileSpreadsheet, Check } from 'lucide-react';
 
 type Extrato = { id: string; mes: string; nome_ficheiro: string; ficheiro_url: string };
 
@@ -18,6 +18,19 @@ function labelMes(chave: string) {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+function trimestreDoMes(mesNum: number) {
+  return Math.ceil(mesNum / 3);
+}
+
+function intervaloTrimestre(ano: number, trimestre: number) {
+  const primeiroMes = (trimestre - 1) * 3 + 1;
+  const ultimoMes = primeiroMes + 2;
+  const inicio = `${ano}-${String(primeiroMes).padStart(2, '0')}-01`;
+  const ultimoDia = new Date(ano, ultimoMes, 0).getDate();
+  const fim = `${ano}-${String(ultimoMes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
+  return { inicio, fim };
+}
+
 export default function ContabilidadePage() {
   const [mes, setMes] = useState(mesAtual());
   const [extratos, setExtratos] = useState<Extrato[]>([]);
@@ -26,6 +39,12 @@ export default function ContabilidadePage() {
   const [resumo, setResumo] = useState<{ totalDespesas: number; totalReceitas: number; numDespesas: number; numReceitas: number } | null>(null);
   const [aEnviarEmail, setAEnviarEmail] = useState(false);
   const [enviado, setEnviado] = useState(false);
+
+  const [resumoTrimestre, setResumoTrimestre] = useState<{ totalDespesas: number; totalReceitas: number } | null>(null);
+  const [ivaValor, setIvaValor] = useState('');
+  const [ivaPago, setIvaPago] = useState(false);
+  const [ivaDataPagamento, setIvaDataPagamento] = useState(() => new Date().toISOString().slice(0, 10));
+  const [aGuardarIva, setAGuardarIva] = useState(false);
 
   async function carregar() {
     setLoading(true);
@@ -46,6 +65,29 @@ export default function ContabilidadePage() {
       numDespesas: (despesasData || []).length,
       numReceitas: (receitasData || []).length,
     });
+
+    const trimestre = trimestreDoMes(mesNum);
+    const { inicio: inicioTri, fim: fimTri } = intervaloTrimestre(ano, trimestre);
+    const [{ data: despesasTri }, { data: receitasTri }, { data: ivaExistente }] = await Promise.all([
+      supabase.from('despesas').select('valor').gte('data_despesa', inicioTri).lte('data_despesa', fimTri),
+      supabase.from('receitas').select('valor').gte('data_receita', inicioTri).lte('data_receita', fimTri),
+      supabase.from('iva_trimestres').select('*').eq('ano', ano).eq('trimestre', trimestre).maybeSingle(),
+    ]);
+    const totalDespesasTri = (despesasTri || []).reduce((s, d) => s + d.valor, 0);
+    const totalReceitasTri = (receitasTri || []).reduce((s, r) => s + r.valor, 0);
+    setResumoTrimestre({ totalDespesas: totalDespesasTri, totalReceitas: totalReceitasTri });
+
+    if (ivaExistente) {
+      setIvaValor(String(ivaExistente.valor ?? ''));
+      setIvaPago(ivaExistente.pago);
+      setIvaDataPagamento(ivaExistente.data_pagamento || new Date().toISOString().slice(0, 10));
+    } else {
+      const estimativa = (totalReceitasTri - totalDespesasTri) * (23 / 123);
+      setIvaValor(estimativa > 0 ? estimativa.toFixed(2) : '0.00');
+      setIvaPago(false);
+      setIvaDataPagamento(new Date().toISOString().slice(0, 10));
+    }
+
     setLoading(false);
   }
 
@@ -70,6 +112,18 @@ export default function ContabilidadePage() {
     if (!confirm('Remover este extrato?')) return;
     await supabase.from('extratos_bancarios').delete().eq('id', id);
     carregar();
+  }
+
+  async function guardarIva() {
+    const [ano, mesNum] = mes.split('-').map(Number);
+    const trimestre = trimestreDoMes(mesNum);
+    setAGuardarIva(true);
+    const { error } = await supabase.from('iva_trimestres').upsert(
+      [{ ano, trimestre, valor: parseFloat(ivaValor) || 0, pago: ivaPago, data_pagamento: ivaPago ? ivaDataPagamento : null }],
+      { onConflict: 'ano,trimestre' }
+    );
+    setAGuardarIva(false);
+    if (error) alert('Erro ao guardar: ' + error.message);
   }
 
   async function enviarAoContabilista() {
@@ -117,6 +171,42 @@ export default function ContabilidadePage() {
         </button>
         {enviado && <p className="text-xs text-green-600 mt-2">Email enviado com sucesso para a contabilista (com cópia para ti).</p>}
       </div>
+
+      {resumoTrimestre && (() => {
+        const [ano, mesNum] = mes.split('-').map(Number);
+        const trimestre = trimestreDoMes(mesNum);
+        const estimativa = (resumoTrimestre.totalReceitas - resumoTrimestre.totalDespesas) * (23 / 123);
+        return (
+          <div className="card p-6 mb-6">
+            <h2 className="font-semibold text-ink-700 mb-1">IVA — {trimestre}º Trimestre de {ano}</h2>
+            <p className="text-xs text-ink-400 mb-4">
+              Despesas do trimestre: {formatMoney(resumoTrimestre.totalDespesas)} · Receitas do trimestre: {formatMoney(resumoTrimestre.totalReceitas)} ·
+              Estimativa a 23% (ajusta com o valor real da contabilista): {formatMoney(estimativa > 0 ? estimativa : 0)}
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+              <div>
+                <label className="block text-sm text-ink-600 mb-1">Valor de IVA a pagar (€)</label>
+                <input type="number" step="0.01" value={ivaValor} onChange={(e) => setIvaValor(e.target.value)} className="input w-full" />
+              </div>
+              <div>
+                <label className="block text-sm text-ink-600 mb-1">Já paguei</label>
+                <div className="flex gap-2">
+                  <label className="input flex items-center gap-2 flex-1 cursor-pointer">
+                    <input type="checkbox" checked={ivaPago} onChange={(e) => setIvaPago(e.target.checked)} />
+                    {ivaPago ? 'Pago' : 'Por pagar'}
+                  </label>
+                  {ivaPago && (
+                    <input type="date" value={ivaDataPagamento} onChange={(e) => setIvaDataPagamento(e.target.value)} className="input w-40" />
+                  )}
+                </div>
+              </div>
+              <button onClick={guardarIva} disabled={aGuardarIva} className="btn-primary justify-center disabled:opacity-60">
+                <Check size={16} /> {aGuardarIva ? 'A guardar...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="card p-6">
         <h2 className="font-semibold text-ink-700 mb-1">Extratos Bancários de {labelMes(mes)}</h2>

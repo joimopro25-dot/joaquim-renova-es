@@ -19,6 +19,11 @@ Regras:
 - Se não conseguires ler algum campo com confiança, usa null nesse campo (não inventes valores).
 - iva_percentagem: se não indicado explicitamente por artigo, usa a taxa geral da fatura (normalmente 23 em Portugal).
 - desconto_percentagem: 0 se não houver desconto.
+- "preco_unitario" tem de ser o valor SEM IVA (base tributável), por unidade — nunca o preço final com IVA incluído.
+  Muitas faturas de loja mostram o preço já com IVA incluído: nesse caso, calcula o valor sem IVA dividindo pelo
+  fator correspondente (ex: preço com IVA ÷ 1.23 para uma taxa de 23%) antes de o colocares em "preco_unitario".
+  Isto é importante porque o sistema volta a somar o IVA por cima deste valor — se devolveres o preço já com IVA,
+  o IVA fica contado em duplicado.
 - "total" é o valor final pago, com IVA incluído.
 - Não incluas nenhum texto fora do JSON.`;
 

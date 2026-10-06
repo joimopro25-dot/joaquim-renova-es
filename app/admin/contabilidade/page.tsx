@@ -150,6 +150,8 @@ export default function ContabilidadePage() {
   const [enviado, setEnviado] = useState(false);
   const [aCarregarPreview, setACarregarPreview] = useState(false);
   const [erroPreview, setErroPreview] = useState('');
+  const [aEnviarTeste, setAEnviarTeste] = useState(false);
+  const [testeEnviado, setTesteEnviado] = useState(false);
   const [preview, setPreview] = useState<{
     totalDespesas: number; numDespesas: number; totalReceitas: number; numReceitas: number;
     documentos: { nome: string; origem: string }[]; extratos: { nome: string }[];
@@ -260,6 +262,7 @@ export default function ContabilidadePage() {
   async function prepararPreview() {
     setACarregarPreview(true);
     setErroPreview('');
+    setTesteEnviado(false);
     const { data: sessao } = await supabase.auth.getSession();
     const resp = await fetch('/api/contabilidade/enviar-mensal', {
       method: 'POST',
@@ -285,6 +288,21 @@ export default function ContabilidadePage() {
     if (!resp.ok) { alert('Erro ao enviar: ' + json.error); return; }
     setPreview(null);
     setEnviado(true);
+  }
+
+  async function enviarTeste() {
+    setAEnviarTeste(true);
+    setTesteEnviado(false);
+    const { data: sessao } = await supabase.auth.getSession();
+    const resp = await fetch('/api/contabilidade/enviar-mensal', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${sessao.session?.access_token}` },
+      body: JSON.stringify({ mes, modo: 'teste' }),
+    });
+    const json = await resp.json();
+    setAEnviarTeste(false);
+    if (!resp.ok) { alert('Erro ao enviar teste: ' + json.error); return; }
+    setTesteEnviado(true);
   }
 
   return (
@@ -362,10 +380,15 @@ export default function ContabilidadePage() {
 
             <p className="text-xs text-ink-400 mb-4">Também vão 2 ficheiros CSV (despesas e receitas) com o detalhe linha a linha.</p>
 
+            <button onClick={enviarTeste} disabled={aEnviarTeste} className="btn-primary bg-purple-600 hover:bg-purple-700 w-full justify-center mb-2 disabled:opacity-60">
+              {aEnviarTeste ? 'A enviar teste...' : 'Enviar Teste para Mim (projetarconforto@gmail.com)'}
+            </button>
+            {testeEnviado && <p className="text-xs text-green-600 mb-3">Teste enviado — abre o email e confere se os ficheiros estão legíveis antes de confirmar abaixo.</p>}
+
             <div className="flex gap-2">
               <button onClick={() => setPreview(null)} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 flex-1 justify-center">Cancelar</button>
               <button onClick={confirmarEnvio} disabled={aEnviarEmail} className="btn-primary bg-blue-600 hover:bg-blue-700 flex-1 justify-center disabled:opacity-60">
-                {aEnviarEmail ? 'A enviar...' : 'Confirmar e Enviar'}
+                {aEnviarEmail ? 'A enviar...' : 'Confirmar e Enviar à Contabilista'}
               </button>
             </div>
           </div>

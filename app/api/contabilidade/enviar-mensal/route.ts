@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
   const { mes, modo } = await req.json();
   if (!mes || !/^\d{4}-\d{2}$/.test(mes)) return NextResponse.json({ error: 'Mês inválido.' }, { status: 400 });
   const apenasPreview = modo === 'preview';
+  const envioTeste = modo === 'teste';
 
   const [ano, mesNum] = mes.split('-').map(Number);
   const inicio = `${mes}-01`;
@@ -151,6 +152,7 @@ export async function POST(req: NextRequest) {
   const mesLabel = new Date(ano, mesNum - 1, 1).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
 
   const corpoHtml = `
+    ${envioTeste ? '<p style="color:#b45309;font-weight:bold">Isto é um envio de TESTE — a contabilista não recebeu esta cópia.</p>' : ''}
     <h2>Contabilidade — ${mesLabel}</h2>
     <p><b>Total de Despesas:</b> ${totalDespesas.toFixed(2)} € (${listaDespesas.length} registos)</p>
     <p><b>Total de Receitas:</b> ${totalReceitas.toFixed(2)} € (${listaReceitas.length} registos)</p>
@@ -163,9 +165,9 @@ export async function POST(req: NextRequest) {
     headers: { Authorization: `Bearer ${resendKey}`, 'content-type': 'application/json' },
     body: JSON.stringify({
       from: REMETENTE,
-      to: [DESTINO_CONTABILISTA],
-      cc: [CC_EMPRESA],
-      subject: `Contabilidade — ${mesLabel}`,
+      to: [envioTeste ? CC_EMPRESA : DESTINO_CONTABILISTA],
+      cc: envioTeste ? undefined : [CC_EMPRESA],
+      subject: `${envioTeste ? '[TESTE] ' : ''}Contabilidade — ${mesLabel}`,
       html: corpoHtml,
       attachments: anexos,
     }),

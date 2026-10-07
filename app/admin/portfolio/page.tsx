@@ -88,6 +88,11 @@ export default function PortfolioPage() {
     carregar();
   }
 
+  async function mudarTipoFoto(fotoId: string, novoTipo: string) {
+    await supabase.from('projeto_fotos').update({ tipo: novoTipo, capa: false }).eq('id', fotoId);
+    carregar();
+  }
+
   async function definirCapa(projetoId: string, tipo: string, fotoId: string, atual: boolean) {
     await supabase.from('projeto_fotos').update({ capa: false }).eq('projeto_id', projetoId).eq('tipo', tipo);
     if (!atual) {
@@ -195,7 +200,16 @@ export default function PortfolioPage() {
                       {fotosProjeto.map((f) => (
                         <div key={f.id} className={`relative group rounded-lg ${f.capa ? 'ring-2 ring-brand-500' : ''}`}>
                           <img src={f.url} className="w-full aspect-square object-cover rounded-lg border border-sand-200" />
-                          <span className="badge bg-white/90 text-ink-600 absolute bottom-1 left-1 text-[10px]">{f.tipo}</span>
+                          <select
+                            value={f.tipo}
+                            onChange={(e) => mudarTipoFoto(f.id, e.target.value)}
+                            title="Mudar tipo da foto"
+                            className="badge bg-white/90 text-ink-600 absolute bottom-1 left-1 text-[10px] border-0 outline-none cursor-pointer pr-4"
+                          >
+                            <option value="antes">antes</option>
+                            <option value="depois">depois</option>
+                            <option value="geral">geral</option>
+                          </select>
                           {f.capa && <span className="badge bg-brand-500 text-white absolute bottom-1 right-1 text-[10px]">Destaque</span>}
                           <button
                             onClick={() => definirCapa(p.id, f.tipo, f.id, f.capa)}

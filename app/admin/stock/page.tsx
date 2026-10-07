@@ -16,7 +16,20 @@ type Ferramenta = {
   preco_compra: number | null;
   data_compra: string | null;
   comprovativo_url: string | null;
+  garantia_meses: number | null;
 };
+
+function dataFimGarantia(dataCompra: string, garantiaMeses: number): string {
+  const d = new Date(dataCompra);
+  d.setMonth(d.getMonth() + garantiaMeses);
+  return d.toLocaleDateString('pt-PT');
+}
+
+function garantiaExpirada(dataCompra: string, garantiaMeses: number): boolean {
+  const d = new Date(dataCompra);
+  d.setMonth(d.getMonth() + garantiaMeses);
+  return d < new Date();
+}
 
 type Material = {
   id: string;
@@ -99,6 +112,11 @@ function FerramentasTab() {
     carregar();
   }
 
+  async function mudarGarantia(id: string, garantiaMeses: number) {
+    await supabase.from('ferramentas').update({ garantia_meses: garantiaMeses }).eq('id', id);
+    carregar();
+  }
+
   async function remover(id: string) {
     if (!confirm('Remover esta ferramenta?')) return;
     await supabase.from('ferramentas').delete().eq('id', id);
@@ -136,6 +154,7 @@ function FerramentasTab() {
                 <th className="p-4 font-medium">Ferramenta</th>
                 <th className="p-4 font-medium">Marca/Modelo</th>
                 <th className="p-4 font-medium">Compra</th>
+                <th className="p-4 font-medium">Garantia</th>
                 <th className="p-4 font-medium">Localização</th>
                 <th className="p-4 font-medium">Atribuída a</th>
                 <th className="p-4 font-medium">Estado</th>
@@ -144,9 +163,9 @@ function FerramentasTab() {
             </thead>
             <tbody className="divide-y divide-sand-100">
               {loading ? (
-                <tr><td colSpan={7} className="p-10 text-center text-ink-300 text-sm">A carregar...</td></tr>
+                <tr><td colSpan={8} className="p-10 text-center text-ink-300 text-sm">A carregar...</td></tr>
               ) : ferramentas.length === 0 ? (
-                <tr><td colSpan={7} className="p-10 text-center text-ink-400 text-sm"><Wrench size={28} className="mx-auto mb-2 text-ink-200" />Nenhuma ferramenta registada.</td></tr>
+                <tr><td colSpan={8} className="p-10 text-center text-ink-400 text-sm"><Wrench size={28} className="mx-auto mb-2 text-ink-200" />Nenhuma ferramenta registada.</td></tr>
               ) : (
                 ferramentas.map((f) => (
                   <tr key={f.id} className="hover:bg-sand-50 transition-colors">
@@ -161,6 +180,25 @@ function FerramentasTab() {
                               <Paperclip size={14} />
                             </a>
                           )}
+                        </div>
+                      ) : '—'}
+                    </td>
+                    <td className="p-4 text-ink-500">
+                      {f.data_compra ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className={garantiaExpirada(f.data_compra, f.garantia_meses ?? 24) ? 'text-red-600' : 'text-green-700'}>
+                            até {dataFimGarantia(f.data_compra, f.garantia_meses ?? 24)}
+                          </span>
+                          <select
+                            value={f.garantia_meses ?? 24}
+                            onChange={(e) => mudarGarantia(f.id, parseInt(e.target.value))}
+                            className="text-xs border border-sand-200 rounded px-1 py-0.5 bg-white"
+                            title="Meses de garantia"
+                          >
+                            <option value={12}>12m</option>
+                            <option value={24}>24m</option>
+                            <option value={36}>36m</option>
+                          </select>
                         </div>
                       ) : '—'}
                     </td>

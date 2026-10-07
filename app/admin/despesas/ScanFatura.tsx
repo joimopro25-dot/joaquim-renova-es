@@ -202,14 +202,16 @@ export default function ScanFatura({ obras, subs, onSaved, onClose }: { obras: O
         let materialId: string | null = null;
 
         if (item.isFerramenta) {
-          await supabase.from('ferramentas').insert([{
+          const { error: erroFerramenta } = await supabase.from('ferramentas').insert([{
             nome: item.descricao || 'Ferramenta sem nome',
             preco_compra: item.preco_unitario,
             data_compra: data || new Date().toISOString().slice(0, 10),
             comprovativo_url: comprovativoUrl,
             despesa_id: despesa.id,
             estado: 'disponivel',
+            garantia_meses: 24,
           }]);
+          if (erroFerramenta) { setErro('Erro ao registar ferramenta "' + item.descricao + '": ' + erroFerramenta.message); setSaving(false); return; }
         }
 
         if (item.adicionarStock && item.materialNome.trim()) {

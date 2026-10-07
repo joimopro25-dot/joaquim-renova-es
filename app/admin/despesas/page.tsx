@@ -432,6 +432,22 @@ export default function DespesasPage() {
     carregar();
   }
 
+  async function marcarComoFerramenta(d: Despesa, item: DespesaItem) {
+    if (!confirm(`Registar "${item.descricao}" como ferramenta da empresa?`)) return;
+    const comprovativoUrl = d.despesa_anexos?.find((a) => a.tipo === 'fatura')?.url || d.despesa_anexos?.[0]?.url || d.comprovativo_url || null;
+    const { error } = await supabase.from('ferramentas').insert([{
+      nome: item.descricao,
+      preco_compra: item.preco_unitario,
+      data_compra: d.data_despesa,
+      comprovativo_url: comprovativoUrl,
+      despesa_id: d.id,
+      estado: 'disponivel',
+      garantia_meses: 24,
+    }]);
+    if (error) { alert('Erro ao registar ferramenta: ' + error.message); return; }
+    alert('Ferramenta registada — já a consegues ver em Stock/Ferramentas.');
+  }
+
   async function removerDespesa(id: string) {
     if (!confirm('Remover esta despesa?')) return;
     await supabase.from('despesas').delete().eq('id', id);
@@ -909,6 +925,7 @@ export default function DespesasPage() {
                                       <th className="pb-1.5 font-medium text-right">Desc.</th>
                                       <th className="pb-1.5 font-medium text-right">IVA</th>
                                       <th className="pb-1.5 font-medium text-right">Total</th>
+                                      <th className="pb-1.5"></th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-sand-200">
@@ -921,6 +938,16 @@ export default function DespesasPage() {
                                         <td className="py-1.5 text-right text-ink-500">{it.iva_percentagem}%</td>
                                         <td className="py-1.5 text-right text-ink-700 font-medium">
                                           {formatMoney(it.quantidade * it.preco_unitario * (1 - it.desconto_percentagem / 100) * (1 + it.iva_percentagem / 100))}
+                                        </td>
+                                        <td className="py-1.5 pl-2 text-right whitespace-nowrap">
+                                          <button
+                                            type="button"
+                                            onClick={() => marcarComoFerramenta(d, it)}
+                                            className="text-ink-400 hover:text-brand-600 text-[11px] underline"
+                                            title="Marcar este artigo como ferramenta da empresa"
+                                          >
+                                            Marcar como Ferramenta
+                                          </button>
                                         </td>
                                       </tr>
                                     ))}

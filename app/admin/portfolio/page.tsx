@@ -184,7 +184,7 @@ export default function PortfolioPage() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2 mb-4">
-                      {['antes', 'depois', 'geral'].map((tipo) => (
+                      {['antes', 'durante', 'depois', 'geral'].map((tipo) => (
                         <label key={tipo} className="btn-primary text-xs px-3 py-1.5 cursor-pointer">
                           <Upload size={13} /> {uploading ? 'A enviar...' : `+ Foto (${tipo})`}
                           <input type="file" accept="image/*" multiple className="hidden" disabled={uploading} onChange={(e) => { enviarFotos(p.id, tipo, e.target.files); e.target.value = ''; }} />
@@ -207,6 +207,7 @@ export default function PortfolioPage() {
                             className="badge bg-white/90 text-ink-600 absolute bottom-1 left-1 text-[10px] border-0 outline-none cursor-pointer pr-4"
                           >
                             <option value="antes">antes</option>
+                            <option value="durante">durante</option>
                             <option value="depois">depois</option>
                             <option value="geral">geral</option>
                           </select>

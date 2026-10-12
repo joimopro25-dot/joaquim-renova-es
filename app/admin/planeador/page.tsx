@@ -139,6 +139,11 @@ export default function PlaneadorPage() {
   const [novoSaldo, setNovoSaldo] = useState('');
   const [aGuardarSaldo, setAGuardarSaldo] = useState(false);
 
+  const [confirmando, setConfirmando] = useState<Recorrente | null>(null);
+  const [valorConfirmar, setValorConfirmar] = useState('');
+  const [dataConfirmar, setDataConfirmar] = useState('');
+  const [aConfirmar, setAConfirmar] = useState(false);
+
   async function carregar() {
     setLoading(true);
     const [{ data: recData }, { data: areasData }, { data: saldoData }, { data: ivaData }] = await Promise.all([
@@ -196,21 +201,32 @@ export default function PlaneadorPage() {
     carregar();
   }
 
-  async function confirmarPagamento(r: Recorrente) {
-    if (!confirm(`Confirmar pagamento de "${r.descricao}" (${formatMoney(r.valor)}) com data ${new Date(r.proxima_data).toLocaleDateString('pt-PT')}? Isto cria a despesa real e avança para o próximo ciclo.`)) return;
+  function abrirConfirmarPagamento(r: Recorrente) {
+    setConfirmando(r);
+    setValorConfirmar(String(r.valor));
+    setDataConfirmar(r.proxima_data);
+  }
+
+  async function confirmarPagamento() {
+    if (!confirmando) return;
+    const r = confirmando;
+    const valorPago = parseFloat(valorConfirmar) || 0;
+    setAConfirmar(true);
     const { error: erroDespesa } = await supabase.from('despesas').insert([{
       descricao: r.descricao,
       categoria: r.categoria,
-      valor: r.valor,
-      data_despesa: r.proxima_data,
+      valor: valorPago,
+      data_despesa: dataConfirmar,
       area_negocio_id: r.area_negocio_id,
       estado_pagamento: 'pago',
-      data_pagamento: r.proxima_data,
+      data_pagamento: dataConfirmar,
       tipo_imputacao: 'custo',
     }]);
-    if (erroDespesa) { alert('Erro ao criar despesa: ' + erroDespesa.message); return; }
-    const novaData = somarMeses(r.proxima_data, mesesDaPeriodicidade(r.periodicidade));
+    if (erroDespesa) { setAConfirmar(false); alert('Erro ao criar despesa: ' + erroDespesa.message); return; }
+    const novaData = somarMeses(dataConfirmar, mesesDaPeriodicidade(r.periodicidade));
     await supabase.from('despesas_recorrentes').update({ proxima_data: novaData }).eq('id', r.id);
+    setAConfirmar(false);
+    setConfirmando(null);
     carregar();
   }
 
@@ -355,7 +371,7 @@ export default function PlaneadorPage() {
                 <div className="flex items-center gap-3">
                   <span className="font-medium text-ink-800">{formatMoney(r.valor)}</span>
                   {r.ativa && (
-                    <button onClick={() => confirmarPagamento(r)} className="text-green-600 hover:text-green-700 text-xs font-medium flex items-center gap-1">
+                    <button onClick={() => abrirConfirmarPagamento(r)} className="text-green-600 hover:text-green-700 text-xs font-medium flex items-center gap-1">
                       <Check size={14} /> Confirmar Pagamento
                     </button>
                   )}
@@ -370,6 +386,26 @@ export default function PlaneadorPage() {
           </div>
         )}
       </div>
+
+      {confirmando && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6">
+            <h3 className="font-semibold text-ink-800 mb-1">Confirmar Pagamento</h3>
+            <p className="text-sm text-ink-400 mb-4">{confirmando.descricao} — ajusta o valor e a data desta prestação, se for diferente do habitual.</p>
+            <label className="block text-sm text-ink-600 mb-1">Valor pago (€)</label>
+            <input type="number" step="0.01" value={valorConfirmar} onChange={(e) => setValorConfirmar(e.target.value)} className="input w-full mb-3" autoFocus />
+            <label className="block text-sm text-ink-600 mb-1">Data</label>
+            <input type="date" value={dataConfirmar} onChange={(e) => setDataConfirmar(e.target.value)} className="input w-full mb-4" />
+            <p className="text-xs text-ink-400 mb-4">O valor-padrão desta recorrente ({formatMoney(confirmando.valor)}) mantém-se para as próximas prestações — isto só ajusta esta.</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setConfirmando(null)} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 flex-1 justify-center">Cancelar</button>
+              <button onClick={confirmarPagamento} disabled={aConfirmar} className="btn-primary bg-green-600 hover:bg-green-700 flex-1 justify-center disabled:opacity-60">
+                {aConfirmar ? 'A confirmar...' : 'Confirmar e Criar Despesa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

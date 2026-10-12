@@ -515,8 +515,16 @@ export default function OrcamentoDetalhePage() {
               <button onClick={() => mudarEstado('rejeitado')} className="btn-primary bg-red-600 hover:bg-red-700">
                 <X size={16} /> Rejeitar
               </button>
+              <button onClick={() => { if (confirm('Voltar a Rascunho para poderes editar as linhas? O cliente deixa de ver os valores até voltares a marcar como Enviado.')) mudarEstado('rascunho'); }} className="btn-primary bg-sand-300 text-ink-700 hover:bg-sand-200">
+                <Pencil size={16} /> Voltar a Rascunho para Editar
+              </button>
               <span className="text-sm text-ink-400 self-center">Também pode ser aprovado pelo próprio cliente no portal.</span>
             </>
+          )}
+          {orcamento.status === 'rejeitado' && (
+            <button onClick={() => mudarEstado('rascunho')} className="btn-primary bg-sand-300 text-ink-700 hover:bg-sand-200">
+              <Pencil size={16} /> Voltar a Rascunho para Editar
+            </button>
           )}
           {orcamento.status === 'aprovado' && (
             <button onClick={converterEmObra} disabled={converting} className="btn-primary bg-purple-600 hover:bg-purple-700 disabled:opacity-60">

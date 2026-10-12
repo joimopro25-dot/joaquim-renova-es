@@ -41,6 +41,10 @@ function mesesDaPeriodicidade(p: string): number {
   return PERIODICIDADES.find((x) => x.value === p)?.meses ?? 1;
 }
 
+function ocorrenciasPorAno(p: string): number {
+  return 12 / mesesDaPeriodicidade(p);
+}
+
 function somarMeses(dataIso: string, meses: number): string {
   const d = new Date(dataIso);
   d.setMonth(d.getMonth() + meses);
@@ -131,6 +135,7 @@ export default function PlaneadorPage() {
   const [descricao, setDescricao] = useState('');
   const [categoria, setCategoria] = useState('seguros');
   const [valor, setValor] = useState('');
+  const [valorTotalAnual, setValorTotalAnual] = useState('');
   const [periodicidade, setPeriodicidade] = useState('mensal');
   const [proximaData, setProximaData] = useState(() => new Date().toISOString().slice(0, 10));
   const [areaNegocioId, setAreaNegocioId] = useState('');
@@ -162,16 +167,28 @@ export default function PlaneadorPage() {
   useEffect(() => { carregar(); }, []);
 
   function resetForm() {
-    setDescricao(''); setCategoria('seguros'); setValor(''); setPeriodicidade('mensal');
+    setDescricao(''); setCategoria('seguros'); setValor(''); setValorTotalAnual(''); setPeriodicidade('mensal');
     setProximaData(new Date().toISOString().slice(0, 10)); setAreaNegocioId('');
     setEditandoId(null); setShowForm(false);
   }
 
   function abrirEditar(r: Recorrente) {
     setEditandoId(r.id);
-    setDescricao(r.descricao); setCategoria(r.categoria); setValor(String(r.valor));
+    setDescricao(r.descricao); setCategoria(r.categoria); setValor(String(r.valor)); setValorTotalAnual('');
     setPeriodicidade(r.periodicidade); setProximaData(r.proxima_data); setAreaNegocioId(r.area_negocio_id || '');
     setShowForm(true);
+  }
+
+  function atualizarValorTotalAnual(novoTotal: string) {
+    setValorTotalAnual(novoTotal);
+    const total = parseFloat(novoTotal);
+    if (!isNaN(total)) setValor((total / ocorrenciasPorAno(periodicidade)).toFixed(2));
+  }
+
+  function atualizarPeriodicidade(novaPeriodicidade: string) {
+    setPeriodicidade(novaPeriodicidade);
+    const total = parseFloat(valorTotalAnual);
+    if (!isNaN(total)) setValor((total / ocorrenciasPorAno(novaPeriodicidade)).toFixed(2));
   }
 
   async function guardar(e: React.FormEvent) {
@@ -336,10 +353,17 @@ export default function PlaneadorPage() {
             <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="input">
               {CATEGORIAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
-            <input type="number" step="0.01" placeholder="Valor (€)" value={valor} onChange={(e) => setValor(e.target.value)} className="input" required />
-            <select value={periodicidade} onChange={(e) => setPeriodicidade(e.target.value)} className="input">
+            <select value={periodicidade} onChange={(e) => atualizarPeriodicidade(e.target.value)} className="input">
               {PERIODICIDADES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
+            <div>
+              <label className="text-xs text-ink-400">Valor total anual (€) — opcional, calcula o valor por período</label>
+              <input type="number" step="0.01" placeholder="ex: 965,84 por ano" value={valorTotalAnual} onChange={(e) => atualizarValorTotalAnual(e.target.value)} className="input w-full mt-1" />
+            </div>
+            <div>
+              <label className="text-xs text-ink-400">Valor por período (€)</label>
+              <input type="number" step="0.01" placeholder="Valor (€)" value={valor} onChange={(e) => setValor(e.target.value)} className="input w-full mt-1" required />
+            </div>
             <div>
               <label className="text-xs text-ink-400">Próxima data</label>
               <input type="date" value={proximaData} onChange={(e) => setProximaData(e.target.value)} className="input w-full mt-1" required />

@@ -82,7 +82,7 @@ const ESTADOS: Record<string, { label: string; color: string }> = {
 };
 
 function novaLinhaVazia() {
-  return { descricao: '', unidade: 'un', quantidade: '1', precoUnitario: '', desconto1: '0', desconto2: '0' };
+  return { descricao: '', unidade: 'un', quantidade: '1', precoUnitario: '', desconto1: '0', desconto2: '0', capitulo: '' };
 }
 
 export default function OrcamentoDetalhePage() {
@@ -358,6 +358,7 @@ export default function OrcamentoDetalhePage() {
       precoUnitario: String(l.preco_unitario),
       desconto1: String(l.desconto1_percentagem),
       desconto2: String(l.desconto2_percentagem),
+      capitulo: l.capitulo || 'Geral',
     });
   }
 
@@ -369,6 +370,7 @@ export default function OrcamentoDetalhePage() {
       preco_unitario: parseFloat(formEdicao.precoUnitario) || 0,
       desconto1_percentagem: parseFloat(formEdicao.desconto1) || 0,
       desconto2_percentagem: parseFloat(formEdicao.desconto2) || 0,
+      capitulo: formEdicao.capitulo || 'Geral',
     }).eq('id', linhaId);
     if (error) { alert('Erro: ' + error.message); return; }
     setLinhaEditandoId(null);
@@ -449,6 +451,7 @@ export default function OrcamentoDetalhePage() {
 
   const linhasMaterial = linhas.filter((l) => l.tipo_linha === 'material');
   const linhasMaoObra = linhas.filter((l) => l.tipo_linha === 'mao_obra');
+  const capitulosExistentes = Array.from(new Set(linhas.map((l) => l.capitulo || 'Geral')));
   const linhasSubcontratadas = linhas.filter((l) => l.tipo_linha === 'subcontratada');
 
   const linhasPorCapitulo: Record<string, Linha[]> = {};
@@ -462,6 +465,9 @@ export default function OrcamentoDetalhePage() {
 
   return (
     <div className="p-4 md:p-8 max-w-5xl">
+      <datalist id="capitulos-existentes">
+        {capitulosExistentes.map((c) => <option key={c} value={c} />)}
+      </datalist>
       <button onClick={() => router.push('/admin/orcamentos')} className="flex items-center gap-1.5 text-sm text-ink-400 hover:text-ink-700 mb-4">
         <ArrowLeft size={16} /> Voltar a Orçamentos
       </button>
@@ -678,7 +684,8 @@ export default function OrcamentoDetalhePage() {
                 {linhasMaterial.map((l) => l.id === linhaEditandoId ? (
                   <tr key={l.id} className="bg-brand-50/40">
                     <td className="p-2">
-                      <input type="text" value={formEdicao.descricao} onChange={(e) => setFormEdicao({ ...formEdicao, descricao: e.target.value })} className="input w-full" />
+                      <input type="text" value={formEdicao.descricao} onChange={(e) => setFormEdicao({ ...formEdicao, descricao: e.target.value })} className="input w-full mb-1" />
+                      <input type="text" list="capitulos-existentes" placeholder="Capítulo/trabalho (ex: Quarto - Pintura)" value={formEdicao.capitulo} onChange={(e) => setFormEdicao({ ...formEdicao, capitulo: e.target.value })} className="input w-full text-xs" />
                     </td>
                     <td className="p-2"><input type="number" step="0.01" value={formEdicao.precoUnitario} onChange={(e) => setFormEdicao({ ...formEdicao, precoUnitario: e.target.value })} className="input w-full text-right" /></td>
                     <td className="p-2"><input type="number" step="0.01" value={formEdicao.quantidade} onChange={(e) => setFormEdicao({ ...formEdicao, quantidade: e.target.value })} className="input w-full text-right" /></td>
@@ -692,7 +699,10 @@ export default function OrcamentoDetalhePage() {
                   </tr>
                 ) : (
                   <tr key={l.id}>
-                    <td className="p-2 text-ink-800">{l.descricao} <span className="text-ink-400">({l.unidade})</span></td>
+                    <td className="p-2 text-ink-800">
+                      {l.descricao} <span className="text-ink-400">({l.unidade})</span>
+                      <br /><span className="badge bg-sand-100 text-ink-500 text-[10px] mt-1">{l.capitulo || 'Geral'}</span>
+                    </td>
                     <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario)}</td>
                     <td className="p-2 text-right text-ink-500">{l.quantidade}</td>
                     <td className="p-2 text-right text-ink-500">{l.desconto1_percentagem}%</td>
@@ -771,7 +781,8 @@ export default function OrcamentoDetalhePage() {
                 {linhasMaoObra.map((l) => l.id === linhaEditandoId ? (
                   <tr key={l.id} className="bg-brand-50/40">
                     <td className="p-2">
-                      <input type="text" value={formEdicao.descricao} onChange={(e) => setFormEdicao({ ...formEdicao, descricao: e.target.value })} className="input w-full" />
+                      <input type="text" value={formEdicao.descricao} onChange={(e) => setFormEdicao({ ...formEdicao, descricao: e.target.value })} className="input w-full mb-1" />
+                      <input type="text" list="capitulos-existentes" placeholder="Capítulo/trabalho (ex: Quarto - Pintura)" value={formEdicao.capitulo} onChange={(e) => setFormEdicao({ ...formEdicao, capitulo: e.target.value })} className="input w-full text-xs" />
                     </td>
                     <td className="p-2"><input type="number" step="0.01" value={formEdicao.precoUnitario} onChange={(e) => setFormEdicao({ ...formEdicao, precoUnitario: e.target.value })} className="input w-full text-right" /></td>
                     <td className="p-2"><input type="number" step="0.01" value={formEdicao.quantidade} onChange={(e) => setFormEdicao({ ...formEdicao, quantidade: e.target.value })} className="input w-full text-right" /></td>
@@ -785,7 +796,10 @@ export default function OrcamentoDetalhePage() {
                   </tr>
                 ) : (
                   <tr key={l.id}>
-                    <td className="p-2 text-ink-800">{l.descricao} <span className="text-ink-400">({l.unidade})</span></td>
+                    <td className="p-2 text-ink-800">
+                      {l.descricao} <span className="text-ink-400">({l.unidade})</span>
+                      <br /><span className="badge bg-sand-100 text-ink-500 text-[10px] mt-1">{l.capitulo || 'Geral'}</span>
+                    </td>
                     <td className="p-2 text-right text-ink-500">{formatMoney(l.preco_unitario)}</td>
                     <td className="p-2 text-right text-ink-500">{l.quantidade}</td>
                     <td className="p-2 text-right text-ink-500">{l.desconto1_percentagem}%</td>

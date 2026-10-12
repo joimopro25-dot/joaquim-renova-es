@@ -344,6 +344,12 @@ export default function OrcamentoDetalhePage() {
     if (error) alert('Erro ao guardar: ' + error.message);
   }
 
+  async function removerDescricaoCapitulo(capitulo: string) {
+    if (!confirm(`Apagar a descrição de "${capitulo}"? O capítulo em si só desaparece se não tiver linhas atribuídas.`)) return;
+    await supabase.from('orcamento_capitulos').delete().eq('orcamento_id', id).eq('capitulo', capitulo);
+    setDescricoesCapitulos((prev) => ({ ...prev, [capitulo]: '' }));
+  }
+
   async function removerLinha(linhaId: string) {
     await supabase.from('orcamento_linhas').delete().eq('id', linhaId);
     carregar();
@@ -663,6 +669,12 @@ export default function OrcamentoDetalhePage() {
                     className="btn-primary bg-ink-700 hover:bg-ink-800 text-xs py-1.5"
                   >
                     {capituloAGuardar === capitulo ? 'A guardar...' : 'Guardar'}
+                  </button>
+                  <button
+                    onClick={() => removerDescricaoCapitulo(capitulo)}
+                    className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 text-xs py-1.5"
+                  >
+                    <Trash2 size={14} /> Remover
                   </button>
                 </div>
               </div>

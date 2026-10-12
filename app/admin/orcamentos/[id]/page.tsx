@@ -130,6 +130,7 @@ export default function OrcamentoDetalhePage() {
   const [aConvidar, setAConvidar] = useState(false);
 
   const [descricoesCapitulos, setDescricoesCapitulos] = useState<Record<string, string>>({});
+  const [titulosCapitulos, setTitulosCapitulos] = useState<Record<string, string>>({});
   const [capituloAGerar, setCapituloAGerar] = useState<string | null>(null);
   const [capituloAGuardar, setCapituloAGuardar] = useState<string | null>(null);
 
@@ -140,12 +141,14 @@ export default function OrcamentoDetalhePage() {
       supabase.from('orcamento_linhas').select('*, fornecedores(nome)').eq('orcamento_id', id).order('criado_em'),
       supabase.from('orcamento_fotos').select('*').eq('orcamento_id', id).order('criado_em', { ascending: false }),
       supabase.from('fornecedores').select('id, nome').order('nome'),
-      supabase.from('orcamento_capitulos').select('capitulo, descricao').eq('orcamento_id', id),
+      supabase.from('orcamento_capitulos').select('capitulo, descricao, titulo').eq('orcamento_id', id),
     ]);
     setOrcamento(orc as any);
     const mapaDescricoes: Record<string, string> = {};
-    for (const c of (capitulosData as any) || []) mapaDescricoes[c.capitulo] = c.descricao || '';
+    const mapaTitulos: Record<string, string> = {};
+    for (const c of (capitulosData as any) || []) { mapaDescricoes[c.capitulo] = c.descricao || ''; mapaTitulos[c.capitulo] = c.titulo || ''; }
     setDescricoesCapitulos(mapaDescricoes);
+    setTitulosCapitulos(mapaTitulos);
     if ((orc as any)?.cliente_id) {
       const { data: perfil } = await supabase.from('perfis').select('id').eq('cliente_id', (orc as any).cliente_id).maybeSingle();
       setTemAcessoPortal(!!perfil);
@@ -337,7 +340,7 @@ export default function OrcamentoDetalhePage() {
   async function guardarDescricaoCapitulo(capitulo: string) {
     setCapituloAGuardar(capitulo);
     const { error } = await supabase.from('orcamento_capitulos').upsert(
-      [{ orcamento_id: id, capitulo, descricao: descricoesCapitulos[capitulo] || '' }],
+      [{ orcamento_id: id, capitulo, descricao: descricoesCapitulos[capitulo] || '', titulo: titulosCapitulos[capitulo] || '' }],
       { onConflict: 'orcamento_id,capitulo' }
     );
     setCapituloAGuardar(null);
@@ -345,9 +348,10 @@ export default function OrcamentoDetalhePage() {
   }
 
   async function removerDescricaoCapitulo(capitulo: string) {
-    if (!confirm(`Apagar a descrição de "${capitulo}"? O capítulo em si só desaparece se não tiver linhas atribuídas.`)) return;
+    if (!confirm(`Apagar a descrição e o título de "${capitulo}"? O capítulo em si só desaparece se não tiver linhas atribuídas.`)) return;
     await supabase.from('orcamento_capitulos').delete().eq('orcamento_id', id).eq('capitulo', capitulo);
     setDescricoesCapitulos((prev) => ({ ...prev, [capitulo]: '' }));
+    setTitulosCapitulos((prev) => ({ ...prev, [capitulo]: '' }));
   }
 
   async function removerLinha(linhaId: string) {
@@ -647,7 +651,16 @@ export default function OrcamentoDetalhePage() {
           <div className="space-y-4">
             {Object.entries(linhasPorCapitulo).map(([capitulo, itens]) => (
               <div key={capitulo} className="border border-sand-200 rounded-lg p-3">
-                <p className="text-sm font-medium text-ink-700 mb-2">{capitulo}</p>
+                <p className="text-xs text-ink-400 mb-1">Capítulo interno: {capitulo}</p>
+                <label className="text-xs text-ink-500 block mb-1">Título para o cliente</label>
+                <input
+                  type="text"
+                  value={titulosCapitulos[capitulo] || ''}
+                  onChange={(e) => setTitulosCapitulos((prev) => ({ ...prev, [capitulo]: e.target.value }))}
+                  placeholder={capitulo}
+                  className="input w-full text-sm mb-2"
+                />
+                <label className="text-xs text-ink-500 block mb-1">Descrição</label>
                 <textarea
                   value={descricoesCapitulos[capitulo] || ''}
                   onChange={(e) => setDescricoesCapitulos((prev) => ({ ...prev, [capitulo]: e.target.value }))}

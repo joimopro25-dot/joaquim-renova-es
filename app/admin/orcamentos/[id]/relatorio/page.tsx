@@ -48,6 +48,7 @@ export default function RelatorioOrcamento() {
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [divisoes, setDivisoes] = useState<DivisaoPlanta[]>([]);
   const [descricoesCapitulos, setDescricoesCapitulos] = useState<Record<string, string>>({});
+  const [titulosCapitulos, setTitulosCapitulos] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -57,15 +58,20 @@ export default function RelatorioOrcamento() {
         supabase.from('orcamento_linhas_cliente').select('*').eq('orcamento_id', id).order('criado_em'),
         supabase.from('orcamento_fotos').select('id, url, legenda').eq('orcamento_id', id).order('criado_em', { ascending: false }),
         supabase.from('orcamento_divisoes').select('id, label, pladur_config').eq('orcamento_id', id).order('criado_em'),
-        supabase.from('orcamento_capitulos').select('capitulo, descricao').eq('orcamento_id', id),
+        supabase.from('orcamento_capitulos').select('capitulo, descricao, titulo').eq('orcamento_id', id),
       ]);
       setOrcamento(orc as any);
       setLinhas(linhasData || []);
       setFotos(fotosData || []);
       setDivisoes(((divisoesData as any) || []).filter((d: DivisaoPlanta) => d.pladur_config));
       const mapaDescricoes: Record<string, string> = {};
-      for (const c of (capitulosData as any) || []) if (c.descricao) mapaDescricoes[c.capitulo] = c.descricao;
+      const mapaTitulos: Record<string, string> = {};
+      for (const c of (capitulosData as any) || []) {
+        if (c.descricao) mapaDescricoes[c.capitulo] = c.descricao;
+        if (c.titulo) mapaTitulos[c.capitulo] = c.titulo;
+      }
       setDescricoesCapitulos(mapaDescricoes);
+      setTitulosCapitulos(mapaTitulos);
       setLoading(false);
     }
     carregar();
@@ -132,7 +138,7 @@ export default function RelatorioOrcamento() {
           <tbody>
             {Object.entries(linhasPorCapitulo).map(([capitulo, itens]) => {
               const totalCapitulo = itens.reduce((s, l) => s + l.preco_total, 0);
-              const label = capitulo === 'Geral' ? orcamento.titulo : capitulo.replace(' · ', ' — ');
+              const label = titulosCapitulos[capitulo] || (capitulo === 'Geral' ? orcamento.titulo : capitulo.replace(' · ', ' — '));
               const descricaoCapitulo = descricoesCapitulos[capitulo];
               return (
                 <tr key={capitulo} className="border-b border-sand-100 align-top">

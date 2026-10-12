@@ -31,6 +31,7 @@ type Orcamento = {
   iva_mao_obra_percentagem: number;
   iva_subcontratado_percentagem: number;
   criado_em: string;
+  precos_libertados: boolean;
   clientes: { nome: string; nif: string | null; morada: string | null } | null;
 };
 
@@ -52,7 +53,7 @@ export default function RelatorioOrcamento() {
   useEffect(() => {
     async function carregar() {
       const [{ data: orc }, { data: linhasData }, { data: fotosData }, { data: divisoesData }, { data: capitulosData }] = await Promise.all([
-        supabase.from('orcamentos').select('titulo, descricao, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem, criado_em, clientes(nome, nif, morada)').eq('id', id).single(),
+        supabase.from('orcamentos').select('titulo, descricao, margem_percentagem, iva_material_percentagem, iva_mao_obra_percentagem, iva_subcontratado_percentagem, criado_em, precos_libertados, clientes(nome, nif, morada)').eq('id', id).single(),
         supabase.from('orcamento_linhas_cliente').select('*').eq('orcamento_id', id).order('criado_em'),
         supabase.from('orcamento_fotos').select('id, url, legenda').eq('orcamento_id', id).order('criado_em', { ascending: false }),
         supabase.from('orcamento_divisoes').select('id, label, pladur_config').eq('orcamento_id', id).order('criado_em'),
@@ -125,10 +126,12 @@ export default function RelatorioOrcamento() {
           <thead className="bg-sand-50 text-ink-500">
             <tr>
               <th className="p-2 border-b border-sand-200">Descrição</th>
+              {orcamento.precos_libertados && <th className="p-2 border-b border-sand-200 text-right">Total</th>}
             </tr>
           </thead>
           <tbody>
             {Object.entries(linhasPorCapitulo).map(([capitulo, itens]) => {
+              const totalCapitulo = itens.reduce((s, l) => s + l.preco_total, 0);
               const label = capitulo === 'Geral' ? orcamento.titulo : capitulo.replace(' · ', ' — ');
               const descricaoCapitulo = descricoesCapitulos[capitulo];
               return (
@@ -137,6 +140,7 @@ export default function RelatorioOrcamento() {
                     <p className="font-medium text-ink-800">{label}</p>
                     {descricaoCapitulo && <p className="text-ink-500 mt-1">{descricaoCapitulo}</p>}
                   </td>
+                  {orcamento.precos_libertados && <td className="p-2 text-right font-medium">{formatMoney(totalCapitulo)}</td>}
                 </tr>
               );
             })}

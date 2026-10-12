@@ -51,6 +51,16 @@ function somarMeses(dataIso: string, meses: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+function calcularOcorrencias(dataInicial: string, periodicidade: string, n: number): string[] {
+  const datas: string[] = [];
+  let data = dataInicial;
+  for (let i = 0; i < n; i++) {
+    datas.push(data);
+    data = somarMeses(data, mesesDaPeriodicidade(periodicidade));
+  }
+  return datas;
+}
+
 function dataFimTrimestreIva(ano: number, trimestre: number): string {
   // Aproximação: ~20 do 2º mês após o fim do trimestre (data real varia, confirmar com a contabilista)
   const d = new Date(ano, trimestre * 3 + 1, 20);
@@ -149,22 +159,45 @@ export default function PlaneadorPage() {
   const [dataConfirmar, setDataConfirmar] = useState('');
   const [aConfirmar, setAConfirmar] = useState(false);
 
+  const [overrides, setOverrides] = useState<Record<string, Record<string, number>>>({});
+  const [previsaoValores, setPrevisaoValores] = useState<Record<string, string>>({});
+
+  function valorNaData(r: Recorrente, data: string): number {
+    return overrides[r.id]?.[data] ?? r.valor;
+  }
+
   async function carregar() {
     setLoading(true);
-    const [{ data: recData }, { data: areasData }, { data: saldoData }, { data: ivaData }] = await Promise.all([
+    const [{ data: recData }, { data: areasData }, { data: saldoData }, { data: ivaData }, { data: overridesData }] = await Promise.all([
       supabase.from('despesas_recorrentes').select('*, areas_negocio(nome)').order('proxima_data'),
       supabase.from('areas_negocio').select('id, nome').order('nome'),
       supabase.from('saldo_conta').select('valor, data_registo').order('data_registo', { ascending: false }).order('criado_em', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('iva_trimestres').select('ano, trimestre, valor, pago').eq('pago', false),
+      supabase.from('recorrente_valores').select('recorrente_id, data, valor'),
     ]);
     setRecorrentes((recData as any) || []);
     setAreasNegocio(areasData || []);
     setSaldoAtual(saldoData || null);
     setIvaTrimestres((ivaData as any) || []);
+    const mapaOverrides: Record<string, Record<string, number>> = {};
+    for (const o of (overridesData as any) || []) (mapaOverrides[o.recorrente_id] ||= {})[o.data] = o.valor;
+    setOverrides(mapaOverrides);
     setLoading(false);
   }
 
   useEffect(() => { carregar(); }, []);
+
+  useEffect(() => {
+    if (!showForm) return;
+    const datas = calcularOcorrencias(proximaData, periodicidade, 6);
+    const mapa: Record<string, string> = {};
+    for (const data of datas) {
+      const override = editandoId ? overrides[editandoId]?.[data] : undefined;
+      mapa[data] = String(override ?? (parseFloat(valor) || 0));
+    }
+    setPrevisaoValores(mapa);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showForm, editandoId, proximaData, periodicidade]);
 
   function resetForm() {
     setDescricao(''); setCategoria('seguros'); setValor(''); setValorTotalAnual(''); setPeriodicidade('mensal');
@@ -194,15 +227,32 @@ export default function PlaneadorPage() {
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
     setAGuardar(true);
+    const valorBase = parseFloat(valor) || 0;
     const payload = {
-      descricao, categoria, valor: parseFloat(valor) || 0, periodicidade,
+      descricao, categoria, valor: valorBase, periodicidade,
       proxima_data: proximaData, area_negocio_id: areaNegocioId || null,
     };
-    const { error } = editandoId
-      ? await supabase.from('despesas_recorrentes').update(payload).eq('id', editandoId)
-      : await supabase.from('despesas_recorrentes').insert([{ ...payload, ativa: true }]);
+    let recorrenteId = editandoId;
+    if (editandoId) {
+      const { error } = await supabase.from('despesas_recorrentes').update(payload).eq('id', editandoId);
+      if (error) { setAGuardar(false); alert('Erro: ' + error.message); return; }
+    } else {
+      const { data, error } = await supabase.from('despesas_recorrentes').insert([{ ...payload, ativa: true }]).select().single();
+      if (error) { setAGuardar(false); alert('Erro: ' + error.message); return; }
+      recorrenteId = data.id;
+    }
+
+    for (const [data, valorStr] of Object.entries(previsaoValores)) {
+      const valorPrevisao = parseFloat(valorStr);
+      if (isNaN(valorPrevisao)) continue;
+      if (Math.abs(valorPrevisao - valorBase) < 0.005) {
+        await supabase.from('recorrente_valores').delete().eq('recorrente_id', recorrenteId).eq('data', data);
+      } else {
+        await supabase.from('recorrente_valores').upsert([{ recorrente_id: recorrenteId, data, valor: valorPrevisao }], { onConflict: 'recorrente_id,data' });
+      }
+    }
+
     setAGuardar(false);
-    if (error) { alert('Erro: ' + error.message); return; }
     resetForm();
     carregar();
   }
@@ -220,7 +270,7 @@ export default function PlaneadorPage() {
 
   function abrirConfirmarPagamento(r: Recorrente) {
     setConfirmando(r);
-    setValorConfirmar(String(r.valor));
+    setValorConfirmar(String(valorNaData(r, r.proxima_data)));
     setDataConfirmar(r.proxima_data);
   }
 
@@ -271,7 +321,7 @@ export default function PlaneadorPage() {
       let guard = 0;
       while (new Date(data) <= fimJanela && guard < 60) {
         const chave = data.slice(0, 7);
-        (eventosPorMes[chave] ||= []).push({ descricao: r.descricao, valor: r.valor });
+        (eventosPorMes[chave] ||= []).push({ descricao: r.descricao, valor: valorNaData(r, data) });
         data = somarMeses(data, mesesDaPeriodicidade(r.periodicidade));
         guard++;
       }
@@ -372,6 +422,26 @@ export default function PlaneadorPage() {
               <option value="">Sem área de negócio definida</option>
               {areasNegocio.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
             </select>
+
+            <div className="md:col-span-3 pt-2 border-t border-sand-100">
+              <label className="text-xs text-ink-400 block mb-2">
+                Previsão das próximas prestações — o valor por período acima aplica-se por omissão; edita aqui as que forem diferentes (ex: 1ª prestação com valor distinto das seguintes).
+              </label>
+              <div className="space-y-1.5">
+                {Object.keys(previsaoValores).map((data) => (
+                  <div key={data} className="flex items-center gap-2">
+                    <span className="text-xs text-ink-500 w-28 shrink-0">{new Date(data).toLocaleDateString('pt-PT')}</span>
+                    <input
+                      type="number" step="0.01"
+                      value={previsaoValores[data]}
+                      onChange={(e) => setPrevisaoValores((prev) => ({ ...prev, [data]: e.target.value }))}
+                      className="input flex-1 text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="flex gap-2 md:col-span-3">
               <button type="button" onClick={resetForm} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100 flex-1 justify-center">Cancelar</button>
               <button disabled={aGuardar} className="btn-primary flex-1 justify-center disabled:opacity-60">{aGuardar ? 'A guardar...' : editandoId ? 'Guardar Alterações' : 'Adicionar'}</button>
@@ -393,7 +463,7 @@ export default function PlaneadorPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-medium text-ink-800">{formatMoney(r.valor)}</span>
+                  <span className="font-medium text-ink-800">{formatMoney(valorNaData(r, r.proxima_data))}</span>
                   {r.ativa && (
                     <button onClick={() => abrirConfirmarPagamento(r)} className="text-green-600 hover:text-green-700 text-xs font-medium flex items-center gap-1">
                       <Check size={14} /> Confirmar Pagamento

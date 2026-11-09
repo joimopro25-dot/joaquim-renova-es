@@ -355,24 +355,6 @@ export default function PedidoOrcamento() {
                   className="input w-full mb-2"
                   rows={2}
                 />
-                <div className="flex flex-wrap gap-2">
-                  {PLANEADORES.filter((p) => i.intervencoes.some((op) => p.intervencoes.includes(op))).map((p) => {
-                    const Icon = p.icon;
-                    const configKey = `${p.tipo}Config` as const;
-                    const temConfig = !!(i as any)[configKey];
-                    return (
-                      <button
-                        key={p.tipo}
-                        type="button"
-                        onClick={() => setModalAberto({ tipo: p.tipo, instanciaId: i.id })}
-                        className="text-xs border border-brand-300 text-brand-700 bg-brand-50 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-brand-100"
-                      >
-                        <Icon size={13} />
-                        {temConfig ? `${p.label} configurado — editar` : `Configurar ${p.label}`}
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
             ))}
           </div>

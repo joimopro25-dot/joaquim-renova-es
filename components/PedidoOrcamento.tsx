@@ -47,12 +47,14 @@ export default function PedidoOrcamento() {
   const [instancias, setInstancias] = useState<Instancia[]>([]);
   const [contactoTelefone, setContactoTelefone] = useState<string | null>(null);
   const [contactoEmail, setContactoEmail] = useState<string | null>(null);
+  const [simuladorAtivo, setSimuladorAtivo] = useState(true);
 
   useEffect(() => {
     async function carregarContacto() {
-      const { data } = await supabase.from('site_settings').select('telefone, email').eq('id', 1).single();
+      const { data } = await supabase.from('site_settings').select('telefone, email, simulador_ativo').eq('id', 1).single();
       setContactoTelefone(data?.telefone || null);
       setContactoEmail(data?.email || null);
+      setSimuladorAtivo(data?.simulador_ativo !== false);
     }
     carregarContacto();
   }, []);
@@ -242,7 +244,7 @@ export default function PedidoOrcamento() {
           <h3 className="font-semibold text-ink-800 mb-1">Como prefere pedir o orçamento?</h3>
           <p className="text-sm text-ink-400 mb-5">Escolha o que for mais rápido para si — as duas opções chegam até nós.</p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className={`grid grid-cols-1 ${simuladorAtivo ? 'sm:grid-cols-2' : ''} gap-3`}>
             <div className="border border-sand-200 rounded-lg p-4">
               <p className="font-medium text-ink-800 mb-1 flex items-center gap-2"><Phone size={16} className="text-brand-500" /> Contacto direto</p>
               <p className="text-xs text-ink-400 mb-3">Prefere falar ou escrever diretamente? Estamos aqui.</p>
@@ -265,11 +267,13 @@ export default function PedidoOrcamento() {
               </div>
             </div>
 
-            <button type="button" onClick={() => setPasso(1)} className="border border-brand-300 bg-brand-50 rounded-lg p-4 text-left hover:bg-brand-100 transition-colors flex flex-col">
-              <p className="font-medium text-brand-700 mb-1 flex items-center gap-2"><Sliders size={16} /> Simulador online</p>
-              <p className="text-xs text-ink-500 mb-3">Configure cada divisão ao detalhe (medidas, materiais, plano do espaço) em poucos passos.</p>
-              <span className="mt-auto btn-primary w-full justify-center text-sm">Começar <ArrowRight size={15} /></span>
-            </button>
+            {simuladorAtivo && (
+              <button type="button" onClick={() => setPasso(1)} className="border border-brand-300 bg-brand-50 rounded-lg p-4 text-left hover:bg-brand-100 transition-colors flex flex-col">
+                <p className="font-medium text-brand-700 mb-1 flex items-center gap-2"><Sliders size={16} /> Simulador online</p>
+                <p className="text-xs text-ink-500 mb-3">Configure cada divisão ao detalhe (medidas, materiais, plano do espaço) em poucos passos.</p>
+                <span className="mt-auto btn-primary w-full justify-center text-sm">Começar <ArrowRight size={15} /></span>
+              </button>
+            )}
           </div>
         </div>
       )}

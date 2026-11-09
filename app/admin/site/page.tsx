@@ -5,7 +5,7 @@ import { supabase } from '../../../lib/supabase';
 import { ICONES, NOMES_ICONES } from '../../../lib/icons';
 import { Save, Plus, Trash2, GripVertical, Pencil, X, Eye, EyeOff } from 'lucide-react';
 
-type SiteSettings = { id: number; hero_titulo: string; hero_subtitulo: string; telefone: string | null; email: string | null };
+type SiteSettings = { id: number; hero_titulo: string; hero_subtitulo: string; telefone: string | null; email: string | null; simulador_ativo: boolean };
 type Servico = { id: string; titulo: string; descricao: string | null; icone: string; ordem: number; ativo: boolean };
 
 export default function SitePage() {
@@ -46,6 +46,7 @@ export default function SitePage() {
       hero_subtitulo: settings.hero_subtitulo,
       telefone: settings.telefone,
       email: settings.email,
+      simulador_ativo: settings.simulador_ativo,
     }).eq('id', 1);
     setSaving(false);
   }
@@ -121,6 +122,14 @@ export default function SitePage() {
             <input type="email" value={settings.email || ''} onChange={(e) => setSettings({ ...settings, email: e.target.value })} className="input w-full mt-1" />
           </div>
         </div>
+        <label className="flex items-center gap-2 text-sm text-ink-700 cursor-pointer pt-1">
+          <input
+            type="checkbox"
+            checked={settings.simulador_ativo}
+            onChange={(e) => setSettings({ ...settings, simulador_ativo: e.target.checked })}
+          />
+          Mostrar o "Simulador online" no pedido de orçamento (se desligado, o visitante só vê as opções de contacto direto)
+        </label>
         <button disabled={saving} className="btn-primary disabled:opacity-60">
           <Save size={16} /> {saving ? 'A guardar...' : 'Guardar'}
         </button>

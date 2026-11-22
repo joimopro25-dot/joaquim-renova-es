@@ -45,17 +45,20 @@ export default function ImportarOrcamento({ clientes, onSaved, onClose, orcament
   const [descricao, setDescricao] = useState('');
   const [linhas, setLinhas] = useState<Linha[]>([]);
 
-  async function handleFicheiro(f: File | null) {
-    if (!f) return;
+  async function handleFicheiros(lista: FileList | null) {
+    if (!lista || lista.length === 0) return;
     setErro('');
     setStep('loading');
     try {
-      const { base64, mediaType } = await fileParaBase64(f);
+      const ficheiros = await Promise.all(Array.from(lista).map(async (f) => {
+        const { base64, mediaType } = await fileParaBase64(f);
+        return { fileBase64: base64, mediaType };
+      }));
       const { data: { session } } = await supabase.auth.getSession();
       const resp = await fetch('/api/orcamentos/importar', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ fileBase64: base64, mediaType }),
+        body: JSON.stringify({ ficheiros }),
       });
       const json = await resp.json();
       if (!resp.ok) throw new Error(json.error || 'Erro ao processar o documento.');
@@ -143,9 +146,10 @@ export default function ImportarOrcamento({ clientes, onSaved, onClose, orcament
             <div>
               <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-sand-200 rounded-xl py-12 cursor-pointer hover:border-brand-300 transition-colors">
                 <Upload size={32} className="text-ink-300" />
-                <span className="text-sm text-ink-500">Escolhe um PDF ou documento Word (.docx) do orçamento</span>
-                <input type="file" accept="application/pdf,.docx" className="hidden" onChange={(e) => handleFicheiro(e.target.files?.[0] || null)} />
+                <span className="text-sm text-ink-500">Escolhe um PDF, documento Word (.docx) ou uma/várias fotos do orçamento</span>
+                <input type="file" accept="application/pdf,.docx,image/jpeg,image/png,image/webp,image/heic,image/heif" multiple className="hidden" onChange={(e) => handleFicheiros(e.target.files)} />
               </label>
+              <p className="text-xs text-ink-400 mt-2 text-center">Se o orçamento tiver várias páginas em papel, tira uma foto de cada página e seleciona todas de uma vez.</p>
               {erro && <p className="text-sm text-red-600 mt-3">{erro}</p>}
             </div>
           )}

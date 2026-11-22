@@ -4,7 +4,7 @@ import mammoth from 'mammoth';
 
 export const runtime = 'nodejs';
 
-const PROMPT = `Este é um orçamento de obras de reabilitação/renovação (Portugal), possivelmente gerado por outra pessoa ou outra IA. Extrai a informação e responde APENAS com um objeto JSON válido, sem markdown, sem texto adicional, exatamente neste formato:
+const PROMPT = `Este é um orçamento de obras de reabilitação/renovação (Portugal), possivelmente gerado por outra pessoa ou outra IA. Pode vir como PDF, Word, ou uma ou mais fotos/fotografias do documento (nesse caso, as imagens são páginas pela ordem em que foram enviadas — junta a informação de todas). Extrai a informação e responde APENAS com um objeto JSON válido, sem markdown, sem texto adicional, exatamente neste formato:
 
 {
   "titulo": "string curto (ex: Reparação de Fachada)",
@@ -42,32 +42,40 @@ export async function POST(req: NextRequest) {
   const { data: perfil } = await adminClient.from('perfis').select('tipo').eq('id', userData.user.id).single();
   if (perfil?.tipo !== 'admin') return NextResponse.json({ error: 'Sem permissão.' }, { status: 403 });
 
-  const { fileBase64, mediaType } = await req.json();
-  if (!fileBase64 || !mediaType) return NextResponse.json({ error: 'Ficheiro em falta.' }, { status: 400 });
+  const body = await req.json();
+  const ficheiros: { fileBase64: string; mediaType: string }[] = body.ficheiros || (body.fileBase64 ? [{ fileBase64: body.fileBase64, mediaType: body.mediaType }] : []);
+  if (ficheiros.length === 0) return NextResponse.json({ error: 'Ficheiro em falta.' }, { status: 400 });
 
-  const isPdf = mediaType === 'application/pdf';
-  const isDocx = mediaType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-  const isDoc = mediaType === 'application/msword';
+  const IMAGENS_SUPORTADAS = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
-  let conteudo: any;
+  const conteudos: any[] = [];
 
-  if (isPdf) {
-    conteudo = { type: 'document', source: { type: 'base64', media_type: mediaType, data: fileBase64 } };
-  } else if (isDocx) {
-    const buffer = Buffer.from(fileBase64, 'base64');
-    let texto = '';
-    try {
-      const resultado = await mammoth.extractRawText({ buffer });
-      texto = resultado.value;
-    } catch (e: any) {
-      return NextResponse.json({ error: 'Não foi possível ler o ficheiro Word: ' + e.message }, { status: 400 });
+  for (const { fileBase64, mediaType } of ficheiros) {
+    const isPdf = mediaType === 'application/pdf';
+    const isDocx = mediaType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const isDoc = mediaType === 'application/msword';
+    const isImagem = IMAGENS_SUPORTADAS.includes(mediaType);
+
+    if (isPdf) {
+      conteudos.push({ type: 'document', source: { type: 'base64', media_type: mediaType, data: fileBase64 } });
+    } else if (isImagem) {
+      conteudos.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: fileBase64 } });
+    } else if (isDocx) {
+      const buffer = Buffer.from(fileBase64, 'base64');
+      let texto = '';
+      try {
+        const resultado = await mammoth.extractRawText({ buffer });
+        texto = resultado.value;
+      } catch (e: any) {
+        return NextResponse.json({ error: 'Não foi possível ler o ficheiro Word: ' + e.message }, { status: 400 });
+      }
+      if (!texto.trim()) return NextResponse.json({ error: 'O documento parece estar vazio.' }, { status: 400 });
+      conteudos.push({ type: 'text', text: `Texto extraído do documento:\n\n${texto}` });
+    } else if (isDoc) {
+      return NextResponse.json({ error: 'Ficheiros .doc antigos não são suportados — grava como .docx ou PDF e tenta novamente.' }, { status: 400 });
+    } else {
+      return NextResponse.json({ error: 'Formato não suportado. Usa PDF, Word (.docx) ou fotos (JPG/PNG).' }, { status: 400 });
     }
-    if (!texto.trim()) return NextResponse.json({ error: 'O documento parece estar vazio.' }, { status: 400 });
-    conteudo = { type: 'text', text: `Texto extraído do documento:\n\n${texto}` };
-  } else if (isDoc) {
-    return NextResponse.json({ error: 'Ficheiros .doc antigos não são suportados — grava como .docx ou PDF e tenta novamente.' }, { status: 400 });
-  } else {
-    return NextResponse.json({ error: 'Formato não suportado. Usa PDF ou Word (.docx).' }, { status: 400 });
   }
 
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -83,7 +91,7 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: 'user',
-          content: [conteudo, { type: 'text', text: PROMPT }],
+          content: [...conteudos, { type: 'text', text: PROMPT }],
         },
       ],
     }),

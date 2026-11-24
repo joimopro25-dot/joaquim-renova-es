@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
+import { formatMoney } from '../../../../lib/format';
 import { ArrowLeft, ImageOff, ShieldCheck, CheckCircle2, Circle, Loader2 } from 'lucide-react';
 
 type Obra = {
@@ -11,7 +12,10 @@ type Obra = {
   descricao: string | null;
   status: string;
   progresso_percentagem: number;
+  valor_total: number | null;
 };
+
+type Pagamento = { id: string; descricao: string; valor: number; data_prevista: string | null; pago: boolean; data_pagamento: string | null };
 
 type Foto = { id: string; url: string; legenda: string | null; tarefa_id: string | null; diario_id: string | null };
 
@@ -52,22 +56,25 @@ export default function PortalObraDetalhe() {
   const [diarios, setDiarios] = useState<Diario[]>([]);
   const [garantias, setGarantias] = useState<Garantia[]>([]);
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
+  const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function carregar() {
-      const [{ data: obraData }, { data: fotosData }, { data: garantiasData }, { data: tarefasData }, { data: diariosData }] = await Promise.all([
-        supabase.from('obras').select('id, titulo, descricao, status, progresso_percentagem').eq('id', id).single(),
+      const [{ data: obraData }, { data: fotosData }, { data: garantiasData }, { data: tarefasData }, { data: diariosData }, { data: pagamentosData }] = await Promise.all([
+        supabase.from('obras').select('id, titulo, descricao, status, progresso_percentagem, valor_total').eq('id', id).single(),
         supabase.from('fotos_obra').select('id, url, legenda, tarefa_id, diario_id').eq('obra_id', id).order('criado_em', { ascending: false }),
         supabase.from('garantias').select('id, equipamento, marca_modelo, fornecedor, data_compra, duracao_meses, anexo_url, anexo_nome').eq('obra_id', id).order('criado_em', { ascending: false }),
         supabase.from('obra_tarefas').select('id, titulo, data_inicio, data_fim_prevista, estado').eq('obra_id', id).order('data_inicio'),
         supabase.from('obra_diario').select('id, data, resumo').eq('obra_id', id).order('data', { ascending: false }),
+        supabase.from('obra_pagamentos').select('id, descricao, valor, data_prevista, pago, data_pagamento').eq('obra_id', id).order('ordem').order('criado_em'),
       ]);
       setObra(obraData as any);
       setFotos(fotosData || []);
       setGarantias(garantiasData || []);
       setTarefas(tarefasData || []);
       setDiarios(diariosData || []);
+      setPagamentos(pagamentosData || []);
       setLoading(false);
     }
     carregar();
@@ -124,6 +131,45 @@ export default function PortalObraDetalhe() {
           </div>
         </div>
       )}
+
+      {pagamentos.length > 0 && (() => {
+        const totalPago = pagamentos.filter((p) => p.pago).reduce((s, p) => s + p.valor, 0);
+        const valorAcordado = obra.valor_total || 0;
+        const percentagem = valorAcordado > 0 ? Math.min((totalPago / valorAcordado) * 100, 100) : 0;
+        return (
+          <div className="card p-6 mb-6">
+            <h3 className="font-semibold text-ink-700 mb-3">Pagamentos</h3>
+            <div className="flex flex-wrap gap-4 mb-3 text-sm">
+              <div>
+                <p className="text-xs text-ink-400">Valor Acordado</p>
+                <p className="font-semibold text-ink-800">{formatMoney(valorAcordado)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-ink-400">Já Pago</p>
+                <p className="font-semibold text-green-700">{formatMoney(totalPago)}</p>
+              </div>
+            </div>
+            <div className="w-full bg-sand-100 rounded-full h-2.5 mb-4 overflow-hidden">
+              <div className="bg-green-500 h-full transition-all" style={{ width: `${percentagem}%` }} />
+            </div>
+            <div className="space-y-2">
+              {pagamentos.map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-3 p-3 border border-sand-200 rounded-lg text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink-800">{p.descricao}</p>
+                    <p className="text-xs text-ink-400">
+                      {formatMoney(p.valor)}
+                      {p.data_prevista && ` · previsto ${new Date(p.data_prevista + 'T00:00:00').toLocaleDateString('pt-PT')}`}
+                      {p.pago && p.data_pagamento && ` · pago em ${new Date(p.data_pagamento + 'T00:00:00').toLocaleDateString('pt-PT')}`}
+                    </p>
+                  </div>
+                  <span className={`badge shrink-0 ${p.pago ? 'bg-green-100 text-green-700' : 'bg-sand-100 text-ink-500'}`}>{p.pago ? 'Pago' : 'Pendente'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="card p-6">
         <h3 className="font-semibold text-ink-700 mb-4">Diário de Obra</h3>

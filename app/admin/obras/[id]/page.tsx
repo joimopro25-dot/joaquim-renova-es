@@ -28,6 +28,8 @@ type Foto = { id: string; url: string; legenda: string | null; criado_em: string
 
 type Diario = { id: string; data: string; resumo: string | null };
 
+type Pagamento = { id: string; descricao: string; valor: number; data_prevista: string | null; pago: boolean; data_pagamento: string | null; ordem: number };
+
 type Garantia = {
   id: string;
   equipamento: string;
@@ -160,9 +162,17 @@ export default function ObraDetalhePage() {
   const [uploadingDiarioId, setUploadingDiarioId] = useState<string | null>(null);
   const [verComoCliente, setVerComoCliente] = useState(false);
 
+  const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
+  const [showPagamentoForm, setShowPagamentoForm] = useState(false);
+  const [pagamentoEditandoId, setPagamentoEditandoId] = useState<string | null>(null);
+  const [pDescricao, setPDescricao] = useState('');
+  const [pValor, setPValor] = useState('');
+  const [pDataPrevista, setPDataPrevista] = useState('');
+  const [aGuardarPagamento, setAGuardarPagamento] = useState(false);
+
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: obraData }, { data: fotosData }, { data: despesasData }, { data: trabData }, { data: obraTrabData }, { data: garantiasData }, { data: tarefasData }, { data: diariosData }] = await Promise.all([
+    const [{ data: obraData }, { data: fotosData }, { data: despesasData }, { data: trabData }, { data: obraTrabData }, { data: garantiasData }, { data: tarefasData }, { data: diariosData }, { data: pagamentosData }] = await Promise.all([
       supabase.from('obras').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('fotos_obra').select('*').eq('obra_id', id).order('criado_em', { ascending: false }),
       supabase.from('despesas').select('valor, tipo_imputacao, categoria').eq('obra_id', id),
@@ -171,6 +181,7 @@ export default function ObraDetalhePage() {
       supabase.from('garantias').select('*').eq('obra_id', id).order('criado_em', { ascending: false }),
       supabase.from('obra_tarefas').select('*').eq('obra_id', id).order('data_inicio'),
       supabase.from('obra_diario').select('*').eq('obra_id', id).order('data', { ascending: false }),
+      supabase.from('obra_pagamentos').select('*').eq('obra_id', id).order('ordem').order('criado_em'),
     ]);
     setObra(obraData as any);
     if ((obraData as any)?.orcamento_id) {
@@ -189,6 +200,7 @@ export default function ObraDetalhePage() {
     setGarantias(garantiasData || []);
     setTarefas(tarefasData || []);
     setDiarios(diariosData || []);
+    setPagamentos(pagamentosData || []);
     setLoading(false);
   }, [id]);
 
@@ -251,6 +263,53 @@ export default function ObraDetalhePage() {
     carregar();
   }
 
+  function limparFormPagamento() {
+    setPDescricao('');
+    setPValor('');
+    setPDataPrevista('');
+    setPagamentoEditandoId(null);
+    setShowPagamentoForm(false);
+  }
+
+  function editarPagamento(p: Pagamento) {
+    setPagamentoEditandoId(p.id);
+    setPDescricao(p.descricao);
+    setPValor(String(p.valor));
+    setPDataPrevista(p.data_prevista || '');
+    setShowPagamentoForm(true);
+  }
+
+  async function guardarPagamento(e: React.FormEvent) {
+    e.preventDefault();
+    setAGuardarPagamento(true);
+    const dados = {
+      descricao: pDescricao,
+      valor: parseFloat(pValor) || 0,
+      data_prevista: pDataPrevista || null,
+    };
+    const { error } = pagamentoEditandoId
+      ? await supabase.from('obra_pagamentos').update(dados).eq('id', pagamentoEditandoId)
+      : await supabase.from('obra_pagamentos').insert([{ obra_id: id, ordem: pagamentos.length, ...dados }]);
+    setAGuardarPagamento(false);
+    if (error) { alert('Erro: ' + error.message); return; }
+    limparFormPagamento();
+    carregar();
+  }
+
+  async function alternarPago(p: Pagamento) {
+    const novoPago = !p.pago;
+    const dataPagamento = novoPago ? (prompt('Data do pagamento (AAAA-MM-DD):', new Date().toISOString().slice(0, 10)) || new Date().toISOString().slice(0, 10)) : null;
+    const { error } = await supabase.from('obra_pagamentos').update({ pago: novoPago, data_pagamento: dataPagamento }).eq('id', p.id);
+    if (error) { alert('Erro: ' + error.message); return; }
+    carregar();
+  }
+
+  async function removerPagamento(pagamentoId: string) {
+    if (!confirm('Remover esta tranche de pagamento?')) return;
+    await supabase.from('obra_pagamentos').delete().eq('id', pagamentoId);
+    carregar();
+  }
+
   function selecionarTrabalhador(tid: string) {
     setTrabalhadorId(tid);
     const t = trabalhadoresDisponiveis.find((x) => x.id === tid);
@@ -286,7 +345,8 @@ export default function ObraDetalhePage() {
   useEffect(() => { carregar(); }, [carregar]);
 
   async function atualizarCampo(campo: string, valor: any) {
-    await supabase.from('obras').update({ [campo]: valor }).eq('id', id);
+    const { error } = await supabase.from('obras').update({ [campo]: valor }).eq('id', id);
+    if (error) { alert('Erro ao guardar: ' + error.message); return; }
     carregar();
   }
 
@@ -431,6 +491,9 @@ export default function ObraDetalhePage() {
   const margemPercentagem = valorTotalComCliente > 0 ? (margem / valorTotalComCliente) * 100 : 0;
   const risco = margem < 0 ? 'critico' : margemPercentagem < 10 ? 'atencao' : null;
 
+  const totalPagoTranches = pagamentos.filter((p) => p.pago).reduce((s, p) => s + p.valor, 0);
+  const percentagemPagaTranches = valorTotalComCliente > 0 ? Math.min((totalPagoTranches / valorTotalComCliente) * 100, 100) : 0;
+
   const tarefasAtrasadas = tarefas.filter(estaAtrasada);
   const datasInicio = tarefas.map((t) => new Date(t.data_inicio).getTime());
   const datasFim = tarefas.map((t) => new Date(t.data_fim_prevista).getTime());
@@ -485,6 +548,40 @@ export default function ObraDetalhePage() {
                       <p className={`text-sm font-medium ${t.estado === 'concluida' ? 'text-ink-500 line-through' : 'text-ink-800'}`}>{t.titulo}</p>
                       <p className="text-xs text-ink-400">{new Date(t.data_inicio).toLocaleDateString('pt-PT')} – {new Date(t.data_fim_prevista).toLocaleDateString('pt-PT')}</p>
                     </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {pagamentos.length > 0 && (
+            <div className="card p-6 mb-6">
+              <h3 className="font-semibold text-ink-700 mb-3">Pagamentos</h3>
+              <div className="flex flex-wrap gap-4 mb-3 text-sm">
+                <div>
+                  <p className="text-xs text-ink-400">Valor Acordado</p>
+                  <p className="font-semibold text-ink-800">{formatMoney(valorTotalComCliente)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-ink-400">Já Pago</p>
+                  <p className="font-semibold text-green-700">{formatMoney(totalPagoTranches)}</p>
+                </div>
+              </div>
+              <div className="w-full bg-sand-100 rounded-full h-2.5 mb-4 overflow-hidden">
+                <div className="bg-green-500 h-full transition-all" style={{ width: `${percentagemPagaTranches}%` }} />
+              </div>
+              <div className="space-y-2">
+                {pagamentos.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between gap-3 p-3 border border-sand-200 rounded-lg text-sm">
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink-800">{p.descricao}</p>
+                      <p className="text-xs text-ink-400">
+                        {formatMoney(p.valor)}
+                        {p.data_prevista && ` · previsto ${new Date(p.data_prevista + 'T00:00:00').toLocaleDateString('pt-PT')}`}
+                        {p.pago && p.data_pagamento && ` · pago em ${new Date(p.data_pagamento + 'T00:00:00').toLocaleDateString('pt-PT')}`}
+                      </p>
+                    </div>
+                    <span className={`badge shrink-0 ${p.pago ? 'bg-green-100 text-green-700' : 'bg-sand-100 text-ink-500'}`}>{p.pago ? 'Pago' : 'Pendente'}</span>
                   </div>
                 ))}
               </div>
@@ -845,13 +942,82 @@ export default function ObraDetalhePage() {
           step={5}
           value={obra.progresso_percentagem}
           onChange={(e) => setObra({ ...obra, progresso_percentagem: parseInt(e.target.value) })}
-          onMouseUp={(e) => atualizarCampo('progresso_percentagem', parseInt((e.target as HTMLInputElement).value))}
-          onTouchEnd={(e) => atualizarCampo('progresso_percentagem', parseInt((e.target as HTMLInputElement).value))}
+          onPointerUp={(e) => atualizarCampo('progresso_percentagem', parseInt((e.target as HTMLInputElement).value))}
           className="w-full accent-brand-500"
         />
         <div className="w-full bg-sand-100 rounded-full h-2 mt-3 overflow-hidden">
           <div className="bg-brand-500 h-full transition-all" style={{ width: `${obra.progresso_percentagem}%` }} />
         </div>
+      </div>
+
+      <div className="card p-6 mb-6">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="font-semibold text-ink-700">Pagamentos / Tranches (visível ao cliente)</h3>
+          <button type="button" onClick={() => { limparFormPagamento(); setShowPagamentoForm(true); }} className="btn-primary text-sm py-1.5">
+            <Plus size={14} /> Adicionar Tranche
+          </button>
+        </div>
+        <p className="text-xs text-ink-400 mb-4">Divide o valor acordado em tranches e marca cada uma como paga à medida que o cliente paga.</p>
+
+        <div className="flex flex-wrap gap-4 mb-4 text-sm">
+          <div>
+            <p className="text-xs text-ink-400">Valor Acordado</p>
+            <p className="font-semibold text-ink-800">{formatMoney(valorTotalComCliente)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-ink-400">Já Pago</p>
+            <p className="font-semibold text-green-700">{formatMoney(totalPagoTranches)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-ink-400">Por Pagar</p>
+            <p className="font-semibold text-amber-700">{formatMoney(Math.max(valorTotalComCliente - totalPagoTranches, 0))}</p>
+          </div>
+        </div>
+        <div className="w-full bg-sand-100 rounded-full h-2.5 mb-5 overflow-hidden">
+          <div className="bg-green-500 h-full transition-all" style={{ width: `${percentagemPagaTranches}%` }} />
+        </div>
+
+        {showPagamentoForm && (
+          <form onSubmit={guardarPagamento} className="border border-sand-200 rounded-lg p-4 mb-4 space-y-2">
+            <input type="text" placeholder="Descrição (ex: 1ª tranche — início da obra)" value={pDescricao} onChange={(e) => setPDescricao(e.target.value)} className="input w-full" required />
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" step="0.01" placeholder="Valor (€)" value={pValor} onChange={(e) => setPValor(e.target.value)} className="input" required />
+              <input type="date" value={pDataPrevista} onChange={(e) => setPDataPrevista(e.target.value)} className="input" />
+            </div>
+            <div className="flex gap-2">
+              <button type="submit" disabled={aGuardarPagamento} className="btn-primary text-sm py-1.5 disabled:opacity-60">
+                <Check size={14} /> {aGuardarPagamento ? 'A guardar...' : 'Guardar'}
+              </button>
+              <button type="button" onClick={limparFormPagamento} className="border border-sand-200 rounded-lg px-3 py-1.5 text-sm text-ink-600 hover:bg-sand-50">Cancelar</button>
+            </div>
+          </form>
+        )}
+
+        {pagamentos.length === 0 ? (
+          <p className="text-sm text-ink-400 text-center py-4">Ainda sem tranches definidas.</p>
+        ) : (
+          <div className="space-y-2">
+            {pagamentos.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-3 p-3 border border-sand-200 rounded-lg text-sm">
+                <div className="min-w-0">
+                  <p className="font-medium text-ink-800">{p.descricao}</p>
+                  <p className="text-xs text-ink-400">
+                    {formatMoney(p.valor)}
+                    {p.data_prevista && ` · previsto ${new Date(p.data_prevista + 'T00:00:00').toLocaleDateString('pt-PT')}`}
+                    {p.pago && p.data_pagamento && ` · pago em ${new Date(p.data_pagamento + 'T00:00:00').toLocaleDateString('pt-PT')}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button type="button" onClick={() => alternarPago(p)} className={`badge ${p.pago ? 'bg-green-100 text-green-700' : 'bg-sand-100 text-ink-500'}`}>
+                    {p.pago ? 'Pago' : 'Pendente'}
+                  </button>
+                  <button onClick={() => editarPagamento(p)} className="text-ink-300 hover:text-brand-600"><Pencil size={14} /></button>
+                  <button onClick={() => removerPagamento(p.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={14} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="card p-6">

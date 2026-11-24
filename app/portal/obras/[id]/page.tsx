@@ -13,7 +13,9 @@ type Obra = {
   progresso_percentagem: number;
 };
 
-type Foto = { id: string; url: string; legenda: string | null; tarefa_id: string | null };
+type Foto = { id: string; url: string; legenda: string | null; tarefa_id: string | null; diario_id: string | null };
+
+type Diario = { id: string; data: string; resumo: string | null };
 
 type Tarefa = { id: string; titulo: string; data_inicio: string; data_fim_prevista: string; estado: string };
 
@@ -47,22 +49,25 @@ export default function PortalObraDetalhe() {
   const router = useRouter();
   const [obra, setObra] = useState<Obra | null>(null);
   const [fotos, setFotos] = useState<Foto[]>([]);
+  const [diarios, setDiarios] = useState<Diario[]>([]);
   const [garantias, setGarantias] = useState<Garantia[]>([]);
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function carregar() {
-      const [{ data: obraData }, { data: fotosData }, { data: garantiasData }, { data: tarefasData }] = await Promise.all([
+      const [{ data: obraData }, { data: fotosData }, { data: garantiasData }, { data: tarefasData }, { data: diariosData }] = await Promise.all([
         supabase.from('obras').select('id, titulo, descricao, status, progresso_percentagem').eq('id', id).single(),
-        supabase.from('fotos_obra').select('id, url, legenda, tarefa_id').eq('obra_id', id).order('criado_em', { ascending: false }),
+        supabase.from('fotos_obra').select('id, url, legenda, tarefa_id, diario_id').eq('obra_id', id).order('criado_em', { ascending: false }),
         supabase.from('garantias').select('id, equipamento, marca_modelo, fornecedor, data_compra, duracao_meses, anexo_url, anexo_nome').eq('obra_id', id).order('criado_em', { ascending: false }),
         supabase.from('obra_tarefas').select('id, titulo, data_inicio, data_fim_prevista, estado').eq('obra_id', id).order('data_inicio'),
+        supabase.from('obra_diario').select('id, data, resumo').eq('obra_id', id).order('data', { ascending: false }),
       ]);
       setObra(obraData as any);
       setFotos(fotosData || []);
       setGarantias(garantiasData || []);
       setTarefas(tarefasData || []);
+      setDiarios(diariosData || []);
       setLoading(false);
     }
     carregar();
@@ -128,23 +133,46 @@ export default function PortalObraDetalhe() {
       )}
 
       <div className="card p-6">
-        <h3 className="font-semibold text-ink-700 mb-4">Fotos</h3>
-        {fotos.length === 0 ? (
+        <h3 className="font-semibold text-ink-700 mb-4">Diário de Obra</h3>
+        {diarios.length === 0 ? (
           <div className="text-center py-10 text-ink-400 text-sm">
             <ImageOff size={28} className="mx-auto mb-2 text-ink-200" />
-            Ainda sem fotos desta obra.
+            Ainda sem registos no diário desta obra.
           </div>
         ) : (
+          <div className="space-y-5">
+            {diarios.map((d) => (
+              <div key={d.id} className="border-b border-sand-100 pb-5 last:border-0 last:pb-0">
+                <p className="text-sm font-medium text-ink-800 mb-1 capitalize">
+                  {new Date(d.data + 'T00:00:00').toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+                {d.resumo && <p className="text-sm text-ink-600 mb-2 whitespace-pre-wrap">{d.resumo}</p>}
+                {fotos.some((f) => f.diario_id === d.id) && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {fotos.filter((f) => f.diario_id === d.id).map((f) => (
+                      <img key={f.id} src={f.url} alt={f.legenda || ''} className="w-full aspect-square object-cover rounded-lg border border-sand-200" />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {fotos.some((f) => !f.diario_id && !f.tarefa_id) && (
+        <div className="card p-6 mt-6">
+          <h3 className="font-semibold text-ink-700 mb-4">Outras Fotos</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {fotos.map((f) => (
+            {fotos.filter((f) => !f.diario_id && !f.tarefa_id).map((f) => (
               <div key={f.id}>
                 <img src={f.url} alt={f.legenda || ''} className="w-full aspect-square object-cover rounded-lg border border-sand-200" />
                 {f.legenda && <p className="text-xs text-ink-500 mt-1">{f.legenda}</p>}
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {garantias.length > 0 && (
         <div className="card p-6 mt-6">

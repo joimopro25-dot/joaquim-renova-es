@@ -24,7 +24,9 @@ type Obra = {
   clientes: { nome: string } | null;
 };
 
-type Foto = { id: string; url: string; legenda: string | null; criado_em: string; tarefa_id: string | null };
+type Foto = { id: string; url: string; legenda: string | null; criado_em: string; tarefa_id: string | null; diario_id: string | null };
+
+type Diario = { id: string; data: string; resumo: string | null };
 
 type Garantia = {
   id: string;
@@ -146,9 +148,16 @@ export default function ObraDetalhePage() {
   const [aGuardarTarefa, setAGuardarTarefa] = useState(false);
   const [consultoriaId, setConsultoriaId] = useState<string | null>(null);
 
+  const [diarios, setDiarios] = useState<Diario[]>([]);
+  const [diarioData, setDiarioData] = useState(() => new Date().toISOString().slice(0, 10));
+  const [diarioResumo, setDiarioResumo] = useState('');
+  const [diarioEditId, setDiarioEditId] = useState<string | null>(null);
+  const [aGuardarDiario, setAGuardarDiario] = useState(false);
+  const [uploadingDiarioId, setUploadingDiarioId] = useState<string | null>(null);
+
   const carregar = useCallback(async () => {
     setLoading(true);
-    const [{ data: obraData }, { data: fotosData }, { data: despesasData }, { data: trabData }, { data: obraTrabData }, { data: garantiasData }, { data: tarefasData }] = await Promise.all([
+    const [{ data: obraData }, { data: fotosData }, { data: despesasData }, { data: trabData }, { data: obraTrabData }, { data: garantiasData }, { data: tarefasData }, { data: diariosData }] = await Promise.all([
       supabase.from('obras').select('*, clientes(nome)').eq('id', id).single(),
       supabase.from('fotos_obra').select('*').eq('obra_id', id).order('criado_em', { ascending: false }),
       supabase.from('despesas').select('valor, tipo_imputacao, categoria').eq('obra_id', id),
@@ -156,6 +165,7 @@ export default function ObraDetalhePage() {
       supabase.from('obra_trabalhadores').select('*, trabalhadores(nome), obra_trabalhador_entradas(quantidade)').eq('obra_id', id),
       supabase.from('garantias').select('*').eq('obra_id', id).order('criado_em', { ascending: false }),
       supabase.from('obra_tarefas').select('*').eq('obra_id', id).order('data_inicio'),
+      supabase.from('obra_diario').select('*').eq('obra_id', id).order('data', { ascending: false }),
     ]);
     setObra(obraData as any);
     if ((obraData as any)?.orcamento_id) {
@@ -173,8 +183,66 @@ export default function ObraDetalhePage() {
     setObraTrabalhadores((obraTrabData as any) || []);
     setGarantias(garantiasData || []);
     setTarefas(tarefasData || []);
+    setDiarios(diariosData || []);
     setLoading(false);
   }, [id]);
+
+  function selecionarDiaDiario(data: string) {
+    setDiarioData(data);
+    const existente = (diarios || []).find((d) => d.data === data);
+    setDiarioEditId(existente?.id || null);
+    setDiarioResumo(existente?.resumo || '');
+  }
+
+  function editarDiario(d: Diario) {
+    setDiarioData(d.data);
+    setDiarioResumo(d.resumo || '');
+    setDiarioEditId(d.id);
+  }
+
+  async function guardarDiario() {
+    setAGuardarDiario(true);
+    const { data, error } = await supabase
+      .from('obra_diario')
+      .upsert([{ obra_id: id, data: diarioData, resumo: diarioResumo || null }], { onConflict: 'obra_id,data' })
+      .select()
+      .single();
+    setAGuardarDiario(false);
+    if (error) { alert('Erro ao guardar o dia: ' + error.message); return; }
+    setDiarioEditId(data.id);
+    carregar();
+  }
+
+  async function removerDiario(diarioId: string) {
+    if (!confirm('Remover este dia do diário? As fotos associadas também serão apagadas.')) return;
+    await supabase.from('obra_diario').delete().eq('id', diarioId);
+    if (diarioEditId === diarioId) { setDiarioEditId(null); setDiarioResumo(''); }
+    carregar();
+  }
+
+  async function enviarFotoDiario(e: React.ChangeEvent<HTMLInputElement>, diaData: string, diaIdExistente: string | null) {
+    const ficheiro = e.target.files?.[0];
+    if (!ficheiro) return;
+    setUploadingDiarioId(diaIdExistente || 'novo');
+    let diarioId = diaIdExistente;
+    if (!diarioId) {
+      const { data, error } = await supabase
+        .from('obra_diario')
+        .upsert([{ obra_id: id, data: diaData, resumo: null }], { onConflict: 'obra_id,data' })
+        .select()
+        .single();
+      if (error) { alert('Erro ao criar o dia: ' + error.message); setUploadingDiarioId(null); return; }
+      diarioId = data.id;
+    }
+    const path = `${id}/${Date.now()}-${ficheiro.name}`;
+    const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, ficheiro);
+    if (uploadError) { alert('Erro ao enviar foto: ' + uploadError.message); setUploadingDiarioId(null); return; }
+    const url = supabase.storage.from('fotos-obras').getPublicUrl(path).data.publicUrl;
+    await supabase.from('fotos_obra').insert([{ obra_id: id, url, diario_id: diarioId }]);
+    setUploadingDiarioId(null);
+    e.target.value = '';
+    carregar();
+  }
 
   function selecionarTrabalhador(tid: string) {
     setTrabalhadorId(tid);
@@ -683,34 +751,117 @@ export default function ObraDetalhePage() {
       </div>
 
       <div className="card p-6">
-        <h3 className="font-semibold text-ink-700 mb-4">Fotos da Obra (visíveis ao cliente)</h3>
-        <div className="flex flex-col md:flex-row gap-2 mb-4">
-          <input type="text" placeholder="Legenda (opcional)" value={legenda} onChange={(e) => setLegenda(e.target.value)} className="input flex-1" />
-          <label className="btn-primary justify-center cursor-pointer">
-            <Upload size={16} /> {uploading ? 'A enviar...' : 'Enviar Foto'}
-            <input type="file" accept="image/*" className="hidden" onChange={enviarFoto} disabled={uploading} />
-          </label>
+        <h3 className="font-semibold text-ink-700 mb-1">Diário de Obra (visível ao cliente)</h3>
+        <p className="text-xs text-ink-400 mb-4">Escolhe o dia, escreve o que foi feito e junta as fotos desse dia — o cliente vê tudo organizado por data.</p>
+
+        <div className="border border-sand-200 rounded-lg p-4 mb-5 bg-sand-50/50">
+          <div className="flex flex-col md:flex-row gap-2 mb-2">
+            <input type="date" value={diarioData} onChange={(e) => selecionarDiaDiario(e.target.value)} className="input" />
+            {diarioEditId && <span className="text-xs text-brand-600 self-center">A editar dia já existente</span>}
+          </div>
+          <textarea
+            placeholder="O que foi feito neste dia..."
+            value={diarioResumo}
+            onChange={(e) => setDiarioResumo(e.target.value)}
+            className="input w-full mb-2"
+            rows={3}
+          />
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={guardarDiario} disabled={aGuardarDiario} className="btn-primary text-sm disabled:opacity-60">
+              <Check size={14} /> {aGuardarDiario ? 'A guardar...' : 'Guardar resumo do dia'}
+            </button>
+            <label className="border border-brand-300 text-brand-700 bg-white rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 cursor-pointer hover:bg-brand-50">
+              <Upload size={14} /> {uploadingDiarioId === (diarioEditId || 'novo') ? 'A enviar...' : 'Adicionar fotos deste dia'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => enviarFotoDiario(e, diarioData, diarioEditId)}
+                disabled={uploadingDiarioId !== null}
+              />
+            </label>
+          </div>
+          {diarioEditId && fotos.some((f) => f.diario_id === diarioEditId) && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {fotos.filter((f) => f.diario_id === diarioEditId).map((f) => (
+                <div key={f.id} className="relative group">
+                  <img src={f.url} className="w-16 h-16 object-cover rounded-md border border-sand-200" />
+                  <button
+                    onClick={() => removerFoto(f.id)}
+                    className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 text-ink-500 hover:text-red-600 shadow opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {fotos.length === 0 ? (
+        {diarios.length === 0 ? (
           <div className="text-center py-10 text-ink-400 text-sm">
             <ImageOff size={28} className="mx-auto mb-2 text-ink-200" />
-            Ainda sem fotos.
+            Ainda sem registos no diário.
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {fotos.map((f) => (
-              <div key={f.id} className="relative group">
-                <img src={f.url} alt={f.legenda || ''} className="w-full aspect-square object-cover rounded-lg border border-sand-200" />
-                {f.legenda && <p className="text-xs text-ink-500 mt-1 truncate">{f.legenda}</p>}
-                <button
-                  onClick={() => removerFoto(f.id)}
-                  className="absolute top-1.5 right-1.5 bg-white/90 rounded-md p-1 text-ink-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Trash2 size={14} />
-                </button>
+          <div className="space-y-4">
+            {diarios.map((d) => (
+              <div key={d.id} className="border-t border-sand-100 pt-4">
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <p className="text-sm font-medium text-ink-800">
+                    {new Date(d.data + 'T00:00:00').toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                  </p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => editarDiario(d)} className="text-ink-300 hover:text-brand-600"><Pencil size={14} /></button>
+                    <button onClick={() => removerDiario(d.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={14} /></button>
+                  </div>
+                </div>
+                {d.resumo && <p className="text-sm text-ink-600 mb-2 whitespace-pre-wrap">{d.resumo}</p>}
+                <div className="flex flex-wrap gap-2">
+                  {fotos.filter((f) => f.diario_id === d.id).map((f) => (
+                    <div key={f.id} className="relative group">
+                      <img src={f.url} className="w-16 h-16 object-cover rounded-md border border-sand-200" />
+                      <button
+                        onClick={() => removerFoto(f.id)}
+                        className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 text-ink-500 hover:text-red-600 shadow opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                  <label className="w-16 h-16 border border-dashed border-sand-300 rounded-md flex items-center justify-center text-ink-300 hover:text-brand-500 hover:border-brand-300 cursor-pointer">
+                    {uploadingDiarioId === d.id ? <span className="text-[10px]">...</span> : <Upload size={16} />}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => enviarFotoDiario(e, d.data, d.id)}
+                      disabled={uploadingDiarioId !== null}
+                    />
+                  </label>
+                </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {fotos.some((f) => !f.diario_id && !f.tarefa_id) && (
+          <div className="mt-6 pt-4 border-t border-sand-100">
+            <p className="text-xs text-ink-400 mb-2">Fotos antigas sem dia atribuído:</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {fotos.filter((f) => !f.diario_id && !f.tarefa_id).map((f) => (
+                <div key={f.id} className="relative group">
+                  <img src={f.url} alt={f.legenda || ''} className="w-full aspect-square object-cover rounded-lg border border-sand-200" />
+                  {f.legenda && <p className="text-xs text-ink-500 mt-1 truncate">{f.legenda}</p>}
+                  <button
+                    onClick={() => removerFoto(f.id)}
+                    className="absolute top-1.5 right-1.5 bg-white/90 rounded-md p-1 text-ink-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -436,7 +436,7 @@ export default function ObraDetalhePage() {
         <button onClick={() => router.push('/admin/obras')} className="flex items-center gap-1.5 text-sm text-ink-400 hover:text-ink-700">
           <ArrowLeft size={16} /> Voltar a Obras
         </button>
-        <Link href={`/admin/obras/${id}/vista-cliente`} target="_blank" className="flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700">
+        <Link href={`/admin/obras/${id}/vista-cliente`} className="flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700">
           <Eye size={15} /> Ver como Cliente
         </Link>
       </div>

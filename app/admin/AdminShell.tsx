@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
-import { supabase } from '../../lib/supabase';
+import { supabase, getSessionComLimite, SESSAO_TIMEOUT } from '../../lib/supabase';
 import InstallAppButton from '../../components/InstallAppButton';
 import {
   LayoutDashboard, Users, Briefcase, Receipt, Package, FileText, Inbox, Globe as GlobeIcon, Images, BookMarked, HardHat, UsersRound, Mail, BellRing, Truck, Sparkles, CalendarDays, Stethoscope, TrendingUp, Calculator, Wallet,
@@ -74,7 +74,22 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         router.replace('/admin/login');
       }
     }
-    supabase.auth.getSession().then(({ data }) => checarAcesso(data.session));
+    getSessionComLimite().then((resultado) => {
+      if (resultado === SESSAO_TIMEOUT) {
+        // Ficou preso a verificar a sessão (típico ao reabrir a app PWA
+        // depois de estar em background) — recarregar limpa o lock preso.
+        const jaTentou = sessionStorage.getItem('admin-sessao-reload');
+        if (!jaTentou) {
+          sessionStorage.setItem('admin-sessao-reload', '1');
+          window.location.reload();
+        } else {
+          setCheckingSession(false);
+        }
+        return;
+      }
+      sessionStorage.removeItem('admin-sessao-reload');
+      checarAcesso(resultado.data.session);
+    });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       checarAcesso(newSession);
     });

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
-import { supabase } from '../../lib/supabase';
+import { supabase, getSessionComLimite, SESSAO_TIMEOUT } from '../../lib/supabase';
 import InstallAppButton from '../../components/InstallAppButton';
 import { LogOut } from 'lucide-react';
 
@@ -16,10 +16,23 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    getSessionComLimite().then((resultado) => {
+      if (resultado === SESSAO_TIMEOUT) {
+        // Ficou preso a verificar a sessão (típico ao reabrir a app PWA
+        // depois de estar em background) — recarregar limpa o lock preso.
+        const jaTentou = sessionStorage.getItem('portal-sessao-reload');
+        if (!jaTentou) {
+          sessionStorage.setItem('portal-sessao-reload', '1');
+          window.location.reload();
+        } else {
+          setChecking(false);
+        }
+        return;
+      }
+      sessionStorage.removeItem('portal-sessao-reload');
+      setSession(resultado.data.session);
       setChecking(false);
-      if (!data.session && !isLoginPage) router.replace('/portal/login');
+      if (!resultado.data.session && !isLoginPage) router.replace('/portal/login');
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);

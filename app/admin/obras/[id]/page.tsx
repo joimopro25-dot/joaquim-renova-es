@@ -221,8 +221,8 @@ export default function ObraDetalhePage() {
   }
 
   async function enviarFotoDiario(e: React.ChangeEvent<HTMLInputElement>, diaData: string, diaIdExistente: string | null) {
-    const ficheiro = e.target.files?.[0];
-    if (!ficheiro) return;
+    const ficheiros = Array.from(e.target.files || []);
+    if (ficheiros.length === 0) return;
     setUploadingDiarioId(diaIdExistente || 'novo');
     let diarioId = diaIdExistente;
     if (!diarioId) {
@@ -234,11 +234,13 @@ export default function ObraDetalhePage() {
       if (error) { alert('Erro ao criar o dia: ' + error.message); setUploadingDiarioId(null); return; }
       diarioId = data.id;
     }
-    const path = `${id}/${Date.now()}-${ficheiro.name}`;
-    const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, ficheiro);
-    if (uploadError) { alert('Erro ao enviar foto: ' + uploadError.message); setUploadingDiarioId(null); return; }
-    const url = supabase.storage.from('fotos-obras').getPublicUrl(path).data.publicUrl;
-    await supabase.from('fotos_obra').insert([{ obra_id: id, url, diario_id: diarioId }]);
+    for (const ficheiro of ficheiros) {
+      const path = `${id}/${Date.now()}-${ficheiro.name}`;
+      const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, ficheiro);
+      if (uploadError) { alert('Erro ao enviar foto "' + ficheiro.name + '": ' + uploadError.message); continue; }
+      const url = supabase.storage.from('fotos-obras').getPublicUrl(path).data.publicUrl;
+      await supabase.from('fotos_obra').insert([{ obra_id: id, url, diario_id: diarioId }]);
+    }
     setUploadingDiarioId(null);
     e.target.value = '';
     carregar();
@@ -775,6 +777,7 @@ export default function ObraDetalhePage() {
               <input
                 type="file"
                 accept="image/*"
+                multiple
                 className="hidden"
                 onChange={(e) => enviarFotoDiario(e, diarioData, diarioEditId)}
                 disabled={uploadingDiarioId !== null}
@@ -834,6 +837,7 @@ export default function ObraDetalhePage() {
                     <input
                       type="file"
                       accept="image/*"
+                      multiple
                       className="hidden"
                       onChange={(e) => enviarFotoDiario(e, d.data, d.id)}
                       disabled={uploadingDiarioId !== null}

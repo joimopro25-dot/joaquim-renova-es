@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import Link from 'next/link';
-import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle, ShieldCheck, Plus, Calendar, Check, Pencil, Stethoscope } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle, ShieldCheck, Plus, Calendar, Check, Pencil, Stethoscope, Eye } from 'lucide-react';
 import ConsultoriaChat from '../../../../components/ConsultoriaChat';
 
 type Obra = {
@@ -116,9 +116,6 @@ export default function ObraDetalhePage() {
   const [trabalhadoresDisponiveis, setTrabalhadoresDisponiveis] = useState<Trabalhador[]>([]);
   const [obraTrabalhadores, setObraTrabalhadores] = useState<ObraTrabalhador[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [legenda, setLegenda] = useState('');
-  const [uploadingTarefaId, setUploadingTarefaId] = useState<string | null>(null);
   const [garantias, setGarantias] = useState<Garantia[]>([]);
   const [showGarantiaForm, setShowGarantiaForm] = useState(false);
   const [gEquipamento, setGEquipamento] = useState('');
@@ -285,25 +282,6 @@ export default function ObraDetalhePage() {
     carregar();
   }
 
-  async function enviarFoto(e: React.ChangeEvent<HTMLInputElement>, tarefaId?: string) {
-    const ficheiro = e.target.files?.[0];
-    if (!ficheiro) return;
-    if (tarefaId) setUploadingTarefaId(tarefaId); else setUploading(true);
-    const path = `${id}/${Date.now()}-${ficheiro.name}`;
-    const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, ficheiro);
-    if (uploadError) {
-      alert('Erro ao enviar foto: ' + uploadError.message);
-      if (tarefaId) setUploadingTarefaId(null); else setUploading(false);
-      return;
-    }
-    const url = supabase.storage.from('fotos-obras').getPublicUrl(path).data.publicUrl;
-    await supabase.from('fotos_obra').insert([{ obra_id: id, url, legenda: legenda || null, tarefa_id: tarefaId || null }]);
-    setLegenda('');
-    if (tarefaId) setUploadingTarefaId(null); else setUploading(false);
-    e.target.value = '';
-    carregar();
-  }
-
   async function removerFoto(fotoId: string) {
     if (!confirm('Remover esta foto?')) return;
     await supabase.from('fotos_obra').delete().eq('id', fotoId);
@@ -454,9 +432,14 @@ export default function ObraDetalhePage() {
 
   return (
     <div className="p-4 md:p-8 max-w-4xl">
-      <button onClick={() => router.push('/admin/obras')} className="flex items-center gap-1.5 text-sm text-ink-400 hover:text-ink-700 mb-4">
-        <ArrowLeft size={16} /> Voltar a Obras
-      </button>
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => router.push('/admin/obras')} className="flex items-center gap-1.5 text-sm text-ink-400 hover:text-ink-700">
+          <ArrowLeft size={16} /> Voltar a Obras
+        </button>
+        <Link href={`/admin/obras/${id}/vista-cliente`} target="_blank" className="flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700">
+          <Eye size={15} /> Ver como Cliente
+        </Link>
+      </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
@@ -707,23 +690,6 @@ export default function ObraDetalhePage() {
                     />
                   </div>
                   {t.notas && <p className="text-xs text-ink-400 mt-1">{t.notas}</p>}
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    {fotos.filter((f) => f.tarefa_id === t.id).map((f) => (
-                      <div key={f.id} className="relative group">
-                        <img src={f.url} alt={f.legenda || ''} className="w-14 h-14 object-cover rounded-md border border-sand-200" />
-                        <button
-                          onClick={() => removerFoto(f.id)}
-                          className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 text-ink-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shadow"
-                        >
-                          <Trash2 size={11} />
-                        </button>
-                      </div>
-                    ))}
-                    <label className="flex items-center gap-1 text-xs text-ink-400 hover:text-brand-600 cursor-pointer border border-dashed border-sand-300 rounded-md px-2 py-1.5">
-                      <Upload size={12} /> {uploadingTarefaId === t.id ? 'A enviar...' : 'Foto desta etapa'}
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => enviarFoto(e, t.id)} disabled={uploadingTarefaId === t.id} />
-                    </label>
-                  </div>
                 </div>
               );
             })}
@@ -849,11 +815,11 @@ export default function ObraDetalhePage() {
           </div>
         )}
 
-        {fotos.some((f) => !f.diario_id && !f.tarefa_id) && (
+        {fotos.some((f) => !f.diario_id) && (
           <div className="mt-6 pt-4 border-t border-sand-100">
             <p className="text-xs text-ink-400 mb-2">Fotos antigas sem dia atribuído:</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {fotos.filter((f) => !f.diario_id && !f.tarefa_id).map((f) => (
+              {fotos.filter((f) => !f.diario_id).map((f) => (
                 <div key={f.id} className="relative group">
                   <img src={f.url} alt={f.legenda || ''} className="w-full aspect-square object-cover rounded-lg border border-sand-200" />
                   {f.legenda && <p className="text-xs text-ink-500 mt-1 truncate">{f.legenda}</p>}

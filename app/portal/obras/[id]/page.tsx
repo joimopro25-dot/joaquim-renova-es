@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
-import { ArrowLeft, ImageOff, ShieldCheck, CheckCircle2, Circle, Loader2 } from 'lucide-react';
+import { ArrowLeft, ImageOff, ShieldCheck, CheckCircle2, Circle, Loader2, MessageCircle, Send } from 'lucide-react';
 
 type Obra = {
   id: string;
@@ -16,6 +16,8 @@ type Obra = {
 };
 
 type Pagamento = { id: string; descricao: string; valor: number; data_prevista: string | null; pago: boolean; data_pagamento: string | null };
+
+type Mensagem = { id: string; autor_tipo: 'admin' | 'cliente'; texto: string; criado_em: string };
 
 type Foto = { id: string; url: string; legenda: string | null; tarefa_id: string | null; diario_id: string | null };
 
@@ -57,7 +59,15 @@ export default function PortalObraDetalhe() {
   const [garantias, setGarantias] = useState<Garantia[]>([]);
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
+  const [mensagens, setMensagens] = useState<Mensagem[]>([]);
+  const [novaMensagem, setNovaMensagem] = useState('');
+  const [aEnviarMensagem, setAEnviarMensagem] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  async function carregarMensagens() {
+    const { data } = await supabase.from('obra_mensagens').select('id, autor_tipo, texto, criado_em').eq('obra_id', id).order('criado_em');
+    setMensagens(data || []);
+  }
 
   useEffect(() => {
     async function carregar() {
@@ -78,7 +88,30 @@ export default function PortalObraDetalhe() {
       setLoading(false);
     }
     carregar();
+    carregarMensagens();
   }, [id]);
+
+  async function enviarMensagem(e: React.FormEvent) {
+    e.preventDefault();
+    if (!novaMensagem.trim()) return;
+    setAEnviarMensagem(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setAEnviarMensagem(false); return; }
+    const { error } = await supabase.from('obra_mensagens').insert([{ obra_id: id, autor_tipo: 'cliente', autor_id: user.id, texto: novaMensagem.trim() }]);
+    if (!error) {
+      setNovaMensagem('');
+      await carregarMensagens();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        fetch('/api/push/notificar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ obraId: id, titulo: `Nova pergunta sobre "${obra?.titulo}"`, corpo: novaMensagem.trim(), url: `/admin/obras/${id}` }),
+        }).catch(() => {});
+      }
+    }
+    setAEnviarMensagem(false);
+  }
 
   if (loading) return <div className="p-8 text-center text-ink-300 text-sm">A carregar...</div>;
   if (!obra) return <div className="p-8 text-center text-ink-400 text-sm">Não foi possível encontrar esta obra, ou não tem acesso a ela.</div>;
@@ -197,6 +230,28 @@ export default function PortalObraDetalhe() {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="card p-6 mt-6">
+        <h3 className="font-semibold text-ink-700 mb-4 flex items-center gap-2"><MessageCircle size={16} /> Perguntas e Comentários</h3>
+        <div className="space-y-3 mb-4">
+          {mensagens.length === 0 ? (
+            <p className="text-sm text-ink-400 text-center py-2">Ainda sem perguntas. Se tiveres alguma dúvida sobre a obra, escreve aqui.</p>
+          ) : (
+            mensagens.map((m) => (
+              <div key={m.id} className={`max-w-[85%] p-3 rounded-lg text-sm ${m.autor_tipo === 'cliente' ? 'ml-auto bg-brand-500 text-white' : 'bg-sand-100 text-ink-700'}`}>
+                <p className="whitespace-pre-wrap">{m.texto}</p>
+                <p className={`text-[11px] mt-1 ${m.autor_tipo === 'cliente' ? 'text-white/70' : 'text-ink-400'}`}>
+                  {m.autor_tipo === 'cliente' ? 'Tu' : 'Projetar Conforto'} · {new Date(m.criado_em).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+        <form onSubmit={enviarMensagem} className="flex gap-2">
+          <input type="text" placeholder="Escreve uma pergunta ou sugestão..." value={novaMensagem} onChange={(e) => setNovaMensagem(e.target.value)} className="input flex-1" />
+          <button disabled={aEnviarMensagem || !novaMensagem.trim()} className="btn-primary px-3 disabled:opacity-60"><Send size={16} /></button>
+        </form>
       </div>
 
       {fotos.some((f) => !f.diario_id) && (

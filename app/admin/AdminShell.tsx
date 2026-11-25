@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, getSessionComLimite, SESSAO_TIMEOUT } from '../../lib/supabase';
+import { assinarNotificacoesPush } from '../../lib/push-client';
 import InstallAppButton from '../../components/InstallAppButton';
 import {
   LayoutDashboard, Users, Briefcase, Receipt, Package, FileText, Inbox, Globe as GlobeIcon, Images, BookMarked, HardHat, UsersRound, Mail, BellRing, Truck, Sparkles, CalendarDays, Stethoscope, TrendingUp, Calculator, Wallet,
@@ -101,6 +102,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
+    if (isAdmin && session && permissaoNotificacao === 'granted') {
+      assinarNotificacoesPush(session.user.id);
+    }
+  }, [isAdmin, session, permissaoNotificacao]);
+
+  useEffect(() => {
     if (!isAdmin) return;
     let anterior = -1;
 
@@ -126,6 +133,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     if (typeof Notification === 'undefined') return;
     const resultado = await Notification.requestPermission();
     setPermissaoNotificacao(resultado);
+    if (resultado === 'granted' && session) await assinarNotificacoesPush(session.user.id);
   }
 
   async function handleLogout() {

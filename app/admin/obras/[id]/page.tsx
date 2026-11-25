@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import Link from 'next/link';
-import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle, ShieldCheck, Plus, Calendar, Check, Pencil, Stethoscope, Eye, CheckCircle2, Circle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle, ShieldCheck, Plus, Calendar, Check, Pencil, Stethoscope, Eye, CheckCircle2, Circle, Loader2, MessageCircle, Send } from 'lucide-react';
 import ConsultoriaChat from '../../../../components/ConsultoriaChat';
 
 type Obra = {
@@ -29,6 +29,8 @@ type Foto = { id: string; url: string; legenda: string | null; criado_em: string
 type Diario = { id: string; data: string; resumo: string | null };
 
 type Pagamento = { id: string; descricao: string; valor: number; data_prevista: string | null; pago: boolean; data_pagamento: string | null; ordem: number };
+
+type Mensagem = { id: string; autor_tipo: 'admin' | 'cliente'; texto: string; criado_em: string };
 
 type Garantia = {
   id: string;
@@ -170,6 +172,45 @@ export default function ObraDetalhePage() {
   const [pDataPrevista, setPDataPrevista] = useState('');
   const [aGuardarPagamento, setAGuardarPagamento] = useState(false);
 
+  const [mensagens, setMensagens] = useState<Mensagem[]>([]);
+  const [novaMensagem, setNovaMensagem] = useState('');
+  const [aEnviarMensagem, setAEnviarMensagem] = useState(false);
+
+  async function carregarMensagens() {
+    const { data } = await supabase.from('obra_mensagens').select('id, autor_tipo, texto, criado_em').eq('obra_id', id).order('criado_em');
+    setMensagens(data || []);
+  }
+
+  async function notificarCliente(titulo: string, corpo: string) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    fetch('/api/push/notificar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ obraId: id, titulo, corpo, url: `/portal/obras/${id}` }),
+    }).catch(() => {});
+  }
+
+  async function enviarMensagemAdmin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!novaMensagem.trim()) return;
+    setAEnviarMensagem(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setAEnviarMensagem(false); return; }
+    const texto = novaMensagem.trim();
+    const { error } = await supabase.from('obra_mensagens').insert([{ obra_id: id, autor_tipo: 'admin', autor_id: user.id, texto }]);
+    if (!error) {
+      setNovaMensagem('');
+      await carregarMensagens();
+      notificarCliente(`Nova resposta sobre a obra "${obra?.titulo}"`, texto);
+    }
+    setAEnviarMensagem(false);
+  }
+
+  useEffect(() => {
+    carregarMensagens();
+  }, [id]);
+
   const carregar = useCallback(async () => {
     setLoading(true);
     const [{ data: obraData }, { data: fotosData }, { data: despesasData }, { data: trabData }, { data: obraTrabData }, { data: garantiasData }, { data: tarefasData }, { data: diariosData }, { data: pagamentosData }] = await Promise.all([
@@ -226,8 +267,10 @@ export default function ObraDetalhePage() {
       .single();
     setAGuardarDiario(false);
     if (error) { alert('Erro ao guardar o dia: ' + error.message); return; }
+    const eraNovo = !diarioEditId;
     setDiarioEditId(data.id);
     carregar();
+    if (eraNovo) notificarCliente(`Novo registo no diário da obra "${obra?.titulo}"`, diarioResumo || 'Há novidades no diário de obra.');
   }
 
   async function removerDiario(diarioId: string) {
@@ -348,6 +391,9 @@ export default function ObraDetalhePage() {
     const { error } = await supabase.from('obras').update({ [campo]: valor }).eq('id', id);
     if (error) { alert('Erro ao guardar: ' + error.message); return; }
     carregar();
+    if (campo === 'status' && valor === 'concluida') {
+      notificarCliente(`A obra "${obra?.titulo}" foi concluída!`, 'A tua obra foi marcada como concluída. Consulta todos os detalhes no portal.');
+    }
   }
 
   async function removerFoto(fotoId: string) {
@@ -610,6 +656,24 @@ export default function ObraDetalhePage() {
                         ))}
                       </div>
                     )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="card p-6 mt-6">
+            <h3 className="font-semibold text-ink-700 mb-4 flex items-center gap-2"><MessageCircle size={16} /> Perguntas e Comentários</h3>
+            {mensagens.length === 0 ? (
+              <p className="text-sm text-ink-400 text-center py-2">Ainda sem perguntas.</p>
+            ) : (
+              <div className="space-y-3">
+                {mensagens.map((m) => (
+                  <div key={m.id} className={`max-w-[85%] p-3 rounded-lg text-sm ${m.autor_tipo === 'cliente' ? 'ml-auto bg-brand-500 text-white' : 'bg-sand-100 text-ink-700'}`}>
+                    <p className="whitespace-pre-wrap">{m.texto}</p>
+                    <p className={`text-[11px] mt-1 ${m.autor_tipo === 'cliente' ? 'text-white/70' : 'text-ink-400'}`}>
+                      {m.autor_tipo === 'cliente' ? 'Cliente' : 'Projetar Conforto'} · {new Date(m.criado_em).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -1136,6 +1200,28 @@ export default function ObraDetalhePage() {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="card p-6 mt-6">
+        <h3 className="font-semibold text-ink-700 mb-4 flex items-center gap-2"><MessageCircle size={16} /> Perguntas e Comentários (visível ao cliente)</h3>
+        <div className="space-y-3 mb-4">
+          {mensagens.length === 0 ? (
+            <p className="text-sm text-ink-400 text-center py-2">Ainda sem perguntas do cliente.</p>
+          ) : (
+            mensagens.map((m) => (
+              <div key={m.id} className={`max-w-[85%] p-3 rounded-lg text-sm ${m.autor_tipo === 'admin' ? 'ml-auto bg-brand-500 text-white' : 'bg-sand-100 text-ink-700'}`}>
+                <p className="whitespace-pre-wrap">{m.texto}</p>
+                <p className={`text-[11px] mt-1 ${m.autor_tipo === 'admin' ? 'text-white/70' : 'text-ink-400'}`}>
+                  {m.autor_tipo === 'admin' ? 'Tu' : 'Cliente'} · {new Date(m.criado_em).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+        <form onSubmit={enviarMensagemAdmin} className="flex gap-2">
+          <input type="text" placeholder="Responder ao cliente..." value={novaMensagem} onChange={(e) => setNovaMensagem(e.target.value)} className="input flex-1" />
+          <button disabled={aEnviarMensagem || !novaMensagem.trim()} className="btn-primary px-3 disabled:opacity-60"><Send size={16} /></button>
+        </form>
       </div>
 
       <div className="card p-6 mt-6">

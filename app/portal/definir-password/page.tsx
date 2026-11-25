@@ -18,7 +18,17 @@ export default function DefinirPasswordPage() {
   const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setPronto(!!data.session));
+    // O link do convite só é processado pelo supabase-js de forma assíncrona
+    // (lê o token da própria URL); um getSession() imediato pode correr antes
+    // disso acabar e nunca mais atualizar. Por isso ouvimos onAuthStateChange
+    // em vez de confiar só na primeira chamada.
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) setPronto(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) setPronto(true);
+    });
+    return () => listener.subscription.unsubscribe();
   }, []);
 
   async function definirPassword(e: React.FormEvent) {

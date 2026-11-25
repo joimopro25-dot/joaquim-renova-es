@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, getSessionComLimite, SESSAO_TIMEOUT } from '../../lib/supabase';
+import { assinarNotificacoesPush } from '../../lib/push-client';
 import InstallAppButton from '../../components/InstallAppButton';
-import { LogOut } from 'lucide-react';
+import { LogOut, BellRing } from 'lucide-react';
 
 export default function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -14,6 +15,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const isLoginPage = pathname === '/portal/login' || pathname === '/portal/definir-password';
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
+  const [permissaoNotificacao, setPermissaoNotificacao] = useState<NotificationPermission | null>(null);
 
   useEffect(() => {
     getSessionComLimite().then((resultado) => {
@@ -41,6 +43,23 @@ export default function PortalShell({ children }: { children: React.ReactNode })
     return () => listener.subscription.unsubscribe();
   }, [isLoginPage, router]);
 
+  useEffect(() => {
+    if (typeof Notification !== 'undefined') setPermissaoNotificacao(Notification.permission);
+  }, []);
+
+  useEffect(() => {
+    if (session && permissaoNotificacao === 'granted') {
+      assinarNotificacoesPush(session.user.id);
+    }
+  }, [session, permissaoNotificacao]);
+
+  async function pedirNotificacoes() {
+    if (typeof Notification === 'undefined') return;
+    const resultado = await Notification.requestPermission();
+    setPermissaoNotificacao(resultado);
+    if (resultado === 'granted' && session) await assinarNotificacoesPush(session.user.id);
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
     router.push('/portal/login');
@@ -62,6 +81,11 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         <nav className="flex items-center gap-4">
           <Link href="/portal" className={`text-sm ${pathname === '/portal' ? 'text-brand-600 font-medium' : 'text-ink-500 hover:text-ink-800'}`}>As Minhas Obras</Link>
           <Link href="/portal/orcamentos" className={`text-sm ${pathname.startsWith('/portal/orcamentos') ? 'text-brand-600 font-medium' : 'text-ink-500 hover:text-ink-800'}`}>Orçamentos</Link>
+          {permissaoNotificacao === 'default' && (
+            <button onClick={pedirNotificacoes} className="flex items-center gap-1.5 text-sm text-ink-500 hover:text-brand-600">
+              <BellRing size={16} /> Ativar Notificações
+            </button>
+          )}
           <InstallAppButton scope="/portal/" className="flex items-center gap-1.5 text-sm text-ink-500 hover:text-brand-600" label="Instalar App" />
           <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm text-ink-500 hover:text-red-600">
             <LogOut size={16} /> Sair

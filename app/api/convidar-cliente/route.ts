@@ -35,6 +35,19 @@ export async function POST(req: NextRequest) {
   });
 
   if (conviteError) {
+    // Já existe uma conta com este email (ex: um convite anterior que ficou
+    // "preso" antes de o cliente definir a password) — o inviteUserByEmail
+    // recusa-se a reenviar, mas podemos mandar um novo link por recuperação
+    // de password, que passa pelo mesmo ecrã de definir-password.
+    if (conviteError.message?.toLowerCase().includes('already')) {
+      const { error: reenvioError } = await adminClient.auth.resetPasswordForEmail(email, {
+        redirectTo: `${siteUrl}/portal/definir-password`,
+      });
+      if (reenvioError) {
+        return NextResponse.json({ error: 'Já existe conta mas falhou o reenvio: ' + reenvioError.message }, { status: 400 });
+      }
+      return NextResponse.json({ status: 'ok', reenviado: true });
+    }
     return NextResponse.json({ error: conviteError.message }, { status: 400 });
   }
 

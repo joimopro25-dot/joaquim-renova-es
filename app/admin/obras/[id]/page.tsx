@@ -832,7 +832,7 @@ export default function ObraDetalhePage() {
       </div>
 
       <div className="card p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <h3 className="font-semibold text-ink-700 flex items-center gap-2"><Calendar size={16} /> Cronograma (visível ao cliente)</h3>
           <button onClick={() => { if (showTarefaForm) { limparFormTarefa(); } else { setTarefaEditandoId(null); setShowTarefaForm(true); } }} className="btn-primary text-sm py-1.5">
             <Plus size={15} /> Adicionar Tarefa
@@ -885,9 +885,9 @@ export default function ObraDetalhePage() {
               const width = Math.max(((fim - inicio) / cronogramaSpan) * 100, 2);
               return (
                 <div key={t.id} className="text-sm">
-                  <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                     <span className="font-medium text-ink-800">{t.titulo}</span>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs text-ink-400">{new Date(t.data_inicio).toLocaleDateString('pt-PT')} – {new Date(t.data_fim_prevista).toLocaleDateString('pt-PT')}</span>
                       {t.estado !== 'concluida' && (
                         <button
@@ -951,7 +951,7 @@ export default function ObraDetalhePage() {
       </div>
 
       <div className="card p-6 mb-6">
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
           <h3 className="font-semibold text-ink-700">Pagamentos / Tranches (visível ao cliente)</h3>
           <button type="button" onClick={() => { limparFormPagamento(); setShowPagamentoForm(true); }} className="btn-primary text-sm py-1.5">
             <Plus size={14} /> Adicionar Tranche
@@ -1139,7 +1139,7 @@ export default function ObraDetalhePage() {
       </div>
 
       <div className="card p-6 mt-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <h3 className="font-semibold text-ink-700 flex items-center gap-2"><ShieldCheck size={16} /> Garantias de Equipamentos (visível ao cliente)</h3>
           <button onClick={() => setShowGarantiaForm((v) => !v)} className="btn-primary text-sm py-1.5">
             <Plus size={15} /> Adicionar

@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
-import { ArrowLeft, Briefcase, HardHat, FileText, Mail as MailIcon, Tag, Home, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Briefcase, HardHat, FileText, Mail as MailIcon, Tag, Home, Plus, Trash2, KeyRound } from 'lucide-react';
 
 type Cliente = {
   id: string;
@@ -22,6 +22,7 @@ type Subempreitada = { id: string; descricao: string; estado: string; tipo_valor
 type Orcamento = { id: string; titulo: string; status: string; imovel_id: string | null };
 type Imovel = { id: string; nome: string; morada: string | null; tipo: string | null };
 type Email = { id: string; direcao: string; assunto: string; data: string; lida: boolean; obra_id: string | null };
+type ContactoAcesso = { id: string; nome: string | null; email: string };
 
 const ESTADOS_OBRA: Record<string, { label: string; color: string }> = {
   orcamento: { label: 'Orçamento', color: 'bg-sand-100 text-ink-600' },
@@ -52,6 +53,13 @@ export default function ClienteDetalhe() {
   const [moradaImovel, setMoradaImovel] = useState('');
   const [tipoImovel, setTipoImovel] = useState('');
   const [aCriarImovel, setACriarImovel] = useState(false);
+
+  const [contactosAcesso, setContactosAcesso] = useState<ContactoAcesso[]>([]);
+  const [showFormAcesso, setShowFormAcesso] = useState(false);
+  const [nomeAcesso, setNomeAcesso] = useState('');
+  const [emailAcesso, setEmailAcesso] = useState('');
+  const [aConvidarAcesso, setAConvidarAcesso] = useState(false);
+  const [reenviandoId, setReenviandoId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
 
@@ -75,16 +83,18 @@ export default function ClienteDetalhe() {
       setDataNascimento(clienteData.data_nascimento || '');
     }
 
-    const [{ data: obrasData }, { data: subsData }, { data: orcData }, { data: imoveisData }] = await Promise.all([
+    const [{ data: obrasData }, { data: subsData }, { data: orcData }, { data: imoveisData }, { data: contactosData }] = await Promise.all([
       supabase.from('obras').select('id, titulo, status, valor_total').eq('cliente_id', id).order('criado_em', { ascending: false }),
       supabase.from('subempreitadas').select('id, descricao, estado, tipo_valor, valor_unitario').eq('cliente_id', id).order('criado_em', { ascending: false }),
       supabase.from('orcamentos').select('id, titulo, status, imovel_id').eq('cliente_id', id).order('criado_em', { ascending: false }),
       supabase.from('imoveis').select('id, nome, morada, tipo').eq('cliente_id', id).order('criado_em'),
+      supabase.from('cliente_contactos').select('id, nome, email').eq('cliente_id', id).order('criado_em'),
     ]);
     setObras(obrasData || []);
     setSubempreitadas(subsData || []);
     setOrcamentos(orcData || []);
     setImoveis(imoveisData || []);
+    setContactosAcesso(contactosData || []);
 
     if (clienteData?.email) {
       const { data: emailsData } = await supabase
@@ -128,6 +138,51 @@ export default function ClienteDetalhe() {
   async function removerImovel(imovelId: string) {
     if (!confirm('Remover este imóvel? Os orçamentos ligados a ele deixam de estar associados a nenhum imóvel.')) return;
     await supabase.from('imoveis').delete().eq('id', imovelId);
+    carregar();
+  }
+
+  async function convidarAcesso(e: React.FormEvent) {
+    e.preventDefault();
+    if (!emailAcesso.trim()) return;
+    setAConvidarAcesso(true);
+    const emailLimpo = emailAcesso.trim();
+    const { data: sessao } = await supabase.auth.getSession();
+    const resp = await fetch('/api/convidar-cliente', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${sessao.session?.access_token}` },
+      body: JSON.stringify({ clienteId: id, email: emailLimpo }),
+    });
+    const json = await resp.json();
+    if (!resp.ok) {
+      setAConvidarAcesso(false);
+      alert('Erro ao enviar convite: ' + json.error);
+      return;
+    }
+    await supabase.from('cliente_contactos').insert([{ cliente_id: id, nome: nomeAcesso.trim() || null, email: emailLimpo }]);
+    setNomeAcesso(''); setEmailAcesso(''); setShowFormAcesso(false);
+    setAConvidarAcesso(false);
+    alert(json.reenviado ? 'Já tinha conta — foi enviado um link para repor a password.' : 'Convite enviado com sucesso!');
+    carregar();
+  }
+
+  async function reenviarAcesso(contacto: ContactoAcesso) {
+    if (!confirm(`Reenviar acesso ao portal para ${contacto.email}?`)) return;
+    setReenviandoId(contacto.id);
+    const { data: sessao } = await supabase.auth.getSession();
+    const resp = await fetch('/api/convidar-cliente', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${sessao.session?.access_token}` },
+      body: JSON.stringify({ clienteId: id, email: contacto.email }),
+    });
+    const json = await resp.json();
+    setReenviandoId(null);
+    if (!resp.ok) { alert('Erro ao reenviar: ' + json.error); return; }
+    alert(json.reenviado ? 'Link de reposição de password enviado.' : 'Convite enviado com sucesso!');
+  }
+
+  async function removerAcesso(contactoId: string) {
+    if (!confirm('Remover este acesso da lista? (não apaga a conta já criada, só a referência aqui)')) return;
+    await supabase.from('cliente_contactos').delete().eq('id', contactoId);
     carregar();
   }
 
@@ -187,6 +242,41 @@ export default function ClienteDetalhe() {
                   {im.morada && <p className="text-xs text-ink-400">{im.morada}</p>}
                 </div>
                 <button onClick={() => removerImovel(im.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={15} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="card p-6 mb-6">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="font-semibold text-ink-700 flex items-center gap-2"><KeyRound size={16} /> Acessos ao Portal</h3>
+          <button onClick={() => setShowFormAcesso((v) => !v)} className="text-sm text-brand-600 hover:text-brand-700 flex items-center gap-1"><Plus size={14} /> Dar Acesso</button>
+        </div>
+        <p className="text-xs text-ink-400 mb-4">Dá acesso ao portal a quem precisar de ver as obras deste cliente (ex: o próprio e o cônjuge), cada um com o seu email.</p>
+        {showFormAcesso && (
+          <form onSubmit={convidarAcesso} className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4 p-3 bg-sand-50 rounded-lg">
+            <input type="text" placeholder="Nome (ex: Esposa do Fábio)" value={nomeAcesso} onChange={(e) => setNomeAcesso(e.target.value)} className="input" />
+            <input type="email" placeholder="Email" value={emailAcesso} onChange={(e) => setEmailAcesso(e.target.value)} className="input" required />
+            <button disabled={aConvidarAcesso} className="btn-primary justify-center disabled:opacity-60">{aConvidarAcesso ? 'A enviar...' : 'Enviar Convite'}</button>
+          </form>
+        )}
+        {contactosAcesso.length === 0 ? (
+          <p className="text-sm text-ink-400 text-center py-4">Ainda sem acessos dados a este cliente.</p>
+        ) : (
+          <div className="space-y-2">
+            {contactosAcesso.map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-3 p-3 border border-sand-200 rounded-lg text-sm">
+                <div className="min-w-0">
+                  <p className="font-medium text-ink-800">{c.nome || c.email}</p>
+                  {c.nome && <p className="text-xs text-ink-400">{c.email}</p>}
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <button onClick={() => reenviarAcesso(c)} disabled={reenviandoId === c.id} className="text-xs text-brand-600 hover:underline disabled:opacity-60">
+                    {reenviandoId === c.id ? 'A enviar...' : 'Reenviar'}
+                  </button>
+                  <button onClick={() => removerAcesso(c.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={15} /></button>
+                </div>
               </div>
             ))}
           </div>

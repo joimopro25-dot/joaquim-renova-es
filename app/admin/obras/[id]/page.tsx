@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
 import Link from 'next/link';
-import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle, ShieldCheck, Plus, Calendar, Check, Pencil, Stethoscope, Eye, CheckCircle2, Circle, Loader2, MessageCircle, Send } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, ImageOff, UserPlus, HardHat, AlertTriangle, ShieldCheck, Plus, Calendar, Check, Pencil, Stethoscope, Eye, CheckCircle2, Circle, Loader2, MessageCircle, Send, Package, FileText, Download } from 'lucide-react';
 import ConsultoriaChat from '../../../../components/ConsultoriaChat';
 
 type Obra = {
@@ -31,6 +31,8 @@ type Diario = { id: string; data: string; resumo: string | null };
 type Pagamento = { id: string; descricao: string; valor: number; data_prevista: string | null; pago: boolean; data_pagamento: string | null; ordem: number };
 
 type Mensagem = { id: string; autor_tipo: 'admin' | 'cliente'; texto: string; criado_em: string };
+
+type Produto = { id: string; nome: string; marca: string | null; ficha_tecnica_url: string | null; ficha_tecnica_nome: string | null };
 
 type Garantia = {
   id: string;
@@ -178,9 +180,86 @@ export default function ObraDetalhePage() {
   const [novaMensagem, setNovaMensagem] = useState('');
   const [aEnviarMensagem, setAEnviarMensagem] = useState(false);
 
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [showProdutoForm, setShowProdutoForm] = useState(false);
+  const [produtoEditandoId, setProdutoEditandoId] = useState<string | null>(null);
+  const [prodNome, setProdNome] = useState('');
+  const [prodMarca, setProdMarca] = useState('');
+  const [prodFicheiro, setProdFicheiro] = useState<File | null>(null);
+  const [aGuardarProduto, setAGuardarProduto] = useState(false);
+  const [aImportarProdutos, setAImportarProdutos] = useState(false);
+
   async function carregarMensagens() {
     const { data } = await supabase.from('obra_mensagens').select('id, autor_tipo, texto, criado_em').eq('obra_id', id).order('criado_em');
     setMensagens(data || []);
+  }
+
+  async function carregarProdutos() {
+    const { data } = await supabase.from('obra_produtos').select('id, nome, marca, ficha_tecnica_url, ficha_tecnica_nome').eq('obra_id', id).order('criado_em');
+    setProdutos(data || []);
+  }
+
+  function limparFormProduto() {
+    setProdNome(''); setProdMarca(''); setProdFicheiro(null);
+    setProdutoEditandoId(null);
+    setShowProdutoForm(false);
+  }
+
+  function editarProduto(p: Produto) {
+    setProdutoEditandoId(p.id);
+    setProdNome(p.nome);
+    setProdMarca(p.marca || '');
+    setProdFicheiro(null);
+    setShowProdutoForm(true);
+  }
+
+  async function guardarProduto(e: React.FormEvent) {
+    e.preventDefault();
+    if (!prodNome.trim()) return;
+    setAGuardarProduto(true);
+    let fichaUrl: string | null = null;
+    let fichaNome: string | null = null;
+    if (prodFicheiro) {
+      const path = `${id}/${Date.now()}-${prodFicheiro.name}`;
+      const { error: uploadError } = await supabase.storage.from('fichas-tecnicas').upload(path, prodFicheiro);
+      if (uploadError) { alert('Erro ao anexar ficha técnica: ' + uploadError.message); setAGuardarProduto(false); return; }
+      fichaUrl = supabase.storage.from('fichas-tecnicas').getPublicUrl(path).data.publicUrl;
+      fichaNome = prodFicheiro.name;
+    }
+    if (produtoEditandoId) {
+      const update: any = { nome: prodNome.trim(), marca: prodMarca.trim() || null };
+      if (fichaUrl) { update.ficha_tecnica_url = fichaUrl; update.ficha_tecnica_nome = fichaNome; }
+      const { error } = await supabase.from('obra_produtos').update(update).eq('id', produtoEditandoId);
+      if (error) { alert('Erro ao guardar: ' + error.message); setAGuardarProduto(false); return; }
+    } else {
+      const { error } = await supabase.from('obra_produtos').insert([{
+        obra_id: id, nome: prodNome.trim(), marca: prodMarca.trim() || null,
+        ficha_tecnica_url: fichaUrl, ficha_tecnica_nome: fichaNome,
+      }]);
+      if (error) { alert('Erro ao guardar: ' + error.message); setAGuardarProduto(false); return; }
+    }
+    setAGuardarProduto(false);
+    limparFormProduto();
+    carregarProdutos();
+  }
+
+  async function removerProduto(produtoId: string) {
+    if (!confirm('Remover este produto?')) return;
+    await supabase.from('obra_produtos').delete().eq('id', produtoId);
+    carregarProdutos();
+  }
+
+  async function importarProdutosDoOrcamento() {
+    if (!obra?.orcamento_id) return;
+    setAImportarProdutos(true);
+    const { data: linhas } = await supabase.from('orcamento_linhas').select('descricao').eq('orcamento_id', obra.orcamento_id).eq('tipo_linha', 'material');
+    const existentes = new Set(produtos.map((p) => p.nome.trim().toLowerCase()));
+    const novos = Array.from(new Set((linhas || []).map((l: any) => (l.descricao || '').trim()).filter((d) => d && !existentes.has(d.toLowerCase()))));
+    if (novos.length === 0) { setAImportarProdutos(false); alert('Não há materiais novos no orçamento para importar.'); return; }
+    const { error } = await supabase.from('obra_produtos').insert(novos.map((nome) => ({ obra_id: id, nome })));
+    setAImportarProdutos(false);
+    if (error) { alert('Erro ao importar: ' + error.message); return; }
+    carregarProdutos();
   }
 
   async function notificarCliente(titulo: string, corpo: string) {
@@ -211,6 +290,7 @@ export default function ObraDetalhePage() {
 
   useEffect(() => {
     carregarMensagens();
+    carregarProdutos();
   }, [id]);
 
   const carregar = useCallback(async () => {
@@ -685,6 +765,29 @@ export default function ObraDetalhePage() {
             )}
           </div>
 
+          {produtos.length > 0 && (
+            <div className="card p-6 mt-6">
+              <h3 className="font-semibold text-ink-700 mb-4 flex items-center gap-2"><Package size={16} /> Produtos Utilizados</h3>
+              <div className="space-y-2">
+                {produtos.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between gap-3 p-3 border border-sand-200 rounded-lg text-sm">
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink-800">
+                        {p.nome}
+                        {p.marca && <span className="text-ink-400 font-normal"> · {p.marca}</span>}
+                      </p>
+                    </div>
+                    {p.ficha_tecnica_url && (
+                      <a href={p.ficha_tecnica_url} target="_blank" rel="noreferrer" className="text-xs text-brand-600 hover:underline flex items-center gap-1 shrink-0">
+                        <Download size={12} /> Ficha técnica
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {fotos.some((f) => !f.diario_id) && (
             <div className="card p-6 mt-6">
               <h3 className="font-semibold text-ink-700 mb-4">Outras Fotos</h3>
@@ -738,9 +841,16 @@ export default function ObraDetalhePage() {
         <button onClick={() => router.push('/admin/obras')} className="flex items-center gap-1.5 text-sm text-ink-400 hover:text-ink-700">
           <ArrowLeft size={16} /> Voltar a Obras
         </button>
-        <button onClick={() => setVerComoCliente(true)} className="flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700">
-          <Eye size={15} /> Ver como Cliente
-        </button>
+        <div className="flex items-center gap-4">
+          {obra.orcamento_id && (
+            <Link href={`/admin/orcamentos/${obra.orcamento_id}`} className="flex items-center gap-1.5 text-sm text-ink-400 hover:text-ink-700">
+              <Stethoscope size={15} /> Ver Orçamento Original
+            </Link>
+          )}
+          <button onClick={() => setVerComoCliente(true)} className="flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700">
+            <Eye size={15} /> Ver como Cliente
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
@@ -1291,6 +1401,68 @@ export default function ObraDetalhePage() {
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      <div className="card p-6 mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <h3 className="font-semibold text-ink-700 flex items-center gap-2"><Package size={16} /> Produtos Utilizados (visível ao cliente)</h3>
+          <div className="flex items-center gap-2">
+            {obra.orcamento_id && (
+              <button onClick={importarProdutosDoOrcamento} disabled={aImportarProdutos} className="text-sm text-ink-500 hover:text-ink-700 disabled:opacity-60">
+                {aImportarProdutos ? 'A importar...' : 'Importar do Orçamento'}
+              </button>
+            )}
+            <button onClick={() => { limparFormProduto(); setShowProdutoForm((v) => !v); }} className="btn-primary text-sm py-1.5">
+              <Plus size={15} /> Adicionar
+            </button>
+          </div>
+        </div>
+
+        {showProdutoForm && (
+          <form onSubmit={guardarProduto} className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4 p-3 bg-sand-50 rounded-lg">
+            <input type="text" placeholder="Produto (ex: Tinta Robbialac Aquaveloz)" value={prodNome} onChange={(e) => setProdNome(e.target.value)} className="input md:col-span-2" required />
+            <input type="text" placeholder="Marca (opcional)" value={prodMarca} onChange={(e) => setProdMarca(e.target.value)} className="input" />
+            <label className="input flex items-center gap-2 cursor-pointer text-ink-500 md:col-span-2">
+              <Upload size={15} className="shrink-0" />
+              {prodFicheiro ? prodFicheiro.name : 'Anexar ficha técnica (PDF)'}
+              <input type="file" accept="application/pdf" className="hidden" onChange={(e) => setProdFicheiro(e.target.files?.[0] || null)} />
+            </label>
+            <div className="flex gap-2">
+              <button disabled={aGuardarProduto} className="btn-primary justify-center flex-1 disabled:opacity-60">
+                {aGuardarProduto ? 'A guardar...' : produtoEditandoId ? 'Guardar Alterações' : 'Guardar Produto'}
+              </button>
+              <button type="button" onClick={limparFormProduto} className="text-sm text-ink-400 hover:text-ink-700 px-2">Cancelar</button>
+            </div>
+          </form>
+        )}
+
+        {produtos.length === 0 ? (
+          <p className="text-sm text-ink-400 text-center py-4">Ainda sem produtos registados.</p>
+        ) : (
+          <div className="space-y-2">
+            {produtos.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-3 p-3 border border-sand-200 rounded-lg text-sm">
+                <div className="min-w-0">
+                  <p className="font-medium text-ink-800">
+                    {p.nome}
+                    {p.marca && <span className="text-ink-400 font-normal"> · {p.marca}</span>}
+                  </p>
+                  {p.ficha_tecnica_url ? (
+                    <a href={p.ficha_tecnica_url} target="_blank" rel="noreferrer" className="text-xs text-brand-600 hover:underline flex items-center gap-1 mt-0.5">
+                      <FileText size={12} /> {p.ficha_tecnica_nome || 'ficha técnica'}
+                    </a>
+                  ) : (
+                    <p className="text-xs text-ink-400 mt-0.5">Sem ficha técnica anexada</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <button onClick={() => editarProduto(p)} className="text-ink-300 hover:text-brand-600"><Pencil size={15} /></button>
+                  <button onClick={() => removerProduto(p.id)} className="text-ink-300 hover:text-red-600"><Trash2 size={15} /></button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

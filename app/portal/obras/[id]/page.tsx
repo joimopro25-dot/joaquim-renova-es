@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { formatMoney } from '../../../../lib/format';
-import { ArrowLeft, ImageOff, ShieldCheck, CheckCircle2, Circle, Loader2, MessageCircle, Send } from 'lucide-react';
+import { ArrowLeft, ImageOff, ShieldCheck, CheckCircle2, Circle, Loader2, MessageCircle, Send, Package, Download } from 'lucide-react';
 
 type Obra = {
   id: string;
@@ -18,6 +18,8 @@ type Obra = {
 type Pagamento = { id: string; descricao: string; valor: number; data_prevista: string | null; pago: boolean; data_pagamento: string | null };
 
 type Mensagem = { id: string; autor_tipo: 'admin' | 'cliente'; texto: string; criado_em: string };
+
+type Produto = { id: string; nome: string; marca: string | null; ficha_tecnica_url: string | null; ficha_tecnica_nome: string | null };
 
 type Foto = { id: string; url: string; legenda: string | null; tarefa_id: string | null; diario_id: string | null };
 
@@ -62,6 +64,7 @@ export default function PortalObraDetalhe() {
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [novaMensagem, setNovaMensagem] = useState('');
   const [aEnviarMensagem, setAEnviarMensagem] = useState(false);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function carregarMensagens() {
@@ -71,13 +74,14 @@ export default function PortalObraDetalhe() {
 
   useEffect(() => {
     async function carregar() {
-      const [{ data: obraData }, { data: fotosData }, { data: garantiasData }, { data: tarefasData }, { data: diariosData }, { data: pagamentosData }] = await Promise.all([
+      const [{ data: obraData }, { data: fotosData }, { data: garantiasData }, { data: tarefasData }, { data: diariosData }, { data: pagamentosData }, { data: produtosData }] = await Promise.all([
         supabase.from('obras').select('id, titulo, descricao, status, progresso_percentagem, valor_total').eq('id', id).single(),
         supabase.from('fotos_obra').select('id, url, legenda, tarefa_id, diario_id').eq('obra_id', id).order('criado_em', { ascending: false }),
         supabase.from('garantias').select('id, equipamento, marca_modelo, fornecedor, data_compra, duracao_meses, anexo_url, anexo_nome').eq('obra_id', id).order('criado_em', { ascending: false }),
         supabase.from('obra_tarefas').select('id, titulo, data_inicio, data_fim_prevista, estado').eq('obra_id', id).order('data_inicio'),
         supabase.from('obra_diario').select('id, data, resumo').eq('obra_id', id).order('data', { ascending: false }),
         supabase.from('obra_pagamentos').select('id, descricao, valor, data_prevista, pago, data_pagamento').eq('obra_id', id).order('ordem').order('criado_em'),
+        supabase.from('obra_produtos').select('id, nome, marca, ficha_tecnica_url, ficha_tecnica_nome').eq('obra_id', id).order('criado_em'),
       ]);
       setObra(obraData as any);
       setFotos(fotosData || []);
@@ -85,6 +89,7 @@ export default function PortalObraDetalhe() {
       setTarefas(tarefasData || []);
       setDiarios(diariosData || []);
       setPagamentos(pagamentosData || []);
+      setProdutos(produtosData || []);
       setLoading(false);
     }
     carregar();
@@ -253,6 +258,29 @@ export default function PortalObraDetalhe() {
           <button disabled={aEnviarMensagem || !novaMensagem.trim()} className="btn-primary px-3 disabled:opacity-60"><Send size={16} /></button>
         </form>
       </div>
+
+      {produtos.length > 0 && (
+        <div className="card p-6 mt-6">
+          <h3 className="font-semibold text-ink-700 mb-4 flex items-center gap-2"><Package size={16} /> Produtos Utilizados</h3>
+          <div className="space-y-2">
+            {produtos.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-3 p-3 border border-sand-200 rounded-lg text-sm">
+                <div className="min-w-0">
+                  <p className="font-medium text-ink-800">
+                    {p.nome}
+                    {p.marca && <span className="text-ink-400 font-normal"> · {p.marca}</span>}
+                  </p>
+                </div>
+                {p.ficha_tecnica_url && (
+                  <a href={p.ficha_tecnica_url} target="_blank" rel="noreferrer" className="text-xs text-brand-600 hover:underline flex items-center gap-1 shrink-0">
+                    <Download size={12} /> Ficha técnica
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {fotos.some((f) => !f.diario_id) && (
         <div className="card p-6 mt-6">

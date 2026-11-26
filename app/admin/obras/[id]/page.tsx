@@ -100,6 +100,7 @@ const ESTADOS = [
   { value: 'em_curso', label: 'Em Curso' },
   { value: 'pausada', label: 'Pausada' },
   { value: 'concluida', label: 'Concluída' },
+  { value: 'cancelada', label: 'Cancelada' },
 ];
 
 const ESTADOS_CLIENTE: Record<string, { label: string; color: string }> = {
@@ -107,6 +108,7 @@ const ESTADOS_CLIENTE: Record<string, { label: string; color: string }> = {
   em_curso: { label: 'Em Curso', color: 'bg-blue-100 text-blue-700' },
   pausada: { label: 'Pausada', color: 'bg-amber-100 text-amber-700' },
   concluida: { label: 'Concluída', color: 'bg-green-100 text-green-700' },
+  cancelada: { label: 'Cancelada', color: 'bg-red-100 text-red-700' },
 };
 
 function calcularTotalTrabalhador(ot: ObraTrabalhador) {
@@ -393,6 +395,9 @@ export default function ObraDetalhePage() {
     carregar();
     if (campo === 'status' && valor === 'concluida') {
       notificarCliente(`A obra "${obra?.titulo}" foi concluída!`, 'A tua obra foi marcada como concluída. Consulta todos os detalhes no portal.');
+    }
+    if (campo === 'status' && valor === 'cancelada') {
+      notificarCliente(`A obra "${obra?.titulo}" foi cancelada`, 'O estado da tua obra foi atualizado para cancelada. Consulta os detalhes no portal.');
     }
   }
 

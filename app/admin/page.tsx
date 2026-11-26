@@ -287,11 +287,13 @@ export default function AdminDashboard() {
         const qtd = s.tipo_valor === 'fixo' ? 1 : s.subempreitada_entradas.reduce((a: number, e: any) => a + e.quantidade, 0);
         return s.tipo_valor === 'fixo' ? s.valor_unitario : qtd * s.valor_unitario;
       }
-      const subsPendentes = subsList.filter((s) => s.estado !== 'pago');
+      const subsPendentes = subsList.filter((s) => s.estado === 'pendente');
       const subsPagas = subsList.filter((s) => s.estado === 'pago');
+      const subsNaoPagas = subsList.filter((s) => s.estado === 'nao_pago');
       setSegSubs([
         { label: 'Pendente', cor: 'bg-amber-400', count: subsPendentes.length, valor: subsPendentes.reduce((s, x) => s + valorSub(x), 0) },
         { label: 'Pago', cor: 'bg-green-500', count: subsPagas.length, valor: subsPagas.reduce((s, x) => s + valorSub(x), 0) },
+        { label: 'Não Pago', cor: 'bg-sand-300', count: subsNaoPagas.length, valor: subsNaoPagas.reduce((s, x) => s + valorSub(x), 0) },
       ]);
 
       // --- Funil geral ---

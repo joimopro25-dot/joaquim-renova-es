@@ -332,6 +332,12 @@ export default function SubempreitadaDetalhe() {
     carregar();
   }
 
+  async function marcarComoNaoPago() {
+    if (!confirm('Marcar como "cliente não pagou"? Fica registado no histórico mas deixa de contar como pendente por cobrar.')) return;
+    await supabase.from('subempreitadas').update({ estado: 'nao_pago' }).eq('id', id);
+    carregar();
+  }
+
   function abrirEditarValor() {
     if (sub) {
       setEditTipoValor(sub.tipo_valor);
@@ -437,8 +443,8 @@ export default function SubempreitadaDetalhe() {
             className="input text-xs py-1 mt-1.5 w-64"
           />
         </div>
-        <span className={`badge ${sub.estado === 'pago' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-          {sub.estado === 'pago' ? 'Pago' : 'Pendente'}
+        <span className={`badge ${sub.estado === 'pago' ? 'bg-green-100 text-green-700' : sub.estado === 'nao_pago' ? 'bg-sand-200 text-ink-500' : 'bg-amber-100 text-amber-700'}`}>
+          {sub.estado === 'pago' ? 'Pago' : sub.estado === 'nao_pago' ? 'Não Pago' : 'Pendente'}
         </span>
       </div>
 
@@ -469,15 +475,26 @@ export default function SubempreitadaDetalhe() {
           <Printer size={16} /> Ver Relatório
         </a>
         {sub.estado === 'pendente' ? (
-          <button onClick={() => setShowPagamento((v) => !v)} className="btn-primary bg-green-600 hover:bg-green-700">
-            <CheckCircle2 size={16} /> Marcar como Pago
-          </button>
+          <>
+            <button onClick={() => setShowPagamento((v) => !v)} className="btn-primary bg-green-600 hover:bg-green-700">
+              <CheckCircle2 size={16} /> Marcar como Pago
+            </button>
+            <button onClick={marcarComoNaoPago} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100">
+              Cliente Não Pagou
+            </button>
+          </>
         ) : (
           <button onClick={reabrir} className="btn-primary bg-sand-200 text-ink-700 hover:bg-sand-100">
             <RotateCcw size={16} /> Reabrir
           </button>
         )}
       </div>
+
+      {sub.estado === 'nao_pago' && (
+        <div className="card p-4 mb-6 bg-sand-50 border-sand-200 text-sm text-ink-600">
+          Marcado como "cliente não pagou" — fica em histórico mas já não conta como pendente por cobrar.
+        </div>
+      )}
 
       {showPagamento && (
         <form onSubmit={marcarComoPago} className="card p-6 mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">

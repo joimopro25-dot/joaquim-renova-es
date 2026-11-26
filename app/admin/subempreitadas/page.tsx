@@ -171,8 +171,8 @@ export default function SubempreitadasPage() {
                     <td className="p-4 text-ink-500 text-sm">{TIPOS.find((t) => t.value === r.tipo_valor)?.label}</td>
                     <td className="p-4 text-right text-ink-800 font-medium">{formatMoney(calcularTotal(r))}</td>
                     <td className="p-4">
-                      <span className={`badge ${r.estado === 'pago' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {r.estado === 'pago' ? 'Pago' : 'Pendente'}
+                      <span className={`badge ${r.estado === 'pago' ? 'bg-green-100 text-green-700' : r.estado === 'nao_pago' ? 'bg-sand-200 text-ink-500' : 'bg-amber-100 text-amber-700'}`}>
+                        {r.estado === 'pago' ? 'Pago' : r.estado === 'nao_pago' ? 'Não Pago' : 'Pendente'}
                       </span>
                     </td>
                     <td className="p-4 text-right">
